@@ -62,7 +62,7 @@ function Header({
 
   return (
     <BaseHeader
-      logo={<Logo href={`/${locale}`} />}
+      logo={<Logo href={`/${locale}`} imagePreload />}
       navigation={primaryNavigation}
       navigationLabel={navigationLabel}
       actions={
