@@ -8,7 +8,7 @@ The baseline migration is stored in
 - `languages` defines supported editorial languages and their native labels.
 - `categories` stores localized, hierarchical content categories.
 - `sources` records API, RSS, website, social, and manually managed news
-  origins.
+  origins, including a localized fallback category for ingestion.
 - `profiles` extends Supabase Auth users with an application identity, preferred
   language, and one of the approved editorial or reader roles.
 - `stories` is the central multilingual publishing record. It supports
