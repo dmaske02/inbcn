@@ -36,6 +36,23 @@ server-only secrets.
 Never commit `.env.local` or any real credentials. Next.js loads `.env.local`
 automatically during local development.
 
+## Supabase clients
+
+- `src/lib/supabase/browser.ts` creates the browser client with public URL and
+  anon-key variables only.
+- `src/lib/supabase/server.ts` creates a cookie-aware client for Server
+  Components, Server Actions, and Route Handlers.
+- `src/lib/supabase/admin.ts` creates a server-only service-role client for
+  trusted administrative operations. Never import it into client code.
+- `src/lib/supabase/middleware.ts` refreshes auth claims and propagates updated
+  cookies and no-cache headers between the request, Server Components, and the
+  browser.
+
+The session refresh helper is intentionally not connected to `src/proxy.ts`
+until authentication is implemented. When it is connected, its cookies and
+cache headers must be merged into the next-intl response so locale rewrites and
+redirects remain intact.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
