@@ -1,0 +1,9 @@
+{
+  "app": {
+    "title": "InBCN"
+  },
+  "home": {
+    "welcome": "Welcome to InBCN",
+    "description": "Your multilingual news experience starts here."
+  }
+}
