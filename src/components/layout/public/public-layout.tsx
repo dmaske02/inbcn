@@ -46,22 +46,23 @@ export async function PublicLayout({
   });
 
   const navigationItems: PublicNavigationItem[] = [
-    { label: t("navigation.latest"), href: `/${locale}#latest` },
     { label: t("navigation.national"), href: `/${locale}#national` },
     { label: t("navigation.world"), href: `/${locale}#world` },
-    { label: t("navigation.politics"), href: `/${locale}#politics` },
     { label: t("navigation.business"), href: `/${locale}#business` },
     { label: t("navigation.technology"), href: `/${locale}#technology` },
     { label: t("navigation.sports"), href: `/${locale}#sports` },
-  ];
-
-  const mobileItems: PublicNavigationItem[] = [
-    ...navigationItems,
     {
       label: t("navigation.entertainment"),
       href: `/${locale}#entertainment`,
     },
     { label: t("navigation.opinion"), href: `/${locale}#opinion` },
+  ];
+
+  const footerCategoryItems: PublicNavigationItem[] = [
+    { label: t("navigation.national"), href: `/${locale}#national` },
+    { label: t("navigation.world"), href: `/${locale}#world` },
+    { label: t("navigation.politics"), href: `/${locale}#politics` },
+    { label: t("navigation.business"), href: `/${locale}#business` },
   ];
 
   const footerGroups: PublicFooterGroup[] = [
@@ -74,7 +75,7 @@ export async function PublicLayout({
     },
     {
       label: t("footer.categories"),
-      items: navigationItems.slice(1, 5),
+      items: footerCategoryItems,
     },
     {
       label: t("footer.trust"),
@@ -106,7 +107,7 @@ export async function PublicLayout({
           mobileNavigation={
             <MobileNavigation
               locale={locale}
-              items={mobileItems}
+              items={navigationItems}
               label={t("actions.menu")}
               closeLabel={t("actions.closeMenu")}
               themeLabel={t("actions.theme")}

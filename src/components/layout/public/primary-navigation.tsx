@@ -9,13 +9,13 @@ const primaryNavigationVariants = cva(
 );
 
 const defaultLabels = [
-  ["latest", "Latest"],
   ["national", "National"],
   ["world", "World"],
-  ["politics", "Politics"],
   ["business", "Business"],
   ["technology", "Technology"],
   ["sports", "Sports"],
+  ["entertainment", "Entertainment"],
+  ["opinion", "Opinion"],
 ] as const;
 
 type PrimaryNavigationProps = {

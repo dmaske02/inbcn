@@ -21,10 +21,8 @@ const mobileNavigationVariants = cva(
 );
 
 const defaultItems = [
-  ["latest", "Latest"],
   ["national", "National"],
   ["world", "World"],
-  ["politics", "Politics"],
   ["business", "Business"],
   ["technology", "Technology"],
   ["sports", "Sports"],
