@@ -1,2 +1,9 @@
 export { createClient as createBrowserClient } from "./browser";
-export type { Database, Json } from "./types";
+export type {
+  Database,
+  DatabaseEnum,
+  EnumName,
+  Json,
+  TableName,
+  TableRow,
+} from "./types";

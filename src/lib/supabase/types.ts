@@ -1,21 +1,13 @@
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[];
+import type { Database } from "./database.types";
 
-/**
- * Placeholder matching the shape produced by Supabase's type generator.
- * Replace this declaration with generated output once a schema exists.
- */
-export type Database = {
-  public: {
-    Tables: Record<string, never>;
-    Views: Record<string, never>;
-    Functions: Record<string, never>;
-    Enums: Record<string, never>;
-    CompositeTypes: Record<string, never>;
-  };
-};
+export type { Database, Json } from "./database.types";
+
+export type TableName = keyof Database["public"]["Tables"];
+
+export type TableRow<Name extends TableName> =
+  Database["public"]["Tables"][Name]["Row"];
+
+export type EnumName = keyof Database["public"]["Enums"];
+
+export type DatabaseEnum<Name extends EnumName> =
+  Database["public"]["Enums"][Name];
