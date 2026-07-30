@@ -1,6 +1,7 @@
 import { hasLocale } from "next-intl";
 import { setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
+import { PublicLayout } from "@/components/layout/public";
 import { routing } from "@/i18n/routing";
 
 type LocaleLayoutProps = {
@@ -24,5 +25,5 @@ export default async function LocaleLayout({
 
   setRequestLocale(locale);
 
-  return children;
+  return <PublicLayout locale={locale}>{children}</PublicLayout>;
 }

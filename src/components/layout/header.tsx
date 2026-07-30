@@ -23,6 +23,7 @@ type HeaderProps = HTMLAttributes<HTMLElement> &
   VariantProps<typeof headerVariants> & {
     logo: ReactNode;
     navigation?: ReactNode;
+    navigationLabel?: string;
     actions?: ReactNode;
     mobileNavigation?: ReactNode;
   };
@@ -32,6 +33,7 @@ function Header({
   height,
   logo,
   navigation,
+  navigationLabel = "Primary navigation",
   actions,
   mobileNavigation,
   ...props
@@ -41,7 +43,7 @@ function Header({
       <Container className="flex min-h-[inherit] items-center gap-5">
         <div className="shrink-0">{logo}</div>
         <nav
-          aria-label="Primary navigation"
+          aria-label={navigationLabel}
           className="hidden min-w-0 flex-1 items-center gap-5 lg:flex"
         >
           {navigation}

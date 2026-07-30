@@ -5,5 +5,45 @@
   "home": {
     "welcome": "इनबीसीएनमध्ये आपले स्वागत आहे",
     "description": "तुमचा बहुभाषिक बातम्यांचा अनुभव येथून सुरू होतो."
+  },
+  "publicLayout": {
+    "navigation": {
+      "latest": "ताज्या",
+      "national": "राष्ट्रीय",
+      "world": "जागतिक",
+      "politics": "राजकारण",
+      "business": "व्यवसाय",
+      "technology": "तंत्रज्ञान",
+      "sports": "क्रीडा",
+      "entertainment": "मनोरंजन",
+      "opinion": "मत"
+    },
+    "actions": {
+      "skipToContent": "मुख्य मजकुराकडे जा",
+      "menu": "मेनू उघडा",
+      "closeMenu": "मेनू बंद करा",
+      "theme": "थीम",
+      "search": "शोधा",
+      "language": "भाषा",
+      "currentLanguage": "सध्याची भाषा",
+      "primaryNavigation": "मुख्य नेव्हिगेशन",
+      "lightTheme": "उजळ थीम वापरा",
+      "darkTheme": "गडद थीम वापरा"
+    },
+    "utility": {
+      "weather": "हवामान —",
+      "market": "बाजार —",
+      "live": "थेट"
+    },
+    "footer": {
+      "explore": "शोधा",
+      "categories": "विभाग",
+      "trust": "विश्वास",
+      "about": "इनबीसीएनविषयी",
+      "corrections": "दुरुस्त्या",
+      "contact": "संपर्क",
+      "description": "भारतासाठी विश्वासार्ह बहुभाषिक बातम्या.",
+      "copyright": "© {year} INBCN. सर्व हक्क राखीव."
+    }
   }
 }

@@ -20,7 +20,7 @@ export default async function HomePage({ params }: HomePageProps) {
   const home = await getTranslations("home");
 
   return (
-    <main className="flex flex-1 items-center justify-center px-6 py-16">
+    <div className="flex flex-1 items-center justify-center px-6 py-16">
       <div className="w-full max-w-2xl space-y-6 text-center">
         <p className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
           {locale}
@@ -31,6 +31,6 @@ export default async function HomePage({ params }: HomePageProps) {
         <h2 className="text-2xl font-medium">{home("welcome")}</h2>
         <p className="text-lg text-muted-foreground">{home("description")}</p>
       </div>
-    </main>
+    </div>
   );
 }

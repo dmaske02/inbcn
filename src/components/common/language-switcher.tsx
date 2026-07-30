@@ -23,6 +23,7 @@ type LanguageSwitcherProps = {
   currentLocale: string;
   locales: readonly LanguageOption[];
   label?: string;
+  currentLabel?: string;
 };
 
 const languageSwitcherVariants = cva("");
@@ -31,6 +32,7 @@ function LanguageSwitcher({
   currentLocale,
   locales,
   label = "Language",
+  currentLabel = "Current language",
 }: LanguageSwitcherProps) {
   return (
     <Dropdown>
@@ -58,7 +60,7 @@ function LanguageSwitcher({
               {locale.code === currentLocale && (
                 <>
                   <Check aria-hidden="true" />
-                  <span className="sr-only">Current language</span>
+                  <span className="sr-only">{currentLabel}</span>
                 </>
               )}
             </Link>

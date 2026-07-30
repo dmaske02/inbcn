@@ -5,5 +5,45 @@
   "home": {
     "welcome": "Welcome to InBCN",
     "description": "Your multilingual news experience starts here."
+  },
+  "publicLayout": {
+    "navigation": {
+      "latest": "Latest",
+      "national": "National",
+      "world": "World",
+      "politics": "Politics",
+      "business": "Business",
+      "technology": "Technology",
+      "sports": "Sports",
+      "entertainment": "Entertainment",
+      "opinion": "Opinion"
+    },
+    "actions": {
+      "skipToContent": "Skip to main content",
+      "menu": "Open menu",
+      "closeMenu": "Close menu",
+      "theme": "Theme",
+      "search": "Search",
+      "language": "Language",
+      "currentLanguage": "Current language",
+      "primaryNavigation": "Primary navigation",
+      "lightTheme": "Use light theme",
+      "darkTheme": "Use dark theme"
+    },
+    "utility": {
+      "weather": "Weather —",
+      "market": "Markets —",
+      "live": "Live"
+    },
+    "footer": {
+      "explore": "Explore",
+      "categories": "Categories",
+      "trust": "Trust",
+      "about": "About INBCN",
+      "corrections": "Corrections",
+      "contact": "Contact",
+      "description": "Trusted multilingual news for India.",
+      "copyright": "© {year} INBCN. All rights reserved."
+    }
   }
 }
