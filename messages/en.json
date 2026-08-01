@@ -91,5 +91,13 @@
       "description": "Trusted multilingual news for India.",
       "copyright": "© {year} INBCN. All rights reserved."
     }
+  },
+  "storyReader": {
+    "breadcrumb": { "home": "Home" },
+    "author": { "newsDesk": "INBCN News Desk" },
+    "meta": { "published": "Published", "updated": "Updated", "readTime": "{minutes} min read" },
+    "sections": { "tags": "Topics", "share": "Share this story", "related": "Related Stories" },
+    "share": { "copy": "Copy Link", "copied": "Copied", "x": "X", "facebook": "Facebook", "linkedin": "LinkedIn", "email": "Email" },
+    "advertisement": "Advertisement"
   }
 }

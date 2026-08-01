@@ -36,6 +36,7 @@ export type StorySummaryDto = Readonly<{
   languageId: string;
   categoryId: string;
   sourceId: string | null;
+  externalAuthor: string | null;
   type: DatabaseEnum<"story_type">;
   slug: string;
   title: string;
@@ -50,10 +51,17 @@ export type StorySummaryDto = Readonly<{
 export type StoryDto = StorySummaryDto &
   Readonly<{
     content: string;
+    updatedAt: string;
     externalUrl: string | null;
-    externalAuthor: string | null;
     seoTitle: string | null;
     seoDescription: string | null;
     seoKeywords: readonly string[];
     canonicalUrl: string | null;
+    featuredMedia: Readonly<{
+      secureUrl: string;
+      altText: string | null;
+      caption: string | null;
+      width: number | null;
+      height: number | null;
+    }> | null;
   }>;

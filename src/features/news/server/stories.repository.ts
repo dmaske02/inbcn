@@ -12,9 +12,9 @@ import { getLanguage } from "./languages.repository";
 
 const DEFAULT_STORY_LIMIT = 20;
 const STORY_SUMMARY_COLUMNS =
-  "id, translation_group_id, language_id, category_id, source_id, story_type, slug, title, summary, featured_media_id, is_featured, is_breaking, is_sponsored, published_at" as const;
+  "id, translation_group_id, language_id, category_id, source_id, external_author, story_type, slug, title, summary, featured_media_id, is_featured, is_breaking, is_sponsored, published_at" as const;
 const STORY_DETAIL_COLUMNS =
-  `${STORY_SUMMARY_COLUMNS}, content, external_url, external_author, seo_title, seo_description, seo_keywords, canonical_url` as const;
+  `${STORY_SUMMARY_COLUMNS}, content, updated_at, external_url, seo_title, seo_description, seo_keywords, canonical_url` as const;
 
 type StorySummaryRow = Pick<
   TableRow<"stories">,
@@ -23,6 +23,7 @@ type StorySummaryRow = Pick<
   | "language_id"
   | "category_id"
   | "source_id"
+  | "external_author"
   | "story_type"
   | "slug"
   | "title"
@@ -38,8 +39,8 @@ type StoryDetailRow = StorySummaryRow &
   Pick<
     TableRow<"stories">,
     | "content"
+    | "updated_at"
     | "external_url"
-    | "external_author"
     | "seo_title"
     | "seo_description"
     | "seo_keywords"
@@ -56,7 +57,8 @@ function toStorySummaryDto(row: StorySummaryRow): StorySummaryDto {
     translationGroupId: row.translation_group_id,
     languageId: row.language_id,
     categoryId: row.category_id,
-    sourceId: row.source_id,
+      sourceId: row.source_id,
+      externalAuthor: row.external_author,
     type: row.story_type,
     slug: row.slug,
     title: row.title,
@@ -69,16 +71,25 @@ function toStorySummaryDto(row: StorySummaryRow): StorySummaryDto {
   };
 }
 
-function toStoryDto(row: StoryDetailRow): StoryDto {
+type FeaturedMediaRow = Pick<TableRow<"media">, "secure_url" | "alt_text" | "caption" | "width" | "height">;
+
+function toStoryDto(row: StoryDetailRow, media: FeaturedMediaRow | null): StoryDto {
   return {
     ...toStorySummaryDto(row),
     content: row.content,
+    updatedAt: row.updated_at,
     externalUrl: row.external_url,
-    externalAuthor: row.external_author,
     seoTitle: row.seo_title,
     seoDescription: row.seo_description,
     seoKeywords: row.seo_keywords,
     canonicalUrl: row.canonical_url,
+    featuredMedia: media ? {
+      secureUrl: media.secure_url,
+      altText: media.alt_text,
+      caption: media.caption,
+      width: media.width,
+      height: media.height,
+    } : null,
   };
 }
 
@@ -149,7 +160,20 @@ export async function getStoryBySlug(
     .maybeSingle();
 
   assertRepositoryQuerySucceeded(error, "load story");
-  return data ? toStoryDto(data) : null;
+  if (!data) return null;
+
+  let media: FeaturedMediaRow | null = null;
+  if (data.featured_media_id) {
+    const mediaResult = await supabase
+      .from("media")
+      .select("secure_url, alt_text, caption, width, height")
+      .eq("id", data.featured_media_id)
+      .eq("story_id", data.id)
+      .maybeSingle();
+    assertRepositoryQuerySucceeded(mediaResult.error, "load story media");
+    media = mediaResult.data;
+  }
+  return toStoryDto(data, media);
 }
 
 export async function getStoriesByCategory(

@@ -1,4 +1,5 @@
 import type { CategoryDto, StorySummaryDto } from "../dto";
+import { buildPublicStoryUrl } from "./public-story.mjs";
 
 export const HOMEPAGE_FALLBACK_IMAGE = "/images/news/story-fallback.svg";
 
@@ -75,7 +76,7 @@ export function composeHomepageData(
       return {
         id: story.id,
         slug: story.slug,
-        href: `/${locale}/story/${story.slug}`,
+        href: buildPublicStoryUrl(locale, story.slug),
         title: story.title,
         summary: story.summary,
         publishedAt: story.publishedAt,

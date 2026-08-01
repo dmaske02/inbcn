@@ -91,5 +91,13 @@
       "description": "भारत के लिए विश्वसनीय बहुभाषी समाचार।",
       "copyright": "© {year} INBCN. सर्वाधिकार सुरक्षित।"
     }
+  },
+  "storyReader": {
+    "breadcrumb": { "home": "होम" },
+    "author": { "newsDesk": "INBCN समाचार डेस्क" },
+    "meta": { "published": "प्रकाशित", "updated": "अपडेटेड", "readTime": "{minutes} मिनट पढ़ें" },
+    "sections": { "tags": "विषय", "share": "यह खबर साझा करें", "related": "संबंधित खबरें" },
+    "share": { "copy": "लिंक कॉपी करें", "copied": "कॉपी हुआ", "x": "X", "facebook": "Facebook", "linkedin": "LinkedIn", "email": "ईमेल" },
+    "advertisement": "विज्ञापन"
   }
 }
