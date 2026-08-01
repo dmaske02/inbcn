@@ -30,6 +30,10 @@ export default async function ProtectedAdminLayout({
           </Link>
 
           <div className="flex items-center gap-3">
+            <nav aria-label="Editorial navigation" className="hidden items-center gap-1 md:flex">
+              <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/dashboard">Dashboard</Link>
+              <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/stories">Stories</Link>
+            </nav>
             <div className="hidden text-right sm:block">
               <p className="text-sm font-medium">{admin.displayName}</p>
               <p className="text-xs text-muted-foreground">{admin.email}</p>

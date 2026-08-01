@@ -65,3 +65,43 @@ export type StoryDto = StorySummaryDto &
       height: number | null;
     }> | null;
   }>;
+
+export type CmsStoryDto = Readonly<{
+  id: string;
+  languageId: string;
+  categoryId: string;
+  sourceId: string | null;
+  createdBy: string | null;
+  approvedBy: string | null;
+  type: DatabaseEnum<"story_type">;
+  status: DatabaseEnum<"story_status">;
+  slug: string;
+  title: string;
+  summary: string;
+  content: string;
+  featuredMediaId: string | null;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  seoKeywords: readonly string[];
+  canonicalUrl: string | null;
+  isFeatured: boolean;
+  isBreaking: boolean;
+  submittedAt: string | null;
+  approvedAt: string | null;
+  scheduledAt: string | null;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}>;
+
+export type CmsStoryListResultDto = Readonly<{
+  items: readonly CmsStoryDto[];
+  total: number;
+}>;
+
+export type CmsStoryReferenceDto = Readonly<{
+  languages: readonly Readonly<{ id: string; code: string; name: string }>[];
+  categories: readonly Readonly<{ id: string; languageId: string; name: string }>[];
+  sources: readonly Readonly<{ id: string; name: string }>[];
+  authors: readonly Readonly<{ id: string; displayName: string }>[];
+}>;

@@ -7,6 +7,13 @@ export {
   getStoriesByCategory,
   getStoriesByLanguage,
   getStoryBySlug,
+  getCmsStories,
+  getCmsStoryById,
+  getCmsStoryReferences,
+  cmsStorySlugExists,
+  insertCmsStory,
+  updateCmsStory,
+  deleteCmsStory,
 } from "./stories.repository";
 export {
   getCategories,
@@ -24,4 +31,8 @@ export type {
   SourceDto,
   StoryDto,
   StorySummaryDto,
+  CmsStoryDto,
+  CmsStoryListResultDto,
+  CmsStoryReferenceDto,
 } from "./dto";
+export type { CmsStoryListQuery, CmsStoryInsert, CmsStoryUpdate } from "./stories.repository";
