@@ -47,7 +47,8 @@ function Logo({
         alt="INBCN Digital News"
         width={1494}
         height={648}
-        sizes="(max-width: 639px) 79px, (max-width: 1023px) 92px, (max-width: 1279px) 102px, 111px"
+        quality={100}
+        sizes="(min-width: 1280px) 260px, (min-width: 768px) 220px, 180px"
         preload={imagePreload}
         className={logoImageVariants({ size })}
       />

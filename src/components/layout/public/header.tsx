@@ -14,10 +14,10 @@ import { LanguageSwitcher } from "./language-switcher";
 import type { PublicLocale } from "./types";
 
 const headerVariants = cva(
-  "relative transition-[min-height,box-shadow] duration-150 motion-reduce:transition-none",
+  "bg-background transition-[box-shadow,border-color] duration-200 ease-out supports-[backdrop-filter]:bg-background motion-reduce:transition-none",
   {
     variants: {
-      compressed: {
+      stuck: {
         true: "shadow-sm",
         false: "shadow-none",
       },
@@ -51,12 +51,12 @@ function Header({
   navigationLabel,
   ...props
 }: HeaderProps) {
-  const compressed = useSyncExternalStore(
+  const stuck = useSyncExternalStore(
     (onStoreChange) => {
       window.addEventListener("scroll", onStoreChange, { passive: true });
       return () => window.removeEventListener("scroll", onStoreChange);
     },
-    () => window.scrollY > 24,
+    () => window.scrollY > 36,
     () => false,
   );
 
@@ -77,8 +77,8 @@ function Header({
         </>
       }
       mobileNavigation={mobileNavigation}
-      height={compressed ? "compact" : "default"}
-      className={cn(headerVariants({ compressed }), className)}
+      height="default"
+      className={cn(headerVariants({ stuck }), className)}
       {...props}
     />
   );

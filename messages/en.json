@@ -6,6 +6,52 @@
     "welcome": "Welcome to InBCN",
     "description": "Your multilingual news experience starts here."
   },
+  "homepage": {
+    "sections": {
+      "latest": "Latest News",
+      "across": "Across INBCN",
+      "editorsPicks": "Editor's Picks",
+      "trending": "Trending"
+    },
+    "categories": {
+      "national": "National",
+      "world": "World",
+      "business": "Business",
+      "technology": "Technology",
+      "sports": "Sports",
+      "entertainment": "Entertainment",
+      "opinion": "Opinion"
+    },
+    "signals": {
+      "breaking": "Breaking",
+      "developing": "Developing",
+      "standby": "Standby",
+      "empty": "No active editorial alerts"
+    },
+    "advertisement": {
+      "leaderboard": "Advertisement · Leaderboard",
+      "inFeed": "Advertisement · In feed"
+    },
+    "empty": {
+      "heroTitle": "No published stories yet",
+      "heroDescription": "The latest verified coverage will appear here when it is published.",
+      "latestTitle": "No additional updates",
+      "latestDescription": "More published stories will appear here.",
+      "categoriesTitle": "No categories available",
+      "categoriesDescription": "Category coverage is not available right now.",
+      "categoryCard": "No published stories in this section yet.",
+      "sectionTitle": "No {category} stories yet",
+      "sectionDescription": "Published coverage for this section will appear here.",
+      "editorsTitle": "No editor's picks yet",
+      "editorsDescription": "Featured stories selected by the newsroom will appear here.",
+      "trendingTitle": "No trending stories yet",
+      "trendingDescription": "The newest published stories will appear here."
+    },
+    "error": {
+      "title": "We couldn't load the news",
+      "description": "Please try again shortly."
+    }
+  },
   "publicLayout": {
     "navigation": {
       "latest": "Latest",

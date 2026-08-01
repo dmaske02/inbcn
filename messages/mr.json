@@ -6,6 +6,52 @@
     "welcome": "इनबीसीएनमध्ये आपले स्वागत आहे",
     "description": "तुमचा बहुभाषिक बातम्यांचा अनुभव येथून सुरू होतो."
   },
+  "homepage": {
+    "sections": {
+      "latest": "ताज्या बातम्या",
+      "across": "INBCN वर",
+      "editorsPicks": "संपादकांची निवड",
+      "trending": "चर्चेत"
+    },
+    "categories": {
+      "national": "राष्ट्रीय",
+      "world": "जागतिक",
+      "business": "व्यवसाय",
+      "technology": "तंत्रज्ञान",
+      "sports": "क्रीडा",
+      "entertainment": "मनोरंजन",
+      "opinion": "मत"
+    },
+    "signals": {
+      "breaking": "ब्रेकिंग",
+      "developing": "विकसनशील बातमी",
+      "standby": "प्रतीक्षा",
+      "empty": "सध्या कोणताही संपादकीय इशारा नाही"
+    },
+    "advertisement": {
+      "leaderboard": "जाहिरात · लीडरबोर्ड",
+      "inFeed": "जाहिरात · बातम्यांमध्ये"
+    },
+    "empty": {
+      "heroTitle": "अद्याप कोणतीही प्रकाशित बातमी नाही",
+      "heroDescription": "प्रकाशित झाल्यानंतर नवीनतम सत्यापित बातम्या येथे दिसतील.",
+      "latestTitle": "अतिरिक्त अपडेट नाहीत",
+      "latestDescription": "नवीन प्रकाशित बातम्या येथे दिसतील.",
+      "categoriesTitle": "कोणतेही विभाग उपलब्ध नाहीत",
+      "categoriesDescription": "विभागनिहाय बातम्या सध्या उपलब्ध नाहीत.",
+      "categoryCard": "या विभागात अद्याप प्रकाशित बातमी नाही.",
+      "sectionTitle": "{category} विभागात अद्याप बातम्या नाहीत",
+      "sectionDescription": "या विभागातील प्रकाशित बातम्या येथे दिसतील.",
+      "editorsTitle": "संपादकांची निवड अद्याप उपलब्ध नाही",
+      "editorsDescription": "वृत्तकक्षाने निवडलेल्या बातम्या येथे दिसतील.",
+      "trendingTitle": "सध्या कोणतीही चर्चित बातमी नाही",
+      "trendingDescription": "नवीनतम प्रकाशित बातम्या येथे दिसतील."
+    },
+    "error": {
+      "title": "बातम्या लोड करता आल्या नाहीत",
+      "description": "कृपया थोड्या वेळाने पुन्हा प्रयत्न करा."
+    }
+  },
   "publicLayout": {
     "navigation": {
       "latest": "ताज्या",

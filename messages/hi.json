@@ -6,6 +6,52 @@
     "welcome": "इनबीसीएन में आपका स्वागत है",
     "description": "आपका बहुभाषी समाचार अनुभव यहाँ से शुरू होता है।"
   },
+  "homepage": {
+    "sections": {
+      "latest": "ताज़ा खबरें",
+      "across": "INBCN पर",
+      "editorsPicks": "संपादक की पसंद",
+      "trending": "चर्चित"
+    },
+    "categories": {
+      "national": "राष्ट्रीय",
+      "world": "विश्व",
+      "business": "व्यापार",
+      "technology": "प्रौद्योगिकी",
+      "sports": "खेल",
+      "entertainment": "मनोरंजन",
+      "opinion": "विचार"
+    },
+    "signals": {
+      "breaking": "ब्रेकिंग",
+      "developing": "विकसित हो रही खबर",
+      "standby": "प्रतीक्षा",
+      "empty": "अभी कोई संपादकीय अलर्ट नहीं"
+    },
+    "advertisement": {
+      "leaderboard": "विज्ञापन · लीडरबोर्ड",
+      "inFeed": "विज्ञापन · समाचारों के बीच"
+    },
+    "empty": {
+      "heroTitle": "अभी कोई प्रकाशित खबर नहीं",
+      "heroDescription": "प्रकाशित होने पर नवीनतम सत्यापित खबरें यहाँ दिखाई देंगी।",
+      "latestTitle": "कोई अतिरिक्त अपडेट नहीं",
+      "latestDescription": "नई प्रकाशित खबरें यहाँ दिखाई देंगी।",
+      "categoriesTitle": "कोई श्रेणी उपलब्ध नहीं",
+      "categoriesDescription": "श्रेणी की खबरें अभी उपलब्ध नहीं हैं।",
+      "categoryCard": "इस श्रेणी में अभी कोई प्रकाशित खबर नहीं है।",
+      "sectionTitle": "{category} की कोई खबर अभी नहीं",
+      "sectionDescription": "इस श्रेणी की प्रकाशित खबरें यहाँ दिखाई देंगी।",
+      "editorsTitle": "संपादक की पसंद अभी उपलब्ध नहीं",
+      "editorsDescription": "समाचार कक्ष द्वारा चुनी गई खबरें यहाँ दिखाई देंगी।",
+      "trendingTitle": "अभी कोई चर्चित खबर नहीं",
+      "trendingDescription": "नवीनतम प्रकाशित खबरें यहाँ दिखाई देंगी।"
+    },
+    "error": {
+      "title": "हम खबरें लोड नहीं कर सके",
+      "description": "कृपया कुछ देर बाद फिर प्रयास करें।"
+    }
+  },
   "publicLayout": {
     "navigation": {
       "latest": "नवीनतम",
