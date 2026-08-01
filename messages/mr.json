@@ -99,5 +99,15 @@
     "sections": { "tags": "विषय", "share": "ही बातमी शेअर करा", "related": "संबंधित बातम्या" },
     "share": { "copy": "लिंक कॉपी करा", "copied": "कॉपी झाले", "x": "X", "facebook": "Facebook", "linkedin": "LinkedIn", "email": "ईमेल" },
     "advertisement": "जाहिरात"
+  },
+  "categoryPage": {
+    "breadcrumb": { "home": "मुख्यपृष्ठ" },
+    "author": { "newsDesk": "INBCN न्यूज डेस्क" },
+    "description": "INBCN कडून {category} विभागातील नवीनतम सत्यापित बातम्या.",
+    "storyCount": "{count, plural, =0 {प्रकाशित बातम्या नाहीत} =1 {1 प्रकाशित बातमी} other {# प्रकाशित बातम्या}}",
+    "sections": { "latest": "{category} विभागातील नवीनतम बातम्या", "related": "इतर विभाग पाहा" },
+    "empty": { "title": "अद्याप {category} बातम्या नाहीत", "description": "या विभागातील प्रकाशित बातम्या येथे दिसतील." },
+    "pagination": { "previous": "मागील", "next": "पुढील", "page": "पृष्ठ", "of": "पैकी" },
+    "advertisement": "जाहिरात"
   }
 }

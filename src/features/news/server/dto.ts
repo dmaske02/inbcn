@@ -66,6 +66,16 @@ export type StoryDto = StorySummaryDto &
     }> | null;
   }>;
 
+export type CategoryStoryDto = StorySummaryDto &
+  Readonly<{
+    content: string;
+  }>;
+
+export type PublishedCategoryStoryPageDto = Readonly<{
+  stories: readonly CategoryStoryDto[];
+  total: number;
+}>;
+
 export type CmsStoryDto = Readonly<{
   id: string;
   languageId: string;

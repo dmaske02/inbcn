@@ -99,5 +99,15 @@
     "sections": { "tags": "Topics", "share": "Share this story", "related": "Related Stories" },
     "share": { "copy": "Copy Link", "copied": "Copied", "x": "X", "facebook": "Facebook", "linkedin": "LinkedIn", "email": "Email" },
     "advertisement": "Advertisement"
+  },
+  "categoryPage": {
+    "breadcrumb": { "home": "Home" },
+    "author": { "newsDesk": "INBCN News Desk" },
+    "description": "Latest verified {category} coverage from INBCN.",
+    "storyCount": "{count, plural, =0 {No published stories} =1 {1 published story} other {# published stories}}",
+    "sections": { "latest": "Latest {category} Stories", "related": "Explore More Categories" },
+    "empty": { "title": "No {category} stories yet", "description": "Published coverage for this category will appear here." },
+    "pagination": { "previous": "Previous", "next": "Next", "page": "Page", "of": "of" },
+    "advertisement": "Advertisement"
   }
 }

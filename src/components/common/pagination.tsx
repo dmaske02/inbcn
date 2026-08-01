@@ -17,6 +17,8 @@ type PaginationProps = HTMLAttributes<HTMLElement> & {
   totalPages?: number;
   previousLabel?: string;
   nextLabel?: string;
+  pageLabel?: string;
+  ofLabel?: string;
 };
 
 function Pagination({
@@ -27,6 +29,8 @@ function Pagination({
   totalPages,
   previousLabel = "Previous",
   nextLabel = "Next",
+  pageLabel = "Page",
+  ofLabel = "of",
   ...props
 }: PaginationProps) {
   return (
@@ -44,8 +48,8 @@ function Pagination({
         <span />
       )}
       <span className="text-sm text-muted-foreground" aria-current="page">
-        Page {currentPage}
-        {totalPages ? ` of ${totalPages}` : ""}
+        {pageLabel} {currentPage}
+        {totalPages ? ` ${ofLabel} ${totalPages}` : ""}
       </span>
       {nextHref ? (
         <Link href={nextHref} rel="next" className={buttonVariants({ variant: "default" })}>

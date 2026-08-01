@@ -4,9 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 import type { Database, DatabaseEnum, TableRow } from "@/lib/supabase/types";
 import { getCategoryBySlug } from "./categories.repository";
 import type {
+  CategoryStoryDto,
   CmsStoryDto,
   CmsStoryListResultDto,
   CmsStoryReferenceDto,
+  PublishedCategoryStoryPageDto,
   StoryDto,
   StorySummaryDto,
 } from "./dto";
@@ -21,6 +23,7 @@ const STORY_SUMMARY_COLUMNS =
   "id, translation_group_id, language_id, category_id, source_id, external_author, story_type, slug, title, summary, featured_media_id, is_featured, is_breaking, is_sponsored, published_at" as const;
 const STORY_DETAIL_COLUMNS =
   `${STORY_SUMMARY_COLUMNS}, content, updated_at, external_url, seo_title, seo_description, seo_keywords, canonical_url` as const;
+const CATEGORY_STORY_COLUMNS = `${STORY_SUMMARY_COLUMNS}, content` as const;
 const CMS_STORY_COLUMNS =
   "id, language_id, category_id, source_id, created_by, approved_by, story_type, status, slug, title, summary, content, featured_media_id, seo_title, seo_description, seo_keywords, canonical_url, is_featured, is_breaking, submitted_at, approved_at, scheduled_at, published_at, created_at, updated_at" as const;
 
@@ -68,6 +71,8 @@ type StoryDetailRow = StorySummaryRow &
     | "canonical_url"
   >;
 
+type CategoryStoryRow = StorySummaryRow & Pick<TableRow<"stories">, "content">;
+
 type CmsStoryRow = Pick<TableRow<"stories">, keyof CmsStoryDto extends never ? never :
   | "id" | "language_id" | "category_id" | "source_id" | "created_by" | "approved_by"
   | "story_type" | "status" | "slug" | "title" | "summary" | "content"
@@ -112,6 +117,10 @@ function toStorySummaryDto(row: StorySummaryRow): StorySummaryDto {
     isSponsored: row.is_sponsored,
     publishedAt: row.published_at,
   };
+}
+
+function toCategoryStoryDto(row: CategoryStoryRow): CategoryStoryDto {
+  return { ...toStorySummaryDto(row), content: row.content };
 }
 
 type FeaturedMediaRow = Pick<TableRow<"media">, "secure_url" | "alt_text" | "caption" | "width" | "height">;
@@ -232,6 +241,85 @@ export async function getStoriesByCategory(
     languageId: category.languageId,
     categoryId: category.id,
   });
+}
+
+export type PublishedCategoryStoryPageQuery = Readonly<{
+  languageId: string;
+  categoryId: string;
+  page: number;
+  pageSize: number;
+  excludeStoryId?: string;
+}>;
+
+export type CategoryStoryCandidates = Readonly<{
+  featured: readonly CategoryStoryDto[];
+  latest: readonly CategoryStoryDto[];
+}>;
+
+export async function getCategoryStoryCandidates(
+  languageId: string,
+  categoryId: string,
+): Promise<CategoryStoryCandidates> {
+  const supabase = await createClient();
+  const featuredQuery = supabase
+    .from("stories")
+    .select(CATEGORY_STORY_COLUMNS)
+    .eq("language_id", languageId)
+    .eq("category_id", categoryId)
+    .eq("status", "published")
+    .not("published_at", "is", null)
+    .eq("is_featured", true)
+    .order("published_at", { ascending: false })
+    .limit(1);
+  const latestQuery = supabase
+    .from("stories")
+    .select(CATEGORY_STORY_COLUMNS)
+    .eq("language_id", languageId)
+    .eq("category_id", categoryId)
+    .eq("status", "published")
+    .not("published_at", "is", null)
+    .order("published_at", { ascending: false })
+    .limit(1);
+  const [featuredResult, latestResult] = await Promise.all([
+    featuredQuery,
+    latestQuery,
+  ]);
+
+  assertRepositoryQuerySucceeded(featuredResult.error, "load featured category story candidates");
+  assertRepositoryQuerySucceeded(latestResult.error, "load latest category story candidates");
+  return {
+    featured: featuredResult.data.map(toCategoryStoryDto),
+    latest: latestResult.data.map(toCategoryStoryDto),
+  };
+}
+
+export async function getPublishedCategoryStoryPage(
+  query: PublishedCategoryStoryPageQuery,
+): Promise<PublishedCategoryStoryPageDto> {
+  const supabase = await createClient();
+  const from = (query.page - 1) * query.pageSize;
+  let request = supabase
+    .from("stories")
+    .select(CATEGORY_STORY_COLUMNS, { count: "exact" })
+    .eq("language_id", query.languageId)
+    .eq("category_id", query.categoryId)
+    .eq("status", "published")
+    .not("published_at", "is", null)
+    .order("published_at", { ascending: false });
+
+  if (query.excludeStoryId) request = request.neq("id", query.excludeStoryId);
+
+  const { data, error, count } = await request.range(
+    from,
+    from + query.pageSize - 1,
+  );
+  if (error?.code === "PGRST103") {
+    const detailsTotal = error.details.match(/only (\d+) rows/u)?.[1];
+    const total = count ?? (detailsTotal ? Number(detailsTotal) : null);
+    if (total !== null) return { stories: [], total };
+  }
+  assertRepositoryQuerySucceeded(error, "load published category story page");
+  return { stories: data.map(toCategoryStoryDto), total: count ?? 0 };
 }
 
 export async function getStoriesByLanguage(
