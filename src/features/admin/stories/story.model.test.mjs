@@ -30,6 +30,7 @@ test("validates schema-backed story form values", () => {
     languageId: "11111111-1111-4111-8111-111111111111",
     categoryId: "22222222-2222-4222-8222-222222222222",
     sourceId: "",
+    featuredMediaId: "",
     tags: "india, technology",
     seoTitle: "",
     seoDescription: "",

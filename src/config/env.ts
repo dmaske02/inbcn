@@ -33,6 +33,7 @@ const environmentSchema = z
     SUPABASE_SERVICE_ROLE_KEY: optionalString,
 
     NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: optionalString,
+    CLOUDINARY_CLOUD_NAME: optionalString,
     CLOUDINARY_API_KEY: optionalString,
     CLOUDINARY_API_SECRET: optionalString,
     CLOUDINARY_API_ENVIRONMENT: optionalString,
@@ -73,6 +74,7 @@ const parsedEnvironment = environmentSchema.safeParse({
 
   NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME:
     process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
   CLOUDINARY_API_ENVIRONMENT: process.env.CLOUDINARY_API_ENVIRONMENT,
@@ -116,6 +118,7 @@ export const env = Object.freeze({
   server: Object.freeze({
     nodeEnv: values.NODE_ENV,
     supabaseServiceRoleKey: values.SUPABASE_SERVICE_ROLE_KEY,
+    cloudinaryCloudName: values.CLOUDINARY_CLOUD_NAME,
     cloudinaryApiKey: values.CLOUDINARY_API_KEY,
     cloudinaryApiSecret: values.CLOUDINARY_API_SECRET,
     cloudinaryApiEnvironment: values.CLOUDINARY_API_ENVIRONMENT,

@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -181,7 +181,7 @@ export type Database = {
           resource_format: string | null
           secure_url: string
           sort_order: number
-          story_id: string
+          story_id: string | null
           updated_at: string
           width: number | null
         }
@@ -201,7 +201,7 @@ export type Database = {
           resource_format?: string | null
           secure_url: string
           sort_order?: number
-          story_id: string
+          story_id?: string | null
           updated_at?: string
           width?: number | null
         }
@@ -221,7 +221,7 @@ export type Database = {
           resource_format?: string | null
           secure_url?: string
           sort_order?: number
-          story_id?: string
+          story_id?: string | null
           updated_at?: string
           width?: number | null
         }
@@ -542,10 +542,10 @@ export type Database = {
           },
           {
             foreignKeyName: "stories_featured_media_id_fkey"
-            columns: ["featured_media_id", "id"]
+            columns: ["featured_media_id"]
             isOneToOne: false
             referencedRelation: "media"
-            referencedColumns: ["id", "story_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "stories_language_id_fkey"

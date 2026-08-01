@@ -12,7 +12,7 @@ import {
   calculateReadTime,
   composeStoryMetadata,
   formatPublicAuthor,
-  PUBLIC_STORY_FALLBACK_IMAGE,
+  resolvePublicStoryImage,
   selectRelatedStories,
   splitStoryBody,
 } from "./story-reader.model";
@@ -60,13 +60,15 @@ export const getStoryReaderData = cache(async (locale: string, slug: string): Pr
     await getStoriesByCategory(locale, category.slug),
   );
   const author = formatPublicAuthor(story.externalAuthor, t("author.newsDesk"));
-  const image = story.featuredMedia
-    ? {
-        src: story.featuredMedia.secureUrl,
-        alt: story.featuredMedia.altText || story.title,
-        caption: story.featuredMedia.caption,
-      }
-    : { src: PUBLIC_STORY_FALLBACK_IMAGE, alt: story.title, caption: null };
+  const resolvedImage = resolvePublicStoryImage(
+    story.featuredMedia,
+    env.public.cloudinaryCloudName,
+    story.title,
+  );
+  const image = {
+    ...resolvedImage,
+    caption: story.featuredMedia?.caption ?? null,
+  };
   const siteUrl = env.public.appUrl ?? "http://localhost:3000";
   const metadata = composeStoryMetadata({
     title: story.seoTitle || story.title,
@@ -103,7 +105,11 @@ export const getStoryReaderData = cache(async (locale: string, slug: string): Pr
       href: buildPublicStoryUrl(locale, item.slug),
       author: formatPublicAuthor(item.externalAuthor, t("author.newsDesk")),
       publishedAt: item.publishedAt,
-      image: { src: PUBLIC_STORY_FALLBACK_IMAGE, alt: item.title },
+      image: resolvePublicStoryImage(
+        item.featuredMedia,
+        env.public.cloudinaryCloudName,
+        item.title,
+      ),
     })),
     metadata,
     jsonLd: buildArticleJsonLd({

@@ -28,6 +28,7 @@ export const storyFormSchema = z.object({
   languageId: z.uuid("Select a language."),
   categoryId: z.uuid("Select a category."),
   sourceId: optionalUuid,
+  featuredMediaId: optionalUuid,
   tags: z.string().max(1000),
   seoTitle: z.string().trim().max(240),
   seoDescription: z.string().trim().max(1000),

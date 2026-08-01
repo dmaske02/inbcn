@@ -23,6 +23,11 @@ import {
 } from "./story.model";
 import { calculateReadTime } from "@/features/news/server/services/story-reader.model";
 import { buildTransitionPatch, parseTags } from "./story.workflow";
+import {
+  getMediaPickerOptions,
+  isSelectableMedia,
+} from "@/features/admin/media/media.service";
+import { resolveFeaturedMediaSelection } from "@/features/admin/media/media.model";
 
 const PAGE_SIZE = 20;
 const STORY_STATUSES: readonly StoryStatus[] = ["draft", "pending_review", "approved", "scheduled", "published", "rejected", "archived"];
@@ -114,22 +119,30 @@ export async function getStoryListView(admin: AdminIdentity, params: StoryListPa
 }
 
 export async function getStoryEditorView(admin: AdminIdentity, id?: string) {
-  const references = await getCmsStoryReferences();
+  const [references, media] = await Promise.all([
+    getCmsStoryReferences(),
+    getMediaPickerOptions(admin),
+  ]);
   if (!id) {
     if (!canCreateStory(admin.role)) throw new StoryManagementError("FORBIDDEN", "You cannot create stories.");
-    return { story: null, references, commands: ["save"] as const, readTime: 0 };
+    return { story: null, references, media, commands: ["save"] as const, readTime: 0 };
   }
   const story = await getCmsStoryById(id);
   if (!story) throw new StoryManagementError("NOT_FOUND", "Story not found.");
   return {
     story,
     references,
+    media,
     commands: getAllowedStoryCommands(admin.role, story.status, story.createdBy === admin.id),
     readTime: calculateReadTime(story.content),
   };
 }
 
-function normalizeForm(values: StoryFormValues, role: AdminRole) {
+function normalizeForm(
+  values: StoryFormValues,
+  role: AdminRole,
+  currentFeaturedMediaId: string | null,
+) {
   return {
     language_id: values.languageId,
     category_id: values.categoryId,
@@ -139,6 +152,11 @@ function normalizeForm(values: StoryFormValues, role: AdminRole) {
     title: values.title,
     summary: values.summary,
     content: values.content,
+    featured_media_id: resolveFeaturedMediaSelection(
+      role,
+      currentFeaturedMediaId,
+      values.featuredMediaId,
+    ),
     seo_title: values.seoTitle || null,
     seo_description: values.seoDescription || null,
     seo_keywords: parseTags(values.tags),
@@ -160,8 +178,15 @@ export async function createStory(admin: AdminIdentity, input: StoryFormValues):
   if (await cmsStorySlugExists(values.languageId, values.slug)) {
     throw new StoryManagementError("DUPLICATE_SLUG", "That slug is already used for this language.");
   }
+  if (
+    admin.role !== "writer" &&
+    values.featuredMediaId &&
+    !(await isSelectableMedia(admin, values.featuredMediaId))
+  ) {
+    throw new StoryManagementError("VALIDATION", "Select an available featured image.");
+  }
   return insertCmsStory({
-    ...normalizeForm(values, admin.role),
+    ...normalizeForm(values, admin.role, null),
     created_by: admin.id,
     status: "draft",
   });
@@ -177,7 +202,17 @@ export async function saveStory(admin: AdminIdentity, id: string, input: StoryFo
   if (await cmsStorySlugExists(values.languageId, values.slug, id)) {
     throw new StoryManagementError("DUPLICATE_SLUG", "That slug is already used for this language.");
   }
-  return updateCmsStory(id, { ...normalizeForm(values, admin.role), updated_at: new Date().toISOString() });
+  if (
+    admin.role !== "writer" &&
+    values.featuredMediaId &&
+    !(await isSelectableMedia(admin, values.featuredMediaId))
+  ) {
+    throw new StoryManagementError("VALIDATION", "Select an available featured image.");
+  }
+  return updateCmsStory(id, {
+    ...normalizeForm(values, admin.role, story.featuredMediaId),
+    updated_at: new Date().toISOString(),
+  });
 }
 
 export async function runStoryCommand(

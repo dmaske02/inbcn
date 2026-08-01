@@ -1,5 +1,8 @@
 import type { CategoryDto, StorySummaryDto } from "../dto";
-import { buildPublicStoryUrl } from "./public-story.mjs";
+import {
+  buildPublicStoryUrl,
+  resolvePublicStoryImage,
+} from "./public-story.mjs";
 
 export const HOMEPAGE_FALLBACK_IMAGE = "/images/news/story-fallback.svg";
 
@@ -60,6 +63,7 @@ export function composeHomepageData(
   locale: string,
   storyDtos: readonly StorySummaryDto[],
   categoryDtos: readonly CategoryDto[],
+  cloudName?: string,
 ): HomepageViewModel {
   const categories = [...categoryDtos].sort(
     (left, right) => left.sortOrder - right.sortOrder,
@@ -85,10 +89,11 @@ export function composeHomepageData(
         categorySlug: category?.slug ?? null,
         isBreaking: story.isBreaking,
         isFeatured: story.isFeatured,
-        image: {
-          src: HOMEPAGE_FALLBACK_IMAGE,
-          alt: story.title,
-        },
+        image: resolvePublicStoryImage(
+          story.featuredMedia,
+          cloudName,
+          story.title,
+        ),
       };
     });
 

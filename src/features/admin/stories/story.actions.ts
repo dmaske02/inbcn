@@ -29,6 +29,7 @@ function formValues(formData: FormData) {
     languageId: formData.get("languageId"),
     categoryId: formData.get("categoryId"),
     sourceId: formData.get("sourceId") ?? "",
+    featuredMediaId: formData.get("featuredMediaId") ?? "",
     tags: formData.get("tags") ?? "",
     seoTitle: formData.get("seoTitle") ?? "",
     seoDescription: formData.get("seoDescription") ?? "",

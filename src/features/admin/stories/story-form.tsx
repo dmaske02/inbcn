@@ -11,6 +11,7 @@ import { createStoryAction, saveStoryAction, storyCommandAction, type StoryActio
 import { calculateReadTime } from "@/features/news/server/services/story-reader.model";
 import { generateStorySlug, type StoryCommand } from "./story.model";
 import type { getStoryEditorView } from "./story.service";
+import { MediaPicker } from "@/features/admin/media/media-picker";
 
 type StoryEditorView = Awaited<ReturnType<typeof getStoryEditorView>>;
 const initialState: StoryActionState = { status: "idle" };
@@ -56,8 +57,11 @@ export function StoryForm({ adminRole, view }: { adminRole: AdminRole; view: Sto
           </CardContent></Card>
 
           <Card padding="none"><CardHeader><h2 className="text-lg font-semibold">Presentation</h2></CardHeader><CardContent className="grid gap-5">
-            <label className="grid gap-2"><span className="text-sm font-medium">Featured media</span><select className={control} disabled><option>Media Library coming later</option></select></label>
-            <label className="grid gap-2"><span className="text-sm font-medium">Featured media alt</span><input className={control} disabled placeholder="Managed with media metadata" /></label>
+            <MediaPicker
+              canManage={canUseEditorialFlags}
+              initialId={story?.featuredMediaId ?? null}
+              options={view.media}
+            />
             <div className="flex flex-wrap gap-5"><label className="flex items-center gap-2 text-sm font-medium"><input defaultChecked={story?.isFeatured} disabled={!canUseEditorialFlags} name="isFeatured" type="checkbox" className="size-4" />Featured</label><label className="flex items-center gap-2 text-sm font-medium"><input defaultChecked={story?.isBreaking} disabled={!canUseEditorialFlags} name="isBreaking" type="checkbox" className="size-4" />Breaking</label></div>
           </CardContent></Card>
         </div>

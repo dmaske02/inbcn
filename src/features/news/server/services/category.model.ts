@@ -3,6 +3,7 @@ import {
   calculateReadTime,
   formatPublicAuthor,
   PUBLIC_STORY_FALLBACK_IMAGE,
+  resolvePublicStoryImage,
 } from "./public-story.mjs";
 
 export type CategoryModelCategory = Readonly<{
@@ -21,6 +22,11 @@ export type CategoryModelStory = Readonly<{
   externalAuthor: string | null;
   publishedAt: string;
   isFeatured: boolean;
+  featuredMedia: Readonly<{
+    publicId: string;
+    secureUrl: string;
+    altText: string | null;
+  }> | null;
 }>;
 
 export type CategoryStoryCardModel = Readonly<{
@@ -91,6 +97,7 @@ function toCard(
   story: CategoryModelStory,
   locale: string,
   newsDeskLabel: string,
+  cloudName?: string,
 ): CategoryStoryCardModel {
   return {
     id: story.id,
@@ -100,7 +107,7 @@ function toCard(
     author: formatPublicAuthor(story.externalAuthor, newsDeskLabel),
     publishedAt: story.publishedAt,
     readTime: calculateReadTime(story.content),
-    image: { src: PUBLIC_STORY_FALLBACK_IMAGE, alt: story.title },
+    image: resolvePublicStoryImage(story.featuredMedia, cloudName, story.title),
   };
 }
 
@@ -221,6 +228,7 @@ export function composeCategoryPageModel(input: Readonly<{
     pageLabel?: string;
   }>;
   description?: string;
+  cloudName?: string;
 }>): CategoryPageModel {
   const pagination = createCategoryPagination({
     page: input.page,
@@ -229,10 +237,10 @@ export function composeCategoryPageModel(input: Readonly<{
     heroId: input.hero?.id ?? null,
   });
   const hero = input.page === 1 && input.hero
-    ? toCard(input.hero, input.locale, input.labels.newsDesk)
+    ? toCard(input.hero, input.locale, input.labels.newsDesk, input.cloudName)
     : null;
   const stories = input.stories.map((story) =>
-    toCard(story, input.locale, input.labels.newsDesk));
+    toCard(story, input.locale, input.labels.newsDesk, input.cloudName));
   const description = input.category.description
     ?? input.description
     ?? input.labels.emptyDescription;

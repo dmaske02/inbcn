@@ -75,6 +75,7 @@ export const getCategoryPageData = cache(async (
       pageLabel: t("pagination.page"),
     },
     description: t("description", { category: category.name }),
+    cloudName: env.public.cloudinaryCloudName,
   });
   const finalStatus = resolveCategoryPageStatus({
     categoryExists: true,

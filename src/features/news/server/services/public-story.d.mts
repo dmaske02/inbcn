@@ -8,3 +8,18 @@ export function formatPublicAuthor(
 export function buildPublicStoryUrl(locale: string, slug: string): string;
 
 export function calculateReadTime(content: string): number;
+
+export function buildCloudinaryDeliveryUrl(
+  cloudName: string,
+  publicId: string,
+): string;
+
+export function resolvePublicStoryImage(
+  featuredMedia: Readonly<{
+    publicId: string;
+    secureUrl: string;
+    altText: string | null;
+  }> | null | undefined,
+  cloudName: string | null | undefined,
+  title: string,
+): Readonly<{ src: string; alt: string }>;

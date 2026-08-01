@@ -30,6 +30,15 @@ export type SourceDto = Readonly<{
   lastIngestedAt: string | null;
 }>;
 
+export type FeaturedMediaDto = Readonly<{
+  publicId: string;
+  secureUrl: string;
+  altText: string | null;
+  caption: string | null;
+  width: number | null;
+  height: number | null;
+}>;
+
 export type StorySummaryDto = Readonly<{
   id: string;
   translationGroupId: string;
@@ -42,6 +51,7 @@ export type StorySummaryDto = Readonly<{
   title: string;
   summary: string;
   featuredMediaId: string | null;
+  featuredMedia: FeaturedMediaDto | null;
   isFeatured: boolean;
   isBreaking: boolean;
   isSponsored: boolean;
@@ -57,13 +67,6 @@ export type StoryDto = StorySummaryDto &
     seoDescription: string | null;
     seoKeywords: readonly string[];
     canonicalUrl: string | null;
-    featuredMedia: Readonly<{
-      secureUrl: string;
-      altText: string | null;
-      caption: string | null;
-      width: number | null;
-      height: number | null;
-    }> | null;
   }>;
 
 export type CategoryStoryDto = StorySummaryDto &

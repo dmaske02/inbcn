@@ -95,7 +95,10 @@ function toCmsStoryDto(row: CmsStoryRow): CmsStoryDto {
   };
 }
 
-function toStorySummaryDto(row: StorySummaryRow): StorySummaryDto {
+function toStorySummaryDto(
+  row: StorySummaryRow,
+  media: FeaturedMediaRow | null = null,
+): StorySummaryDto {
   if (!row.published_at) {
     throw new RepositoryError("map published story");
   }
@@ -112,6 +115,7 @@ function toStorySummaryDto(row: StorySummaryRow): StorySummaryDto {
     title: row.title,
     summary: row.summary,
     featuredMediaId: row.featured_media_id,
+    featuredMedia: media ? toFeaturedMediaDto(media) : null,
     isFeatured: row.is_featured,
     isBreaking: row.is_breaking,
     isSponsored: row.is_sponsored,
@@ -119,15 +123,38 @@ function toStorySummaryDto(row: StorySummaryRow): StorySummaryDto {
   };
 }
 
-function toCategoryStoryDto(row: CategoryStoryRow): CategoryStoryDto {
-  return { ...toStorySummaryDto(row), content: row.content };
+function toCategoryStoryDto(
+  row: CategoryStoryRow,
+  media: FeaturedMediaRow | null = null,
+): CategoryStoryDto {
+  return { ...toStorySummaryDto(row, media), content: row.content };
 }
 
-type FeaturedMediaRow = Pick<TableRow<"media">, "secure_url" | "alt_text" | "caption" | "width" | "height">;
+type FeaturedMediaRow = Pick<
+  TableRow<"media">,
+  | "id"
+  | "cloudinary_public_id"
+  | "secure_url"
+  | "alt_text"
+  | "caption"
+  | "width"
+  | "height"
+>;
+
+function toFeaturedMediaDto(media: FeaturedMediaRow) {
+  return {
+    publicId: media.cloudinary_public_id,
+    secureUrl: media.secure_url,
+    altText: media.alt_text,
+    caption: media.caption,
+    width: media.width,
+    height: media.height,
+  };
+}
 
 function toStoryDto(row: StoryDetailRow, media: FeaturedMediaRow | null): StoryDto {
   return {
-    ...toStorySummaryDto(row),
+    ...toStorySummaryDto(row, media),
     content: row.content,
     updatedAt: row.updated_at,
     externalUrl: row.external_url,
@@ -135,14 +162,50 @@ function toStoryDto(row: StoryDetailRow, media: FeaturedMediaRow | null): StoryD
     seoDescription: row.seo_description,
     seoKeywords: row.seo_keywords,
     canonicalUrl: row.canonical_url,
-    featuredMedia: media ? {
-      secureUrl: media.secure_url,
-      altText: media.alt_text,
-      caption: media.caption,
-      width: media.width,
-      height: media.height,
-    } : null,
   };
+}
+
+async function getFeaturedMediaMap(
+  rows: readonly StorySummaryRow[],
+): Promise<ReadonlyMap<string, FeaturedMediaRow>> {
+  if (rows.length === 0) return new Map();
+  const mediaIds = [
+    ...new Set(
+      rows
+        .map((row) => row.featured_media_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  if (mediaIds.length === 0) return new Map();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("media")
+    .select("id, cloudinary_public_id, secure_url, alt_text, caption, width, height")
+    .in("id", mediaIds);
+  assertRepositoryQuerySucceeded(error, "load featured media");
+  return new Map(data.map((item) => [item.id, item]));
+}
+
+async function attachFeaturedMedia(
+  rows: readonly StorySummaryRow[],
+): Promise<StorySummaryDto[]> {
+  const mediaById = await getFeaturedMediaMap(rows);
+  return rows.map((row) =>
+    toStorySummaryDto(
+      row,
+      row.featured_media_id ? mediaById.get(row.featured_media_id) ?? null : null,
+    ));
+}
+
+async function attachCategoryFeaturedMedia(
+  rows: readonly CategoryStoryRow[],
+): Promise<CategoryStoryDto[]> {
+  const mediaById = await getFeaturedMediaMap(rows);
+  return rows.map((row) =>
+    toCategoryStoryDto(
+      row,
+      row.featured_media_id ? mediaById.get(row.featured_media_id) ?? null : null,
+    ));
 }
 
 async function getPublishedStories(
@@ -177,7 +240,7 @@ async function getPublishedStories(
 
   const { data, error } = await query;
   assertRepositoryQuerySucceeded(error, "load published stories");
-  return data.map(toStorySummaryDto);
+  return attachFeaturedMedia(data);
 }
 
 export async function getLatestStories(): Promise<StorySummaryDto[]> {
@@ -218,9 +281,8 @@ export async function getStoryBySlug(
   if (data.featured_media_id) {
     const mediaResult = await supabase
       .from("media")
-      .select("secure_url, alt_text, caption, width, height")
+      .select("id, cloudinary_public_id, secure_url, alt_text, caption, width, height")
       .eq("id", data.featured_media_id)
-      .eq("story_id", data.id)
       .maybeSingle();
     assertRepositoryQuerySucceeded(mediaResult.error, "load story media");
     media = mediaResult.data;
@@ -287,10 +349,11 @@ export async function getCategoryStoryCandidates(
 
   assertRepositoryQuerySucceeded(featuredResult.error, "load featured category story candidates");
   assertRepositoryQuerySucceeded(latestResult.error, "load latest category story candidates");
-  return {
-    featured: featuredResult.data.map(toCategoryStoryDto),
-    latest: latestResult.data.map(toCategoryStoryDto),
-  };
+  const [featured, latest] = await Promise.all([
+    attachCategoryFeaturedMedia(featuredResult.data),
+    attachCategoryFeaturedMedia(latestResult.data),
+  ]);
+  return { featured, latest };
 }
 
 export async function getPublishedCategoryStoryPage(
@@ -319,7 +382,7 @@ export async function getPublishedCategoryStoryPage(
     if (total !== null) return { stories: [], total };
   }
   assertRepositoryQuerySucceeded(error, "load published category story page");
-  return { stories: data.map(toCategoryStoryDto), total: count ?? 0 };
+  return { stories: await attachCategoryFeaturedMedia(data), total: count ?? 0 };
 }
 
 export async function getStoriesByLanguage(

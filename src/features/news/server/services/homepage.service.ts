@@ -6,6 +6,7 @@ import {
   composeHomepageData,
   type HomepageViewModel,
 } from "./homepage.model";
+import { env } from "@/config/env";
 
 export async function getHomepageData(
   locale: string,
@@ -15,7 +16,12 @@ export async function getHomepageData(
     getCategories(locale),
   ]);
 
-  return composeHomepageData(locale, stories, categories);
+  return composeHomepageData(
+    locale,
+    stories,
+    categories,
+    env.public.cloudinaryCloudName,
+  );
 }
 
 export type {

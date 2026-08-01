@@ -4,6 +4,7 @@ export {
   buildPublicStoryUrl,
   calculateReadTime,
   formatPublicAuthor,
+  resolvePublicStoryImage,
 } from "./public-story.mjs";
 
 import { buildPublicStoryUrl } from "./public-story.mjs";
