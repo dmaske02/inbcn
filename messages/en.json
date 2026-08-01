@@ -70,6 +70,9 @@
       "closeMenu": "Close menu",
       "theme": "Theme",
       "search": "Search",
+      "searchPlaceholder": "Search INBCN news",
+      "searchSubmit": "Submit search",
+      "closeSearch": "Close search",
       "language": "Language",
       "currentLanguage": "Current language",
       "primaryNavigation": "Primary navigation",
@@ -107,6 +110,47 @@
     "storyCount": "{count, plural, =0 {No published stories} =1 {1 published story} other {# published stories}}",
     "sections": { "latest": "Latest {category} Stories", "related": "Explore More Categories" },
     "empty": { "title": "No {category} stories yet", "description": "Published coverage for this category will appear here." },
+    "pagination": { "previous": "Previous", "next": "Next", "page": "Page", "of": "of" },
+    "advertisement": "Advertisement"
+  },
+  "searchPage": {
+    "breadcrumb": { "label": "Breadcrumb", "home": "Home", "search": "Search" },
+    "author": { "newsDesk": "INBCN News Desk" },
+    "title": "Search",
+    "form": {
+      "label": "Search INBCN news",
+      "placeholder": "Search topics, headlines, or keywords",
+      "submit": "Search"
+    },
+    "filters": {
+      "category": "Category",
+      "allCategories": "All categories",
+      "language": "Language",
+      "date": "Date",
+      "allDates": "All dates",
+      "pastDay": "Past 24 hours",
+      "pastWeek": "Past week",
+      "pastMonth": "Past month",
+      "order": "Order",
+      "newest": "Newest first"
+    },
+    "resultCount": "{count, plural, =0 {No results} =1 {1 result} other {# results}} for “{query}”",
+    "categoryFallback": "News",
+    "initial": {
+      "title": "Search INBCN",
+      "description": "Find verified reporting by topic, headline, or keyword."
+    },
+    "empty": {
+      "title": "No results for “{query}”",
+      "description": "Check the spelling, broaden your search, or remove a filter."
+    },
+    "metadata": {
+      "defaultTitle": "Search",
+      "defaultDescription": "Search verified multilingual news from INBCN.",
+      "title": "Search results for {query}",
+      "titlePage": "Search results for {query} - Page {page}",
+      "description": "Verified INBCN news results for {query}."
+    },
     "pagination": { "previous": "Previous", "next": "Next", "page": "Page", "of": "of" },
     "advertisement": "Advertisement"
   }

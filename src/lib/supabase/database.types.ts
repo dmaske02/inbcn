@@ -437,6 +437,7 @@ export type Database = {
           rejected_at: string | null
           rejection_reason: string | null
           scheduled_at: string | null
+          search_document: unknown
           seo_description: string | null
           seo_keywords: string[]
           seo_title: string | null
@@ -471,6 +472,7 @@ export type Database = {
           rejected_at?: string | null
           rejection_reason?: string | null
           scheduled_at?: string | null
+          search_document?: unknown
           seo_description?: string | null
           seo_keywords?: string[]
           seo_title?: string | null
@@ -505,6 +507,7 @@ export type Database = {
           rejected_at?: string | null
           rejection_reason?: string | null
           scheduled_at?: string | null
+          search_document?: unknown
           seo_description?: string | null
           seo_keywords?: string[]
           seo_title?: string | null

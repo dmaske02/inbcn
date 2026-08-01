@@ -9,6 +9,7 @@ import type {
   CmsStoryListResultDto,
   CmsStoryReferenceDto,
   PublishedCategoryStoryPageDto,
+  PublishedStorySearchPageDto,
   StoryDto,
   StorySummaryDto,
 } from "./dto";
@@ -17,6 +18,10 @@ import {
   RepositoryError,
 } from "./errors";
 import { getLanguage } from "./languages.repository";
+import {
+  buildPublishedStorySearchRequest,
+  type PublishedStorySearchRequestQuery,
+} from "./stories.search-query.mjs";
 
 const DEFAULT_STORY_LIMIT = 20;
 const STORY_SUMMARY_COLUMNS =
@@ -313,6 +318,8 @@ export type PublishedCategoryStoryPageQuery = Readonly<{
   excludeStoryId?: string;
 }>;
 
+export type PublishedStorySearchQuery = PublishedStorySearchRequestQuery;
+
 export type CategoryStoryCandidates = Readonly<{
   featured: readonly CategoryStoryDto[];
   latest: readonly CategoryStoryDto[];
@@ -383,6 +390,28 @@ export async function getPublishedCategoryStoryPage(
   }
   assertRepositoryQuerySucceeded(error, "load published category story page");
   return { stories: await attachCategoryFeaturedMedia(data), total: count ?? 0 };
+}
+
+export async function searchPublishedStories(
+  query: PublishedStorySearchQuery,
+): Promise<PublishedStorySearchPageDto> {
+  const supabase = await createClient();
+  const { data, error, count } = await buildPublishedStorySearchRequest<CategoryStoryRow>(
+    supabase,
+    CATEGORY_STORY_COLUMNS,
+    query,
+  );
+
+  if (error?.code === "PGRST103") {
+    const detailsTotal = error.details.match(/only (\d+) rows/u)?.[1];
+    const total = count ?? (detailsTotal ? Number(detailsTotal) : null);
+    if (total !== null) return { stories: [], total };
+  }
+  assertRepositoryQuerySucceeded(error, "search published stories");
+  return {
+    stories: await attachCategoryFeaturedMedia(data ?? []),
+    total: count ?? 0,
+  };
 }
 
 export async function getStoriesByLanguage(

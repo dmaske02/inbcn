@@ -70,7 +70,7 @@ export async function PublicLayout({
       label: t("footer.explore"),
       items: [
         { label: t("navigation.latest"), href: `/${locale}#latest` },
-        { label: t("actions.search"), href: `/${locale}#search` },
+        { label: t("actions.search"), href: `/${locale}/search` },
       ],
     },
     {
@@ -115,7 +115,15 @@ export async function PublicLayout({
               darkThemeLabel={t("actions.darkTheme")}
             />
           }
-          search={<SearchTrigger label={t("actions.search")} />}
+          search={
+            <SearchTrigger
+              locale={locale}
+              label={t("actions.search")}
+              placeholder={t("actions.searchPlaceholder")}
+              submitLabel={t("actions.searchSubmit")}
+              closeLabel={t("actions.closeSearch")}
+            />
+          }
           theme={
             <ThemeToggle
               lightLabel={t("actions.lightTheme")}

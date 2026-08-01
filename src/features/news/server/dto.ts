@@ -79,6 +79,11 @@ export type PublishedCategoryStoryPageDto = Readonly<{
   total: number;
 }>;
 
+export type PublishedStorySearchPageDto = Readonly<{
+  stories: readonly CategoryStoryDto[];
+  total: number;
+}>;
+
 export type CmsStoryDto = Readonly<{
   id: string;
   languageId: string;

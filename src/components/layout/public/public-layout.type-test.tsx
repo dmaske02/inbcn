@@ -24,7 +24,7 @@ export function PublicLayoutTypeContract() {
           locale="en"
           primaryNavigation={<PrimaryNavigation locale="en" />}
           mobileNavigation={<MobileNavigation locale="en" />}
-          search={<SearchTrigger label="Search" />}
+          search={<SearchTrigger locale="en" label="Search" />}
           theme={<ThemeToggle />}
         />
       }

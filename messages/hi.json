@@ -70,6 +70,9 @@
       "closeMenu": "मेन्यू बंद करें",
       "theme": "थीम",
       "search": "खोजें",
+      "searchPlaceholder": "INBCN समाचार खोजें",
+      "searchSubmit": "खोज शुरू करें",
+      "closeSearch": "खोज बंद करें",
       "language": "भाषा",
       "currentLanguage": "वर्तमान भाषा",
       "primaryNavigation": "मुख्य नेविगेशन",
@@ -107,6 +110,47 @@
     "storyCount": "{count, plural, =0 {कोई प्रकाशित खबर नहीं} =1 {1 प्रकाशित खबर} other {# प्रकाशित खबरें}}",
     "sections": { "latest": "{category} की नवीनतम खबरें", "related": "अन्य श्रेणियां देखें" },
     "empty": { "title": "अभी कोई {category} खबर नहीं", "description": "इस श्रेणी की प्रकाशित खबरें यहां दिखाई देंगी।" },
+    "pagination": { "previous": "पिछला", "next": "अगला", "page": "पृष्ठ", "of": "में से" },
+    "advertisement": "विज्ञापन"
+  },
+  "searchPage": {
+    "breadcrumb": { "label": "ब्रेडक्रंब", "home": "होम", "search": "खोज" },
+    "author": { "newsDesk": "INBCN समाचार डेस्क" },
+    "title": "खोज",
+    "form": {
+      "label": "INBCN समाचार खोजें",
+      "placeholder": "विषय, शीर्षक या कीवर्ड खोजें",
+      "submit": "खोजें"
+    },
+    "filters": {
+      "category": "श्रेणी",
+      "allCategories": "सभी श्रेणियाँ",
+      "language": "भाषा",
+      "date": "तारीख",
+      "allDates": "सभी तारीखें",
+      "pastDay": "पिछले 24 घंटे",
+      "pastWeek": "पिछला सप्ताह",
+      "pastMonth": "पिछला महीना",
+      "order": "क्रम",
+      "newest": "नवीनतम पहले"
+    },
+    "resultCount": "“{query}” के लिए {count, plural, =0 {कोई परिणाम नहीं} =1 {1 परिणाम} other {# परिणाम}}",
+    "categoryFallback": "समाचार",
+    "initial": {
+      "title": "INBCN पर खोजें",
+      "description": "विषय, शीर्षक या कीवर्ड से सत्यापित खबरें खोजें।"
+    },
+    "empty": {
+      "title": "“{query}” के लिए कोई परिणाम नहीं",
+      "description": "वर्तनी जाँचें, खोज को व्यापक करें या कोई फ़िल्टर हटाएँ।"
+    },
+    "metadata": {
+      "defaultTitle": "खोज",
+      "defaultDescription": "INBCN के सत्यापित बहुभाषी समाचार खोजें।",
+      "title": "{query} के खोज परिणाम",
+      "titlePage": "{query} के खोज परिणाम - पृष्ठ {page}",
+      "description": "{query} के लिए सत्यापित INBCN समाचार परिणाम।"
+    },
     "pagination": { "previous": "पिछला", "next": "अगला", "page": "पृष्ठ", "of": "में से" },
     "advertisement": "विज्ञापन"
   }

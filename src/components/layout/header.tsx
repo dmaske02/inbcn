@@ -40,7 +40,7 @@ function Header({
 }: HeaderProps) {
   return (
     <header className={cn(headerVariants({ height }), className)} {...props}>
-      <Container className="flex min-h-[inherit] items-center gap-5">
+      <Container className="relative flex min-h-[inherit] items-center gap-5">
         <div className="shrink-0">{logo}</div>
         <nav
           aria-label={navigationLabel}
