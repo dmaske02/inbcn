@@ -9,7 +9,7 @@ const headerVariants = cva(
   {
     variants: {
       height: {
-        default: "min-h-16",
+        default: "min-h-16 lg:min-h-[76px] xl:min-h-[116px]",
         compact: "min-h-14",
       },
     },
@@ -40,8 +40,10 @@ function Header({
 }: HeaderProps) {
   return (
     <header className={cn(headerVariants({ height }), className)} {...props}>
-      <Container className="relative flex min-h-[inherit] items-center gap-5">
-        <div className="shrink-0">{logo}</div>
+      <Container className="relative flex min-h-[inherit] items-center gap-5 xl:gap-9">
+        <div className="flex w-[101px] shrink-0 items-center sm:w-[129px] lg:w-[148px] xl:w-[20%] xl:min-w-[230px] xl:max-w-[260px]">
+          {logo}
+        </div>
         <nav
           aria-label={navigationLabel}
           className="hidden min-w-0 flex-1 items-center gap-5 lg:flex"

@@ -7,23 +7,26 @@ import { cn } from "@/lib/utils";
 
 const logoVariants = cva(
   "inline-flex min-h-11 shrink-0 items-center rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-);
-
-const logoImageVariants = cva("w-auto max-w-none object-contain", {
-  variants: {
-    size: {
-      sm: "h-[34px]",
-      default: "h-[34px] sm:h-10 lg:h-11 xl:h-12",
-      lg: "h-12",
+  {
+    variants: {
+      size: {
+        sm: "w-[78px]",
+        default: "w-full",
+        lg: "w-[111px]",
+      },
+    },
+    defaultVariants: {
+      size: "default",
     },
   },
-  defaultVariants: {
-    size: "default",
-  },
-});
+);
+
+const logoImageVariants = cva(
+  "h-auto w-full max-w-none shrink-0 object-contain",
+);
 
 type LogoProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href"> &
-  VariantProps<typeof logoImageVariants> & {
+  VariantProps<typeof logoVariants> & {
     href?: string;
     imagePreload?: boolean;
   };
@@ -38,7 +41,7 @@ function Logo({
   return (
     <Link
       href={href}
-      className={cn(logoVariants(), className)}
+      className={cn(logoVariants({ size }), className)}
       aria-label="INBCN Digital News Homepage"
       {...props}
     >
@@ -48,9 +51,9 @@ function Logo({
         width={1494}
         height={648}
         quality={100}
-        sizes="(min-width: 1280px) 260px, (min-width: 768px) 220px, 180px"
+        sizes="(min-width: 1280px) 260px, (min-width: 1024px) 148px, (min-width: 640px) 129px, 101px"
         preload={imagePreload}
-        className={logoImageVariants({ size })}
+        className={logoImageVariants()}
       />
     </Link>
   );
