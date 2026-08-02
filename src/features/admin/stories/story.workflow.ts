@@ -19,6 +19,7 @@ export function buildTransitionPatch(
   actorId: string,
   now: string,
   scheduledAt?: string,
+  rejectionReason?: string,
 ): CmsStoryUpdate {
   if (command === "submit") {
     return { status: "pending_review", submitted_at: now, updated_at: now };
@@ -29,6 +30,17 @@ export function buildTransitionPatch(
       status: "approved",
       approved_by: actorId,
       approved_at: now,
+      updated_at: now,
+    };
+  }
+
+  if (command === "reject") {
+    const reason = rejectionReason?.trim();
+    if (!reason) throw new Error("A rejection reason is required.");
+    return {
+      status: "rejected",
+      rejected_at: now,
+      rejection_reason: reason,
       updated_at: now,
     };
   }

@@ -108,7 +108,7 @@ export async function storyCommandAction(formData: FormData): Promise<void> {
   const admin = await requireAdminUser();
   const id = String(formData.get("id") ?? "");
   const command = String(formData.get("command") ?? "");
-  if (!id || !["submit", "approve", "publish", "schedule", "archive", "delete"].includes(command)) {
+  if (!id || !["submit", "approve", "reject", "publish", "schedule", "archive", "delete"].includes(command)) {
     redirect("/admin/stories?error=invalid-action");
   }
   const scheduledAt = normalizeScheduledAt(String(formData.get("scheduledAt") ?? ""));
@@ -117,8 +117,9 @@ export async function storyCommandAction(formData: FormData): Promise<void> {
     await runStoryCommand(
       admin,
       id,
-      command as "submit" | "approve" | "publish" | "schedule" | "archive" | "delete",
+      command as "submit" | "approve" | "reject" | "publish" | "schedule" | "archive" | "delete",
       scheduledAt,
+      String(formData.get("rejectionReason") ?? ""),
     );
   } catch {
     redirect(`/admin/stories/${id}?error=action-failed`);

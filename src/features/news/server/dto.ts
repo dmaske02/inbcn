@@ -97,6 +97,11 @@ export type CmsStoryDto = Readonly<{
   title: string;
   summary: string;
   content: string;
+  externalId: string | null;
+  externalUrl: string | null;
+  externalAuthor: string | null;
+  externalPublishedAt: string | null;
+  externalImageUrl: string | null;
   featuredMediaId: string | null;
   seoTitle: string | null;
   seoDescription: string | null;

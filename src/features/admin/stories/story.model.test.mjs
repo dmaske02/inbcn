@@ -5,6 +5,7 @@ import {
   canCreateStory,
   generateStorySlug,
   getAllowedStoryCommands,
+  resolveEditableStoryType,
   storyFormSchema,
 } from "./story.model.ts";
 import { calculateReadTime } from "../../news/server/services/story-reader.model.ts";
@@ -53,8 +54,16 @@ test("exposes only commands allowed by role, ownership, and status", () => {
   assert.deepEqual(getAllowedStoryCommands("writer", "draft", true), ["save", "submit"]);
   assert.deepEqual(getAllowedStoryCommands("writer", "draft", false), []);
   assert.deepEqual(getAllowedStoryCommands("editor", "pending_review", false), ["save", "approve"]);
+  assert.deepEqual(getAllowedStoryCommands("editor", "draft", false, true), ["save", "approve", "reject"]);
+  assert.deepEqual(getAllowedStoryCommands("editor", "draft", false, false), []);
   assert.deepEqual(getAllowedStoryCommands("editor", "approved", false), ["publish", "schedule", "archive"]);
   assert.deepEqual(getAllowedStoryCommands("editor", "scheduled", false), ["publish", "archive"]);
   assert.deepEqual(getAllowedStoryCommands("admin", "scheduled", true), ["save", "publish", "archive", "delete"]);
-  assert.deepEqual(getAllowedStoryCommands("admin", "draft", true), ["save", "submit", "approve", "publish", "schedule", "archive", "delete"]);
+  assert.deepEqual(getAllowedStoryCommands("admin", "draft", true), ["save", "submit", "approve", "reject", "publish", "schedule", "archive", "delete"]);
+});
+
+test("preserves imported story provenance during editorial edits", () => {
+  assert.equal(resolveEditableStoryType(null), "staff_article");
+  assert.equal(resolveEditableStoryType("staff_article"), "staff_article");
+  assert.equal(resolveEditableStoryType("external_article"), "external_article");
 });

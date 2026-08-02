@@ -16,6 +16,7 @@ import type { DatabaseEnum } from "@/lib/supabase/types";
 import {
   canCreateStory,
   getAllowedStoryCommands,
+  resolveEditableStoryType,
   storyFormSchema,
   type StoryCommand,
   type StoryFormValues,
@@ -97,7 +98,7 @@ export async function getStoryListView(admin: AdminIdentity, params: StoryListPa
       languageName: languageNames.get(story.languageId) ?? "Unknown",
       categoryName: categoryNames.get(story.categoryId) ?? "Unknown",
       authorName: story.createdBy ? (authorNames.get(story.createdBy) ?? "Former user") : "System",
-      commands: getAllowedStoryCommands(admin.role, story.status, story.createdBy === admin.id),
+      commands: getAllowedStoryCommands(admin.role, story.status, story.createdBy === admin.id, story.type === "external_article"),
     })),
     references,
     page,
@@ -133,7 +134,7 @@ export async function getStoryEditorView(admin: AdminIdentity, id?: string) {
     story,
     references,
     media,
-    commands: getAllowedStoryCommands(admin.role, story.status, story.createdBy === admin.id),
+    commands: getAllowedStoryCommands(admin.role, story.status, story.createdBy === admin.id, story.type === "external_article"),
     readTime: calculateReadTime(story.content),
   };
 }
@@ -142,12 +143,20 @@ function normalizeForm(
   values: StoryFormValues,
   role: AdminRole,
   currentFeaturedMediaId: string | null,
+  currentStoryType: CmsStoryDto["type"] | null,
+  currentSourceId: string | null,
 ) {
+  const storyType = resolveEditableStoryType(currentStoryType);
   return {
     language_id: values.languageId,
     category_id: values.categoryId,
-    source_id: role === "writer" ? null : values.sourceId || null,
-    story_type: "staff_article" as const,
+    source_id:
+      storyType === "external_article"
+        ? currentSourceId
+        : role === "writer"
+          ? null
+          : values.sourceId || null,
+    story_type: storyType,
     slug: values.slug,
     title: values.title,
     summary: values.summary,
@@ -186,7 +195,7 @@ export async function createStory(admin: AdminIdentity, input: StoryFormValues):
     throw new StoryManagementError("VALIDATION", "Select an available featured image.");
   }
   return insertCmsStory({
-    ...normalizeForm(values, admin.role, null),
+    ...normalizeForm(values, admin.role, null, null, null),
     created_by: admin.id,
     status: "draft",
   });
@@ -195,7 +204,7 @@ export async function createStory(admin: AdminIdentity, input: StoryFormValues):
 export async function saveStory(admin: AdminIdentity, id: string, input: StoryFormValues): Promise<CmsStoryDto> {
   const story = await getCmsStoryById(id);
   if (!story) throw new StoryManagementError("NOT_FOUND", "Story not found.");
-  if (!getAllowedStoryCommands(admin.role, story.status, story.createdBy === admin.id).includes("save")) {
+  if (!getAllowedStoryCommands(admin.role, story.status, story.createdBy === admin.id, story.type === "external_article").includes("save")) {
     throw new StoryManagementError("FORBIDDEN", "This story cannot be edited in its current state.");
   }
   const values = parseValues(input);
@@ -210,7 +219,13 @@ export async function saveStory(admin: AdminIdentity, id: string, input: StoryFo
     throw new StoryManagementError("VALIDATION", "Select an available featured image.");
   }
   return updateCmsStory(id, {
-    ...normalizeForm(values, admin.role, story.featuredMediaId),
+    ...normalizeForm(
+      values,
+      admin.role,
+      story.featuredMediaId,
+      story.type,
+      story.sourceId,
+    ),
     updated_at: new Date().toISOString(),
   });
 }
@@ -220,17 +235,18 @@ export async function runStoryCommand(
   id: string,
   command: Exclude<StoryCommand, "save">,
   scheduledAt?: string,
+  rejectionReason?: string,
 ): Promise<void> {
   const story = await getCmsStoryById(id);
   if (!story) throw new StoryManagementError("NOT_FOUND", "Story not found.");
-  const allowed = getAllowedStoryCommands(admin.role, story.status, story.createdBy === admin.id);
+  const allowed = getAllowedStoryCommands(admin.role, story.status, story.createdBy === admin.id, story.type === "external_article");
   if (!allowed.includes(command)) throw new StoryManagementError("INVALID_TRANSITION", "That action is not allowed for this story.");
   if (command === "delete") {
     await deleteCmsStory(id);
     return;
   }
   try {
-    await updateCmsStory(id, buildTransitionPatch(command, story.status, admin.id, new Date().toISOString(), scheduledAt));
+    await updateCmsStory(id, buildTransitionPatch(command, story.status, admin.id, new Date().toISOString(), scheduledAt, rejectionReason));
   } catch (error) {
     if (error instanceof StoryManagementError) throw error;
     if (error instanceof Error && error.message.toLowerCase().includes("publish date")) {

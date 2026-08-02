@@ -18,19 +18,21 @@ import {
   RepositoryError,
 } from "./errors";
 import { getLanguage } from "./languages.repository";
+import { collectRepositoryPages } from "./repository.pagination";
 import {
   buildPublishedStorySearchRequest,
   type PublishedStorySearchRequestQuery,
 } from "./stories.search-query.mjs";
 
 const DEFAULT_STORY_LIMIT = 20;
+const IMPORTED_IDENTITY_PAGE_SIZE = 500;
 const STORY_SUMMARY_COLUMNS =
   "id, translation_group_id, language_id, category_id, source_id, external_author, story_type, slug, title, summary, featured_media_id, is_featured, is_breaking, is_sponsored, published_at" as const;
 const STORY_DETAIL_COLUMNS =
   `${STORY_SUMMARY_COLUMNS}, content, updated_at, external_url, seo_title, seo_description, seo_keywords, canonical_url` as const;
 const CATEGORY_STORY_COLUMNS = `${STORY_SUMMARY_COLUMNS}, content` as const;
 const CMS_STORY_COLUMNS =
-  "id, language_id, category_id, source_id, created_by, approved_by, story_type, status, slug, title, summary, content, featured_media_id, seo_title, seo_description, seo_keywords, canonical_url, is_featured, is_breaking, submitted_at, approved_at, scheduled_at, published_at, created_at, updated_at" as const;
+  "id, language_id, category_id, source_id, created_by, approved_by, story_type, status, slug, title, summary, content, external_id, external_url, external_author, external_published_at, external_image_url, featured_media_id, seo_title, seo_description, seo_keywords, canonical_url, is_featured, is_breaking, submitted_at, approved_at, scheduled_at, published_at, created_at, updated_at" as const;
 
 export type CmsStoryListQuery = Readonly<{
   page: number;
@@ -81,6 +83,7 @@ type CategoryStoryRow = StorySummaryRow & Pick<TableRow<"stories">, "content">;
 type CmsStoryRow = Pick<TableRow<"stories">, keyof CmsStoryDto extends never ? never :
   | "id" | "language_id" | "category_id" | "source_id" | "created_by" | "approved_by"
   | "story_type" | "status" | "slug" | "title" | "summary" | "content"
+  | "external_id" | "external_url" | "external_author" | "external_published_at" | "external_image_url"
   | "featured_media_id" | "seo_title" | "seo_description" | "seo_keywords"
   | "canonical_url" | "is_featured" | "is_breaking" | "submitted_at" | "approved_at"
   | "scheduled_at" | "published_at" | "created_at" | "updated_at">;
@@ -90,7 +93,12 @@ function toCmsStoryDto(row: CmsStoryRow): CmsStoryDto {
     id: row.id, languageId: row.language_id, categoryId: row.category_id,
     sourceId: row.source_id, createdBy: row.created_by, approvedBy: row.approved_by,
     type: row.story_type, status: row.status, slug: row.slug, title: row.title,
-    summary: row.summary, content: row.content, featuredMediaId: row.featured_media_id,
+    summary: row.summary, content: row.content,
+    externalId: row.external_id, externalUrl: row.external_url,
+    externalAuthor: row.external_author,
+    externalPublishedAt: row.external_published_at,
+    externalImageUrl: row.external_image_url,
+    featuredMediaId: row.featured_media_id,
     seoTitle: row.seo_title, seoDescription: row.seo_description,
     seoKeywords: row.seo_keywords, canonicalUrl: row.canonical_url,
     isFeatured: row.is_featured, isBreaking: row.is_breaking,
@@ -502,4 +510,58 @@ export async function getCmsStoryReferences(): Promise<CmsStoryReferenceDto> {
     sources: sources.data,
     authors: authors.data.map((item) => ({ id: item.id, displayName: item.display_name })),
   };
+}
+
+export type ImportedStoryIdentityDto = Readonly<{
+  externalId: string | null;
+  externalUrl: string | null;
+  title: string;
+}>;
+
+export async function getImportedStoryIdentities(
+  sourceId: string,
+): Promise<ImportedStoryIdentityDto[]> {
+  const supabase = await createClient();
+
+  return collectRepositoryPages(
+    async (from, to) => {
+      const { data, error, count } = await supabase
+        .from("stories")
+        .select("external_id, external_url, title", { count: "exact" })
+        .eq("source_id", sourceId)
+        .eq("story_type", "external_article")
+        .order("id", { ascending: true })
+        .range(from, to);
+      assertRepositoryQuerySucceeded(
+        error,
+        "load imported story identities",
+      );
+
+      return {
+        items: data.map((row) => ({
+          externalId: row.external_id,
+          externalUrl: row.external_url,
+          title: row.title,
+        })),
+        total: count ?? data.length,
+      };
+    },
+    IMPORTED_IDENTITY_PAGE_SIZE,
+  );
+}
+
+export async function insertImportedStoryDraft(
+  values: CmsStoryInsert,
+): Promise<
+  Readonly<{ status: "created"; id: string } | { status: "duplicate" }>
+> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("stories")
+    .insert(values)
+    .select("id")
+    .single();
+  if (error?.code === "23505") return { status: "duplicate" };
+  assertRepositoryQuerySucceeded(error, "create imported story draft");
+  return { status: "created", id: data.id };
 }

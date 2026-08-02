@@ -16,7 +16,7 @@ import { MediaPicker } from "@/features/admin/media/media-picker";
 type StoryEditorView = Awaited<ReturnType<typeof getStoryEditorView>>;
 const initialState: StoryActionState = { status: "idle" };
 const control = "min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
-const commandLabels: Record<StoryCommand, string> = { save: "Save", submit: "Submit for review", approve: "Approve", publish: "Publish", schedule: "Schedule", archive: "Archive", delete: "Delete" };
+const commandLabels: Record<StoryCommand, string> = { save: "Save", submit: "Submit for review", approve: "Approve", reject: "Reject", publish: "Publish", schedule: "Schedule", archive: "Archive", delete: "Delete" };
 
 export function StoryForm({ adminRole, view }: { adminRole: AdminRole; view: StoryEditorView }) {
   const story = view.story;
@@ -48,11 +48,68 @@ export function StoryForm({ adminRole, view }: { adminRole: AdminRole; view: Sto
           </CardContent>
         </Card>
 
+        {story?.type === "external_article" ? (
+          <Card padding="none">
+            <CardHeader>
+              <h2 className="text-lg font-semibold">Provider provenance</h2>
+              <p className="text-sm text-muted-foreground">
+                Read-only metadata retained from NewsData for editorial review.
+              </p>
+            </CardHeader>
+            <CardContent className="grid gap-4 text-sm md:grid-cols-2">
+              <div>
+                <p className="font-medium">External author</p>
+                <p className="mt-1 text-muted-foreground">
+                  {story.externalAuthor ?? "Not supplied"}
+                </p>
+              </div>
+              <div>
+                <p className="font-medium">Original publication</p>
+                <p className="mt-1 text-muted-foreground">
+                  {story.externalPublishedAt
+                    ? new Date(story.externalPublishedAt).toLocaleString("en-IN")
+                    : "Not supplied"}
+                </p>
+              </div>
+              <div>
+                <p className="font-medium">Provider article</p>
+                {story.externalUrl ? (
+                  <a
+                    className="mt-1 inline-block break-all text-primary underline-offset-4 hover:underline"
+                    href={story.externalUrl}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Open original article
+                  </a>
+                ) : (
+                  <p className="mt-1 text-muted-foreground">Not supplied</p>
+                )}
+              </div>
+              <div>
+                <p className="font-medium">Provider image</p>
+                {story.externalImageUrl ? (
+                  <a
+                    className="mt-1 inline-block break-all text-primary underline-offset-4 hover:underline"
+                    href={story.externalImageUrl}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Open provider image
+                  </a>
+                ) : (
+                  <p className="mt-1 text-muted-foreground">Not supplied</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
         <div className="grid gap-5 lg:grid-cols-2">
           <Card padding="none"><CardHeader><h2 className="text-lg font-semibold">Classification</h2></CardHeader><CardContent className="grid gap-5">
             <label className="grid gap-2"><span className="text-sm font-medium">Language *</span><select className={control} name="languageId" value={languageId} onChange={(event)=>setLanguageId(event.target.value)} required>{view.references.languages.map((item)=><option key={item.id} value={item.id}>{item.name} ({item.code})</option>)}</select></label>
             <label className="grid gap-2"><span className="text-sm font-medium">Category *</span><select className={control} defaultValue={story?.categoryId ?? categories[0]?.id} key={languageId} name="categoryId" required>{categories.map((item)=><option key={item.id} value={item.id}>{item.name}</option>)}</select>{fieldError("categoryId") ? <span className="text-sm text-destructive">{fieldError("categoryId")}</span> : null}</label>
-            <label className="grid gap-2"><span className="text-sm font-medium">Source</span><select className={control} defaultValue={story?.sourceId ?? ""} disabled={adminRole === "writer"} name="sourceId"><option value="">No external source</option>{view.references.sources.map((item)=><option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+            <label className="grid gap-2"><span className="text-sm font-medium">Source</span>{story?.type === "external_article" ? <input name="sourceId" type="hidden" value={story.sourceId ?? ""} /> : null}<select className={control} defaultValue={story?.sourceId ?? ""} disabled={adminRole === "writer" || story?.type === "external_article"} name={story?.type === "external_article" ? undefined : "sourceId"}><option value="">No external source</option>{view.references.sources.map((item)=><option key={item.id} value={item.id}>{item.name}</option>)}</select>{story?.type === "external_article" ? <span className="text-xs text-muted-foreground">The import source is retained as provider provenance.</span> : null}</label>
             <label className="grid gap-2"><span className="text-sm font-medium">Tags</span><input className={control} defaultValue={story?.seoKeywords.join(", ") ?? ""} name="tags" placeholder="india, politics, elections" /><span className="text-xs text-muted-foreground">Comma-separated; stored as SEO keywords.</span></label>
           </CardContent></Card>
 
@@ -78,7 +135,8 @@ export function StoryForm({ adminRole, view }: { adminRole: AdminRole; view: Sto
       </form>
 
       {story ? <Card padding="none"><CardHeader><h2 className="text-lg font-semibold">Workflow actions</h2><p className="text-sm text-muted-foreground">Save content changes before applying a workflow transition.</p></CardHeader><CardContent className="flex flex-wrap items-end gap-3">
-        {view.commands.filter((command)=>command!=="save" && command!=="schedule").map((command)=><form action={storyCommandAction} key={command}><input name="id" type="hidden" value={story.id} /><input name="command" type="hidden" value={command} /><Button variant={command === "delete" ? "destructive" : command === "publish" ? "default" : "outline"} type="submit">{commandLabels[command]}</Button></form>)}
+        {view.commands.filter((command)=>command!=="save" && command!=="schedule" && command!=="reject").map((command)=><form action={storyCommandAction} key={command}><input name="id" type="hidden" value={story.id} /><input name="command" type="hidden" value={command} /><Button variant={command === "delete" ? "destructive" : command === "publish" ? "default" : "outline"} type="submit">{commandLabels[command]}</Button></form>)}
+        {view.commands.includes("reject") ? <form action={storyCommandAction} className="flex flex-wrap items-end gap-2"><input name="id" type="hidden" value={story.id} /><input name="command" type="hidden" value="reject" /><label className="grid gap-1"><span className="text-xs font-medium">Rejection reason</span><input className={control} name="rejectionReason" required /></label><Button variant="outline" type="submit">Reject</Button></form> : null}
         {view.commands.includes("schedule") ? <form action={storyCommandAction} className="flex flex-wrap items-end gap-2"><input name="id" type="hidden" value={story.id} /><input name="command" type="hidden" value="schedule" /><label className="grid gap-1"><span className="text-xs font-medium">Publish date</span><input className={control} defaultValue={story.scheduledAt?.slice(0,16)} name="scheduledAt" required type="datetime-local" /></label><Button variant="outline" type="submit">Schedule</Button></form> : null}
       </CardContent></Card> : null}
     </div>

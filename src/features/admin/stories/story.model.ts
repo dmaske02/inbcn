@@ -8,6 +8,7 @@ export type StoryCommand =
   | "save"
   | "submit"
   | "approve"
+  | "reject"
   | "publish"
   | "schedule"
   | "archive"
@@ -57,16 +58,26 @@ export function canCreateStory(role: AdminRole): boolean {
   return role === "writer" || role === "admin";
 }
 
+export function resolveEditableStoryType(
+  currentType: DatabaseEnum<"story_type"> | null,
+): "staff_article" | "external_article" {
+  return currentType === "external_article" ? "external_article" : "staff_article";
+}
+
 export function getAllowedStoryCommands(
   role: AdminRole,
   status: StoryStatus,
   isOwner: boolean,
+  isExternalArticle = false,
 ): StoryCommand[] {
   if (role === "writer") {
     return status === "draft" && isOwner ? ["save", "submit"] : [];
   }
 
   if (role === "editor") {
+    if (isExternalArticle && status === "draft") {
+      return ["save", "approve", "reject"];
+    }
     if (status === "pending_review") return ["save", "approve"];
     if (status === "approved") return ["publish", "schedule", "archive"];
     if (status === "scheduled") return ["publish", "archive"];
@@ -76,13 +87,13 @@ export function getAllowedStoryCommands(
 
   if (status === "archived") return ["delete"];
   if (status === "draft") {
-    return ["save", "submit", "approve", "publish", "schedule", "archive", "delete"];
+    return ["save", "submit", "approve", "reject", "publish", "schedule", "archive", "delete"];
   }
   if (status === "pending_review") {
-    return ["save", "approve", "publish", "schedule", "archive", "delete"];
+    return ["save", "approve", "reject", "publish", "schedule", "archive", "delete"];
   }
   if (status === "approved") return ["save", "publish", "schedule", "archive", "delete"];
   if (status === "scheduled") return ["save", "publish", "archive", "delete"];
   if (status === "published") return ["save", "archive", "delete"];
-  return ["save", "approve", "publish", "schedule", "archive", "delete"];
+  return ["save", "approve", "reject", "publish", "schedule", "archive", "delete"];
 }

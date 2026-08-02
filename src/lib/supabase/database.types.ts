@@ -351,12 +351,14 @@ export type Database = {
       }
       sources: {
         Row: {
+          country: string | null
           created_at: string
           default_category_id: string | null
           default_language_id: string | null
           external_identifier: string | null
           feed_url: string | null
           id: string
+          ingestion_priority: number
           is_active: boolean
           last_ingested_at: string | null
           name: string
@@ -367,12 +369,14 @@ export type Database = {
           website_url: string | null
         }
         Insert: {
+          country?: string | null
           created_at?: string
           default_category_id?: string | null
           default_language_id?: string | null
           external_identifier?: string | null
           feed_url?: string | null
           id?: string
+          ingestion_priority?: number
           is_active?: boolean
           last_ingested_at?: string | null
           name: string
@@ -383,12 +387,14 @@ export type Database = {
           website_url?: string | null
         }
         Update: {
+          country?: string | null
           created_at?: string
           default_category_id?: string | null
           default_language_id?: string | null
           external_identifier?: string | null
           feed_url?: string | null
           id?: string
+          ingestion_priority?: number
           is_active?: boolean
           last_ingested_at?: string | null
           name?: string
@@ -426,6 +432,8 @@ export type Database = {
           created_by: string | null
           external_author: string | null
           external_id: string | null
+          external_image_url: string | null
+          external_published_at: string | null
           external_url: string | null
           featured_media_id: string | null
           id: string
@@ -461,6 +469,8 @@ export type Database = {
           created_by?: string | null
           external_author?: string | null
           external_id?: string | null
+          external_image_url?: string | null
+          external_published_at?: string | null
           external_url?: string | null
           featured_media_id?: string | null
           id?: string
@@ -496,6 +506,8 @@ export type Database = {
           created_by?: string | null
           external_author?: string | null
           external_id?: string | null
+          external_image_url?: string | null
+          external_published_at?: string | null
           external_url?: string | null
           featured_media_id?: string | null
           id?: string
@@ -585,7 +597,11 @@ export type Database = {
         | "published"
         | "rejected"
         | "archived"
-      story_type: "aggregated" | "staff_article" | "citizen_report"
+      story_type:
+        | "aggregated"
+        | "staff_article"
+        | "citizen_report"
+        | "external_article"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -725,7 +741,12 @@ export const Constants = {
         "rejected",
         "archived",
       ],
-      story_type: ["aggregated", "staff_article", "citizen_report"],
+      story_type: [
+        "aggregated",
+        "staff_article",
+        "citizen_report",
+        "external_article",
+      ],
     },
   },
 } as const

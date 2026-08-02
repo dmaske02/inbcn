@@ -41,6 +41,23 @@ test("admin direct publish supplies required approval timestamps", () => {
   });
 });
 
+test("rejects a story with a durable editorial reason", () => {
+  const now = "2026-08-01T10:00:00.000Z";
+  assert.deepEqual(
+    buildTransitionPatch("reject", "draft", "editor-1", now, undefined, "Needs source verification."),
+    {
+      status: "rejected",
+      rejected_at: now,
+      rejection_reason: "Needs source verification.",
+      updated_at: now,
+    },
+  );
+  assert.throws(
+    () => buildTransitionPatch("reject", "draft", "editor-1", now, undefined, " "),
+    /rejection reason/i,
+  );
+});
+
 test("schedule requires a future date", () => {
   assert.throws(
     () => buildTransitionPatch("schedule", "approved", "editor-1", "2026-08-01T10:00:00.000Z"),

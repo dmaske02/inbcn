@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/features/admin/auth/actions";
 import { requireAdminUser } from "@/features/admin/auth/server";
 import { canManageMedia } from "@/features/admin/media/media.model";
+import { canManageNewsData } from "@/features/admin/imports/newsdata.model";
 
 export default async function ProtectedAdminLayout({
   children,
@@ -35,6 +36,8 @@ export default async function ProtectedAdminLayout({
               <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/dashboard">Dashboard</Link>
               <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/stories">Stories</Link>
               {canManageMedia(admin.role) ? <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/media">Media</Link> : null}
+              {canManageNewsData(admin.role) ? <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/sources">Sources</Link> : null}
+              {canManageNewsData(admin.role) ? <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/imports">Imports</Link> : null}
             </nav>
             <div className="hidden text-right sm:block">
               <p className="text-sm font-medium">{admin.displayName}</p>

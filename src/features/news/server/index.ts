@@ -15,6 +15,8 @@ export {
   getCmsStoryReferences,
   cmsStorySlugExists,
   insertCmsStory,
+  getImportedStoryIdentities,
+  insertImportedStoryDraft,
   updateCmsStory,
   deleteCmsStory,
 } from "./stories.repository";
@@ -42,6 +44,7 @@ export type {
   CmsStoryReferenceDto,
 } from "./dto";
 export type { CmsStoryListQuery, CmsStoryInsert, CmsStoryUpdate } from "./stories.repository";
+export type { ImportedStoryIdentityDto } from "./stories.repository";
 export type {
   CategoryStoryCandidates,
   PublishedCategoryStoryPageQuery,
