@@ -14,6 +14,17 @@ export type Database = {
   }
   public: {
     Tables: {
+      breaking_alerts: {
+        Row: { id: string; title: string; message: string; type: string; placement: string; status: string; is_active: boolean; priority: number; target_scope: string; language_id: string; category_id: string | null; story_id: string | null; background_color: string; text_color: string; dismissible: boolean; start_at: string; end_at: string | null; created_by: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; title: string; message: string; type: string; placement: string; status?: string; is_active?: boolean; priority?: number; target_scope?: string; language_id: string; category_id?: string | null; story_id?: string | null; background_color?: string; text_color?: string; dismissible?: boolean; start_at?: string; end_at?: string | null; created_by?: string | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; title?: string; message?: string; type?: string; placement?: string; status?: string; is_active?: boolean; priority?: number; target_scope?: string; language_id?: string; category_id?: string | null; story_id?: string | null; background_color?: string; text_color?: string; dismissible?: boolean; start_at?: string; end_at?: string | null; created_by?: string | null; created_at?: string; updated_at?: string }
+        Relationships: [
+          { foreignKeyName: "breaking_alerts_language_id_fkey"; columns: ["language_id"]; isOneToOne: false; referencedRelation: "languages"; referencedColumns: ["id"] },
+          { foreignKeyName: "breaking_alerts_category_id_fkey"; columns: ["category_id"]; isOneToOne: false; referencedRelation: "categories"; referencedColumns: ["id"] },
+          { foreignKeyName: "breaking_alerts_story_id_fkey"; columns: ["story_id"]; isOneToOne: false; referencedRelation: "stories"; referencedColumns: ["id"] },
+          { foreignKeyName: "breaking_alerts_created_by_fkey"; columns: ["created_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ]
+      }
       categories: {
         Row: {
           created_at: string
@@ -79,7 +90,7 @@ export type Database = {
           items_fetched: number
           items_updated: number
           metadata: Json
-          source_id: string
+          source_id: string | null
           started_at: string | null
           status: string
           triggered_by: string | null
@@ -95,7 +106,7 @@ export type Database = {
           items_fetched?: number
           items_updated?: number
           metadata?: Json
-          source_id: string
+          source_id?: string | null
           started_at?: string | null
           status?: string
           triggered_by?: string | null
@@ -111,7 +122,7 @@ export type Database = {
           items_fetched?: number
           items_updated?: number
           metadata?: Json
-          source_id?: string
+          source_id?: string | null
           started_at?: string | null
           status?: string
           triggered_by?: string | null
@@ -583,7 +594,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      claim_auto_import_batch: {
+        Args: { p_started_at: string; p_lock_expires_at: string; p_queue_size: number; p_force?: boolean }
+        Returns: Json
+      }
     }
     Enums: {
       media_type: "image" | "video" | "audio" | "document"

@@ -82,7 +82,8 @@
     "utility": {
       "weather": "Weather —",
       "market": "Markets —",
-      "live": "Live"
+      "live": "Live",
+      "tagline": "India-first news in English, Hindi and Marathi"
     },
     "footer": {
       "explore": "Explore",
@@ -92,7 +93,8 @@
       "corrections": "Corrections",
       "contact": "Contact",
       "description": "Trusted multilingual news for India.",
-      "copyright": "© {year} INBCN. All rights reserved."
+      "copyright": "© {year} INBCN. All rights reserved.",
+      "compliance": "DPDP-compliant · Google News Publisher"
     }
   },
   "storyReader": {
@@ -140,6 +142,8 @@
       "title": "Search INBCN",
       "description": "Find verified reporting by topic, headline, or keyword."
     },
+    "actions": { "allStories": "All stories" },
+    "sources": { "title": "Sources in this feed", "description": "Headlines from partner publishers are shown with attribution and link to the original source. INBCN does not republish their full text." },
     "empty": {
       "title": "No results for “{query}”",
       "description": "Check the spelling, broaden your search, or remove a filter."

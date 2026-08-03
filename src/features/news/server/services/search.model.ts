@@ -124,6 +124,7 @@ export type SearchModelStory = Readonly<{
   summary: string;
   content: string;
   externalAuthor: string | null;
+  externalImageUrl: string | null;
   publishedAt: string;
   featuredMedia: Readonly<{
     publicId: string;
@@ -141,7 +142,7 @@ export type SearchResultCardModel = Readonly<{
   author: string;
   publishedAt: string;
   readTime: number;
-  image: Readonly<{ src: string; alt: string }>;
+  image: Readonly<{ src: string; alt: string; unoptimized: boolean }>;
 }>;
 
 export type SearchMetadataModel = Readonly<{
@@ -280,7 +281,12 @@ export function composeSearchPageModel(input: Readonly<{
     author: formatPublicAuthor(story.externalAuthor, input.labels.newsDesk),
     publishedAt: story.publishedAt,
     readTime: calculateReadTime(story.content),
-    image: resolvePublicStoryImage(story.featuredMedia, input.cloudName, story.title),
+    image: resolvePublicStoryImage(
+      story.featuredMedia,
+      story.externalImageUrl,
+      input.cloudName,
+      story.title,
+    ),
   }));
   const pagination = createSearchPagination({
     page: input.page,

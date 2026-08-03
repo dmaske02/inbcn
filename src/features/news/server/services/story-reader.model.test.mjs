@@ -7,6 +7,7 @@ import {
   calculateReadTime,
   composeStoryMetadata,
   formatPublicAuthor,
+  resolvePublicStoryImage,
   selectRelatedStories,
   splitStoryBody,
 } from "./story-reader.model.ts";
@@ -19,6 +20,36 @@ test("uses external author and falls back to the localized news desk", () => {
 test("builds localized story URLs and calculates 200-WPM read time", () => {
   assert.equal(buildPublicStoryUrl("hi", "major-update"), "/hi/story/major-update");
   assert.equal(calculateReadTime(Array.from({length: 201}, (_, index) => `word${index}`).join(" ")), 2);
+});
+
+test("selects Cloudinary media before an external image and the fallback", () => {
+  const featuredMedia = {
+    publicId: "inbcn/story-image",
+    secureUrl: "https://res.cloudinary.com/demo/image/upload/story-image.jpg",
+    altText: "Editorial image description",
+  };
+  const externalImageUrl = "https://provider.example/story-image.jpg";
+
+  assert.deepEqual(
+    resolvePublicStoryImage(featuredMedia, externalImageUrl, "demo", "Story title"),
+    {
+      src: "https://res.cloudinary.com/demo/image/upload/f_auto,q_auto/inbcn/story-image",
+      alt: "Editorial image description",
+      unoptimized: false,
+    },
+  );
+  assert.deepEqual(
+    resolvePublicStoryImage(null, externalImageUrl, "demo", "Story title"),
+    { src: externalImageUrl, alt: "Story title", unoptimized: true },
+  );
+  assert.deepEqual(
+    resolvePublicStoryImage(null, null, "demo", "Story title"),
+    {
+      src: "/images/news/story-fallback.svg",
+      alt: "Story title",
+      unoptimized: false,
+    },
+  );
 });
 
 test("selects four related stories excluding the current story", () => {

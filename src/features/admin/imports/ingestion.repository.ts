@@ -8,12 +8,12 @@ import { parseImportRunMetadata } from "./newsdata.model";
 import type {
   IngestRunDto,
   IngestRunPageDto,
-  NewsDataReferenceDto,
-  NewsDataSourceDto,
+  IngestionReferenceDto,
+  IngestionSourceDto,
 } from "./ingestion.types";
 
 const SOURCE_COLUMNS =
-  "id, name, slug, default_language_id, default_category_id, country, ingestion_priority, is_active, last_ingested_at, created_at, updated_at" as const;
+  "id, name, slug, source_type, website_url, feed_url, default_language_id, default_category_id, country, ingestion_priority, is_active, last_ingested_at, created_at, updated_at" as const;
 
 const RUN_COLUMNS =
   "id, source_id, triggered_by, status, items_fetched, items_created, items_updated, items_failed, error_message, metadata, started_at, completed_at, created_at, source:sources!ingest_runs_source_id_fkey(name)" as const;
@@ -23,6 +23,9 @@ type SourceRow = Pick<
   | "id"
   | "name"
   | "slug"
+  | "source_type"
+  | "website_url"
+  | "feed_url"
   | "default_language_id"
   | "default_category_id"
   | "country"
@@ -33,11 +36,14 @@ type SourceRow = Pick<
   | "updated_at"
 >;
 
-function toSourceDto(row: SourceRow): NewsDataSourceDto {
+function toSourceDto(row: SourceRow): IngestionSourceDto {
   return {
     id: row.id,
     name: row.name,
     slug: row.slug,
+    sourceType: row.source_type,
+    websiteUrl: row.website_url,
+    feedUrl: row.feed_url,
     defaultLanguageId: row.default_language_id,
     defaultCategoryId: row.default_category_id,
     country: row.country,
@@ -59,7 +65,7 @@ function relationName(
 
 function toRunDto(row: {
   id: string;
-  source_id: string;
+  source_id: string | null;
   triggered_by: string | null;
   status: string;
   items_fetched: number;
@@ -73,7 +79,7 @@ function toRunDto(row: {
   created_at: string;
   source: Readonly<{ name: string }> | readonly Readonly<{ name: string }>[] | null;
 }): IngestRunDto {
-  const status = ["queued", "running", "completed", "partial", "failed"].includes(
+  const status = ["queued", "running", "completed", "partial", "failed", "skipped"].includes(
     row.status,
   )
     ? (row.status as IngestRunDto["status"])
@@ -96,33 +102,33 @@ function toRunDto(row: {
   };
 }
 
-export async function getNewsDataSources(): Promise<NewsDataSourceDto[]> {
+export async function getIngestionSources(): Promise<IngestionSourceDto[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("sources")
     .select(SOURCE_COLUMNS)
-    .eq("source_type", "newsdata_api")
+    .in("source_type", ["newsdata_api", "rss"])
     .order("ingestion_priority")
     .order("name");
-  assertRepositoryQuerySucceeded(error, "load NewsData sources");
+  assertRepositoryQuerySucceeded(error, "load ingestion sources");
   return data.map(toSourceDto);
 }
 
-export async function getNewsDataSourceById(
+export async function getIngestionSourceById(
   id: string,
-): Promise<NewsDataSourceDto | null> {
+): Promise<IngestionSourceDto | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("sources")
     .select(SOURCE_COLUMNS)
     .eq("id", id)
-    .eq("source_type", "newsdata_api")
+    .in("source_type", ["newsdata_api", "rss"])
     .maybeSingle();
-  assertRepositoryQuerySucceeded(error, "load NewsData source");
+  assertRepositoryQuerySucceeded(error, "load ingestion source");
   return data ? toSourceDto(data) : null;
 }
 
-export async function newsDataSourceSlugExists(
+export async function ingestionSourceSlugExists(
   slug: string,
   excludeId?: string,
 ): Promise<boolean> {
@@ -133,42 +139,41 @@ export async function newsDataSourceSlugExists(
     .eq("slug", slug);
   if (excludeId) request = request.neq("id", excludeId);
   const { count, error } = await request;
-  assertRepositoryQuerySucceeded(error, "check NewsData source slug");
+  assertRepositoryQuerySucceeded(error, "check ingestion source slug");
   return (count ?? 0) > 0;
 }
 
 type SourceValues = Database["public"]["Tables"]["sources"]["Insert"];
 
-export async function insertNewsDataSource(
+export async function insertIngestionSource(
   values: SourceValues,
-): Promise<NewsDataSourceDto> {
+): Promise<IngestionSourceDto> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("sources")
     .insert(values)
     .select(SOURCE_COLUMNS)
     .single();
-  assertRepositoryQuerySucceeded(error, "create NewsData source");
+  assertRepositoryQuerySucceeded(error, "create ingestion source");
   return toSourceDto(data);
 }
 
-export async function updateNewsDataSource(
+export async function updateIngestionSource(
   id: string,
   values: Database["public"]["Tables"]["sources"]["Update"],
-): Promise<NewsDataSourceDto> {
+): Promise<IngestionSourceDto> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("sources")
     .update(values)
     .eq("id", id)
-    .eq("source_type", "newsdata_api")
     .select(SOURCE_COLUMNS)
     .single();
-  assertRepositoryQuerySucceeded(error, "update NewsData source");
+  assertRepositoryQuerySucceeded(error, "update ingestion source");
   return toSourceDto(data);
 }
 
-export async function getNewsDataReferences(): Promise<NewsDataReferenceDto> {
+export async function getIngestionReferences(): Promise<IngestionReferenceDto> {
   const supabase = await createClient();
   const [languages, categories] = await Promise.all([
     supabase
@@ -226,7 +231,7 @@ export async function createIngestRun(input: {
     })
     .select("id")
     .single();
-  assertRepositoryQuerySucceeded(error, "start NewsData import");
+  assertRepositoryQuerySucceeded(error, "start ingestion run");
   return data;
 }
 
@@ -256,7 +261,7 @@ export async function completeIngestRun(
       updated_at: completion.completedAt,
     })
     .eq("id", id);
-  assertRepositoryQuerySucceeded(error, "complete NewsData import");
+  assertRepositoryQuerySucceeded(error, "complete ingestion run");
 }
 
 export async function touchSourceLastIngestedAt(
@@ -267,7 +272,6 @@ export async function touchSourceLastIngestedAt(
   const { error } = await supabase
     .from("sources")
     .update({ last_ingested_at: timestamp, updated_at: timestamp })
-    .eq("id", id)
-    .eq("source_type", "newsdata_api");
-  assertRepositoryQuerySucceeded(error, "update NewsData source activity");
+    .eq("id", id);
+  assertRepositoryQuerySucceeded(error, "update ingestion source activity");
 }

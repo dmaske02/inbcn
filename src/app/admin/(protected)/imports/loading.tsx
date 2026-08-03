@@ -9,7 +9,7 @@ export default function ImportsLoading() {
         <Skeleton className="h-48" />
       </div>
       <Skeleton className="h-72 w-full" />
-      <span className="sr-only">Loading NewsData imports…</span>
+      <span className="sr-only">Loading content imports…</span>
     </div>
   );
 }

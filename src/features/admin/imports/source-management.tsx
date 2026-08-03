@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
-  saveNewsDataSourceAction,
+  saveIngestionSourceAction,
   type IngestionActionState,
 } from "./ingestion.actions";
 import type { SourceManagementView } from "./ingestion.service";
@@ -26,11 +26,14 @@ function SourceForm({
   references: SourceManagementView["references"];
 }>) {
   const [state, action, pending] = useActionState(
-    saveNewsDataSourceAction,
+    saveIngestionSourceAction,
     initialState,
   );
   const [languageId, setLanguageId] = useState(
     source?.defaultLanguageId ?? references.languages[0]?.id ?? "",
+  );
+  const [sourceType, setSourceType] = useState<"newsdata_api" | "rss">(
+    source?.sourceType === "rss" ? "rss" : "newsdata_api",
   );
   const categories = useMemo(
     () =>
@@ -45,12 +48,12 @@ function SourceForm({
       <CardHeader className="flex-row items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold">
-            {source?.name ?? "Add NewsData source"}
+            {source?.name ?? "Add import source"}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {source
-              ? "Configure the provider filters and editorial defaults."
-              : "Create the source used for manual NewsData imports."}
+              ? `Configure this ${source.providerLabel} source and its editorial defaults.`
+              : "Create a NewsData or RSS source for manual imports."}
           </p>
         </div>
         {source ? (
@@ -62,11 +65,29 @@ function SourceForm({
       <CardContent>
         <form action={action} className="grid gap-5 md:grid-cols-2">
           <input name="id" type="hidden" value={source?.id ?? ""} />
+          {source ? (
+            <input name="sourceType" type="hidden" value={sourceType} />
+          ) : (
+            <label className="grid gap-2 md:col-span-2">
+              <span className="text-sm font-medium">Source type</span>
+              <select
+                className={control}
+                name="sourceType"
+                onChange={(event) =>
+                  setSourceType(event.target.value as "newsdata_api" | "rss")
+                }
+                value={sourceType}
+              >
+                <option value="newsdata_api">NewsData.io API</option>
+                <option value="rss">RSS / Atom feed</option>
+              </select>
+            </label>
+          )}
           <label className="grid gap-2">
             <span className="text-sm font-medium">Source name</span>
             <input
               className={control}
-              defaultValue={source?.name ?? "NewsData India"}
+              defaultValue={source?.name ?? ""}
               name="name"
               required
             />
@@ -75,12 +96,30 @@ function SourceForm({
             <span className="text-sm font-medium">Slug</span>
             <input
               className={control}
-              defaultValue={source?.slug ?? "newsdata-india"}
+              defaultValue={source?.slug ?? ""}
               name="slug"
               pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
               required
             />
           </label>
+          {sourceType === "rss" ? (
+            <label className="grid gap-2 md:col-span-2">
+              <span className="text-sm font-medium">Feed URL</span>
+              <input
+                className={control}
+                defaultValue={source?.feedUrl ?? ""}
+                name="feedUrl"
+                placeholder="https://example.com/feed.xml"
+                required
+                type="url"
+              />
+              <span className="text-xs text-muted-foreground">
+                Public RSS, Atom, or RDF feed URL. Images remain provider-hosted.
+              </span>
+            </label>
+          ) : (
+            <input name="feedUrl" type="hidden" value="" />
+          )}
           <label className="grid gap-2">
             <span className="text-sm font-medium">Default language</span>
             <select
@@ -123,7 +162,7 @@ function SourceForm({
               placeholder="in"
             />
             <span className="text-xs text-muted-foreground">
-              Optional two-letter provider filter.
+              Optional two-letter source classification.
             </span>
           </label>
           <label className="grid gap-2">

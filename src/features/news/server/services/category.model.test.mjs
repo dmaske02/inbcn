@@ -19,6 +19,8 @@ const story = (id, overrides = {}) => ({
   externalAuthor: null,
   publishedAt: `2026-08-01T0${id}:00:00.000Z`,
   isFeatured: false,
+  featuredMedia: null,
+  externalImageUrl: null,
   ...overrides,
 });
 
@@ -79,6 +81,25 @@ test("composes page one with a hero excluded from the story grid", () => {
   assert.equal(result.stories[0].author, "INBCN News Desk");
   assert.equal(result.storyCount, 3);
   assert.equal(result.emptyState, null);
+});
+
+test("uses a provider image for category stories without Cloudinary media", () => {
+  const externalImageUrl = "https://provider.example/category-story.jpg";
+  const result = composeCategoryPageModel({
+    locale: "en",
+    category: { id: "category", name: "National", slug: "national", description: "National reporting." },
+    hero: story("1", { externalImageUrl }),
+    stories: [],
+    relatedCategories: [],
+    page: 1,
+    pageSize: 12,
+    total: 0,
+    siteUrl: "https://inbcn.example",
+    labels: { newsDesk: "INBCN News Desk", emptyTitle: "No stories", emptyDescription: "Check again soon." },
+    cloudName: "inbcn",
+  });
+
+  assert.equal(result.hero?.image.src, externalImageUrl);
 });
 
 test("composes a localized empty state when the category has no published stories", () => {

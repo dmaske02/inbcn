@@ -3,6 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ImportButton } from "./import-button";
 import type { ImportDashboardView } from "./ingestion.service";
+import { pauseSchedulerAction, resumeSchedulerAction, runSchedulerNowAction } from "./ingestion.actions";
+import { Button } from "@/components/ui/button";
 
 function historyHref(page: number): string {
   return `/admin/imports?page=${page}`;
@@ -13,6 +15,35 @@ export function ImportHistory({
 }: Readonly<{ view: ImportDashboardView }>) {
   return (
     <div className="space-y-6">
+      <section aria-labelledby="scheduler-title">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold" id="scheduler-title">Scheduler</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Automated draft imports every {view.scheduler.intervalMinutes} minutes.</p>
+          </div>
+          <div className="flex gap-2">
+            <form action={view.scheduler.enabled ? pauseSchedulerAction : resumeSchedulerAction}>
+              <Button type="submit" variant="outline">{view.scheduler.enabled ? "Pause scheduler" : "Resume scheduler"}</Button>
+            </form>
+            <form action={runSchedulerNowAction}><Button type="submit">Run immediately</Button></form>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            ["Status", view.scheduler.enabled ? "Running" : "Paused"],
+            ["Currently running", view.scheduler.currentRun ? new Date(view.scheduler.currentRun).toLocaleString("en-IN") : "No"],
+            ["Queue size", String(view.scheduler.queueSize)],
+            ["Retry count", String(view.scheduler.retryCount)],
+            ["Last run", view.scheduler.lastRun ? new Date(view.scheduler.lastRun).toLocaleString("en-IN") : "Never"],
+            ["Next run", view.scheduler.nextRun ? new Date(view.scheduler.nextRun).toLocaleString("en-IN") : "Paused"],
+            ["Imported today", String(view.scheduler.statistics.today)],
+            ["Imported this week", String(view.scheduler.statistics.week)],
+            ["Imported this month", String(view.scheduler.statistics.month)],
+          ].map(([label, value]) => <Card key={label} padding="none"><CardContent className="py-4"><p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 font-semibold">{value}</p></CardContent></Card>)}
+        </div>
+        {view.scheduler.recentFailures.length > 0 ? <Card className="mt-4" padding="none"><CardHeader><h3 className="font-semibold">Recent failures</h3></CardHeader><CardContent><ul className="space-y-2 text-sm">{view.scheduler.recentFailures.map((failure) => <li key={failure.id}><span className="text-muted-foreground">{new Date(failure.at).toLocaleString("en-IN")}</span> — {failure.reason}</li>)}</ul></CardContent></Card> : null}
+      </section>
+
       <section aria-labelledby="manual-import-title">
         <h2 className="text-xl font-semibold" id="manual-import-title">
           Manual import
@@ -21,7 +52,7 @@ export function ImportHistory({
           {view.sources.length === 0 ? (
             <Card className="border-dashed md:col-span-2" padding="none">
               <CardContent className="py-10 text-center">
-                <p className="font-medium">No NewsData source configured</p>
+                <p className="font-medium">No import source configured</p>
                 <p className="mt-2 text-sm text-muted-foreground">
                   Create one under Sources before running an import.
                 </p>
@@ -34,9 +65,14 @@ export function ImportHistory({
                   <div>
                     <h3 className="font-semibold">{source.name}</h3>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {source.languageName} · {source.categoryName}
+                      {source.providerLabel} · {source.languageName} · {source.categoryName}
                       {source.country ? ` · ${source.country.toUpperCase()}` : ""}
                     </p>
+                    {source.sourceType === "rss" && source.feedUrl ? (
+                      <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                        {source.feedUrl}
+                      </p>
+                    ) : null}
                   </div>
                   <Badge variant={source.isReady ? "secondary" : "outline"}>
                     {source.isReady ? "Ready" : "Unavailable"}

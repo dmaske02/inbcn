@@ -33,6 +33,7 @@ export type HomepageStory = Readonly<{
   image: Readonly<{
     src: string;
     alt: string;
+    unoptimized: boolean;
   }>;
 }>;
 
@@ -91,6 +92,7 @@ export function composeHomepageData(
         isFeatured: story.isFeatured,
         image: resolvePublicStoryImage(
           story.featuredMedia,
+          story.externalImageUrl,
           cloudName,
           story.title,
         ),

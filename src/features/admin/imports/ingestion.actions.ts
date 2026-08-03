@@ -5,9 +5,10 @@ import { revalidatePath } from "next/cache";
 import { requireAdminUser } from "@/features/admin/auth/server";
 import {
   IngestionManagementError,
-  runManualNewsDataImport,
-  saveNewsDataSource,
+  runManualSourceImport,
+  saveIngestionSource,
 } from "./ingestion.service";
+import { runAutomatedImports, setSchedulerEnabled } from "./scheduler.service";
 
 export type IngestionActionState = Readonly<{
   status: "idle" | "success" | "error";
@@ -20,7 +21,7 @@ function safeError(error: unknown): IngestionActionState {
   }
   return {
     status: "error",
-    message: "The NewsData operation could not be completed. Please try again.",
+    message: "The import operation could not be completed. Please try again.",
   };
 }
 
@@ -30,30 +31,32 @@ function refreshIngestionViews(): void {
   revalidatePath("/admin/stories");
 }
 
-export async function saveNewsDataSourceAction(
+export async function saveIngestionSourceAction(
   _previousState: IngestionActionState,
   formData: FormData,
 ): Promise<IngestionActionState> {
   const admin = await requireAdminUser();
   try {
-    await saveNewsDataSource(admin, {
+    await saveIngestionSource(admin, {
       id: String(formData.get("id") ?? ""),
+      sourceType: String(formData.get("sourceType") ?? ""),
       name: String(formData.get("name") ?? ""),
       slug: String(formData.get("slug") ?? ""),
       defaultLanguageId: String(formData.get("defaultLanguageId") ?? ""),
       defaultCategoryId: String(formData.get("defaultCategoryId") ?? ""),
       country: String(formData.get("country") ?? ""),
+      feedUrl: String(formData.get("feedUrl") ?? ""),
       ingestionPriority: String(formData.get("ingestionPriority") ?? ""),
       isActive: formData.get("isActive") === "on",
     });
     refreshIngestionViews();
-    return { status: "success", message: "NewsData source saved." };
+    return { status: "success", message: "Import source saved." };
   } catch (error) {
     return safeError(error);
   }
 }
 
-export async function runNewsDataImportAction(
+export async function runSourceImportAction(
   sourceId: string,
   _previousState: IngestionActionState,
   _formData: FormData,
@@ -62,7 +65,7 @@ export async function runNewsDataImportAction(
   void _formData;
   const admin = await requireAdminUser();
   try {
-    const result = await runManualNewsDataImport(admin, sourceId);
+    const result = await runManualSourceImport(admin, sourceId);
     refreshIngestionViews();
     return {
       status: "success",
@@ -72,4 +75,22 @@ export async function runNewsDataImportAction(
     refreshIngestionViews();
     return safeError(error);
   }
+}
+
+export async function pauseSchedulerAction(): Promise<void> {
+  const admin = await requireAdminUser();
+  await setSchedulerEnabled(admin, false);
+  refreshIngestionViews();
+}
+
+export async function resumeSchedulerAction(): Promise<void> {
+  const admin = await requireAdminUser();
+  await setSchedulerEnabled(admin, true);
+  refreshIngestionViews();
+}
+
+export async function runSchedulerNowAction(): Promise<void> {
+  await requireAdminUser();
+  await runAutomatedImports({ force: true });
+  refreshIngestionViews();
 }

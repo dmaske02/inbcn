@@ -5,7 +5,7 @@ import { Download, LoaderCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
-  runNewsDataImportAction,
+  runSourceImportAction,
   type IngestionActionState,
 } from "./ingestion.actions";
 
@@ -13,7 +13,7 @@ const initialState: IngestionActionState = { status: "idle" };
 
 export function ImportButton({ sourceId }: Readonly<{ sourceId: string }>) {
   const [state, action, pending] = useActionState(
-    runNewsDataImportAction.bind(null, sourceId),
+    runSourceImportAction.bind(null, sourceId),
     initialState,
   );
 

@@ -50,6 +50,7 @@ export type StorySummaryDto = Readonly<{
   slug: string;
   title: string;
   summary: string;
+  externalImageUrl: string | null;
   featuredMediaId: string | null;
   featuredMedia: FeaturedMediaDto | null;
   isFeatured: boolean;

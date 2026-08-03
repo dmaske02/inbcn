@@ -15,11 +15,11 @@ export default async function AdminSourcesPage() {
       <header>
         <p className="text-sm font-medium text-muted-foreground">Editorial CMS</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-          NewsData Sources
+          Import Sources
         </h1>
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-          Configure the provider filters and localized editorial defaults used
-          by manual imports.
+          Configure NewsData and RSS providers with localized editorial
+          defaults used by manual imports.
         </p>
       </header>
       <SourceManagement view={view} />

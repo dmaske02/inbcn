@@ -22,18 +22,36 @@ export function buildCloudinaryDeliveryUrl(cloudName, publicId) {
   return `https://res.cloudinary.com/${encodedCloud}/image/upload/f_auto,q_auto/${encodedPublicId}`;
 }
 
-export function resolvePublicStoryImage(featuredMedia, cloudName, title) {
+export function resolvePublicStoryImage(
+  featuredMedia,
+  externalImageUrl,
+  cloudName,
+  title,
+) {
   if (featuredMedia?.publicId && cloudName?.trim()) {
     return {
       src: buildCloudinaryDeliveryUrl(cloudName, featuredMedia.publicId),
       alt: featuredMedia.altText?.trim() || title,
+      unoptimized: false,
     };
   }
   if (featuredMedia?.secureUrl) {
     return {
       src: featuredMedia.secureUrl,
       alt: featuredMedia.altText?.trim() || title,
+      unoptimized: false,
     };
   }
-  return { src: PUBLIC_STORY_FALLBACK_IMAGE, alt: title };
+  if (externalImageUrl?.trim()) {
+    return {
+      src: externalImageUrl.trim(),
+      alt: title,
+      unoptimized: true,
+    };
+  }
+  return {
+    src: PUBLIC_STORY_FALLBACK_IMAGE,
+    alt: title,
+    unoptimized: false,
+  };
 }

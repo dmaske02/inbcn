@@ -29,7 +29,12 @@ export type StoryReaderViewModel = Readonly<{
     readTime: number;
     tags: readonly string[];
     category: Readonly<{ name: string; slug: string; href: string }>;
-    image: Readonly<{ src: string; alt: string; caption: string | null }>;
+    image: Readonly<{
+      src: string;
+      alt: string;
+      unoptimized: boolean;
+      caption: string | null;
+    }>;
   }>;
   related: readonly Readonly<{
     id: string;
@@ -38,7 +43,7 @@ export type StoryReaderViewModel = Readonly<{
     href: string;
     author: string;
     publishedAt: string;
-    image: Readonly<{ src: string; alt: string }>;
+    image: Readonly<{ src: string; alt: string; unoptimized: boolean }>;
   }>[];
   metadata: ReturnType<typeof composeStoryMetadata>;
   jsonLd: ReturnType<typeof buildArticleJsonLd>;
@@ -62,6 +67,7 @@ export const getStoryReaderData = cache(async (locale: string, slug: string): Pr
   const author = formatPublicAuthor(story.externalAuthor, t("author.newsDesk"));
   const resolvedImage = resolvePublicStoryImage(
     story.featuredMedia,
+    story.externalImageUrl,
     env.public.cloudinaryCloudName,
     story.title,
   );
@@ -107,6 +113,7 @@ export const getStoryReaderData = cache(async (locale: string, slug: string): Pr
       publishedAt: item.publishedAt,
       image: resolvePublicStoryImage(
         item.featuredMedia,
+        item.externalImageUrl,
         env.public.cloudinaryCloudName,
         item.title,
       ),

@@ -27,7 +27,7 @@ import {
 const DEFAULT_STORY_LIMIT = 20;
 const IMPORTED_IDENTITY_PAGE_SIZE = 500;
 const STORY_SUMMARY_COLUMNS =
-  "id, translation_group_id, language_id, category_id, source_id, external_author, story_type, slug, title, summary, featured_media_id, is_featured, is_breaking, is_sponsored, published_at" as const;
+  "id, translation_group_id, language_id, category_id, source_id, external_author, story_type, slug, title, summary, external_image_url, featured_media_id, is_featured, is_breaking, is_sponsored, published_at" as const;
 const STORY_DETAIL_COLUMNS =
   `${STORY_SUMMARY_COLUMNS}, content, updated_at, external_url, seo_title, seo_description, seo_keywords, canonical_url` as const;
 const CATEGORY_STORY_COLUMNS = `${STORY_SUMMARY_COLUMNS}, content` as const;
@@ -59,6 +59,7 @@ type StorySummaryRow = Pick<
   | "slug"
   | "title"
   | "summary"
+  | "external_image_url"
   | "featured_media_id"
   | "is_featured"
   | "is_breaking"
@@ -127,6 +128,7 @@ function toStorySummaryDto(
     slug: row.slug,
     title: row.title,
     summary: row.summary,
+    externalImageUrl: row.external_image_url,
     featuredMediaId: row.featured_media_id,
     featuredMedia: media ? toFeaturedMediaDto(media) : null,
     isFeatured: row.is_featured,

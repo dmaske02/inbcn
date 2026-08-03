@@ -1,9 +1,13 @@
+import type { DatabaseEnum } from "@/lib/supabase/types";
 import type { ImportRunMetadata } from "./newsdata.model";
 
-export type NewsDataSourceDto = Readonly<{
+export type IngestionSourceDto = Readonly<{
   id: string;
   name: string;
   slug: string;
+  sourceType: DatabaseEnum<"source_type">;
+  websiteUrl: string | null;
+  feedUrl: string | null;
   defaultLanguageId: string | null;
   defaultCategoryId: string | null;
   country: string | null;
@@ -14,12 +18,14 @@ export type NewsDataSourceDto = Readonly<{
   updatedAt: string;
 }>;
 
+export type NewsDataSourceDto = IngestionSourceDto;
+
 export type IngestRunDto = Readonly<{
   id: string;
-  sourceId: string;
+  sourceId: string | null;
   sourceName: string;
   triggeredBy: string | null;
-  status: "queued" | "running" | "completed" | "partial" | "failed";
+  status: "queued" | "running" | "completed" | "partial" | "failed" | "skipped";
   itemsFetched: number;
   itemsCreated: number;
   itemsUpdated: number;
@@ -36,7 +42,7 @@ export type IngestRunPageDto = Readonly<{
   total: number;
 }>;
 
-export type NewsDataReferenceDto = Readonly<{
+export type IngestionReferenceDto = Readonly<{
   languages: readonly Readonly<{ id: string; code: string; name: string }>[];
   categories: readonly Readonly<{
     id: string;
@@ -45,3 +51,5 @@ export type NewsDataReferenceDto = Readonly<{
     name: string;
   }>[];
 }>;
+
+export type NewsDataReferenceDto = IngestionReferenceDto;

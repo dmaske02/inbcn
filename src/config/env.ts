@@ -39,6 +39,11 @@ const environmentSchema = z
     CLOUDINARY_API_ENVIRONMENT: optionalString,
 
     NEWSDATA_API_KEY: optionalString,
+    AUTO_IMPORT_ENABLED: z.enum(["true", "false"]).default("true"),
+    AUTO_IMPORT_INTERVAL_MINUTES: z.coerce.number().int().positive().default(30),
+    AUTO_IMPORT_RETRY_COUNT: z.coerce.number().int().min(0).max(10).default(3),
+    AUTO_IMPORT_TIMEOUT_SECONDS: z.coerce.number().positive().default(120),
+    AUTO_IMPORT_SECRET: optionalString,
 
     SENTRY_AUTH_TOKEN: optionalString,
     NEXT_PUBLIC_SENTRY_DSN: optionalHttpUrl,
@@ -80,6 +85,11 @@ const parsedEnvironment = environmentSchema.safeParse({
   CLOUDINARY_API_ENVIRONMENT: process.env.CLOUDINARY_API_ENVIRONMENT,
 
   NEWSDATA_API_KEY: process.env.NEWSDATA_API_KEY,
+  AUTO_IMPORT_ENABLED: process.env.AUTO_IMPORT_ENABLED,
+  AUTO_IMPORT_INTERVAL_MINUTES: process.env.AUTO_IMPORT_INTERVAL_MINUTES,
+  AUTO_IMPORT_RETRY_COUNT: process.env.AUTO_IMPORT_RETRY_COUNT,
+  AUTO_IMPORT_TIMEOUT_SECONDS: process.env.AUTO_IMPORT_TIMEOUT_SECONDS,
+  AUTO_IMPORT_SECRET: process.env.AUTO_IMPORT_SECRET,
 
   SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
   NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
@@ -123,6 +133,13 @@ export const env = Object.freeze({
     cloudinaryApiSecret: values.CLOUDINARY_API_SECRET,
     cloudinaryApiEnvironment: values.CLOUDINARY_API_ENVIRONMENT,
     newsDataApiKey: values.NEWSDATA_API_KEY,
+    autoImport: Object.freeze({
+      enabled: values.AUTO_IMPORT_ENABLED.toLowerCase() === "true",
+      intervalMinutes: values.AUTO_IMPORT_INTERVAL_MINUTES,
+      retryCount: values.AUTO_IMPORT_RETRY_COUNT,
+      timeoutSeconds: values.AUTO_IMPORT_TIMEOUT_SECONDS,
+      secret: values.AUTO_IMPORT_SECRET,
+    }),
     sentryAuthToken: values.SENTRY_AUTH_TOKEN,
     vapidPrivateKey: values.VAPID_PRIVATE_KEY,
     liveKitApiKey: values.LIVEKIT_API_KEY,

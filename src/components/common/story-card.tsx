@@ -13,6 +13,7 @@ type StoryImage = {
   alt: string;
   width?: number;
   height?: number;
+  unoptimized?: boolean;
 };
 
 type StoryCardContent = {
@@ -34,7 +35,7 @@ const storyCardVariants = cva("group min-w-0", {
     variant: {
       standard: "space-y-3",
       hero:
-        "grid items-start gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,.95fr)] lg:gap-8",
+        "grid items-start gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] lg:gap-7",
       featured: "space-y-4",
       horizontal:
         "grid grid-cols-[minmax(0,1fr)_minmax(7rem,.42fr)] items-start gap-4",
@@ -47,15 +48,15 @@ const storyCardVariants = cva("group min-w-0", {
 });
 
 const storyTitleVariants = cva(
-  "font-heading font-semibold tracking-tight text-balance decoration-1 underline-offset-4 group-hover:underline",
+  "font-heading font-semibold text-pretty decoration-1 underline-offset-4 group-hover:underline",
   {
     variants: {
       variant: {
-        standard: "text-xl leading-tight sm:text-2xl",
-        hero: "text-3xl leading-[1.12] sm:text-4xl lg:text-5xl",
-        featured: "text-2xl leading-tight sm:text-3xl",
-        horizontal: "text-lg leading-snug sm:text-xl",
-        compact: "text-base leading-snug sm:text-lg",
+        standard: "text-[17px] leading-[1.3]",
+        hero: "text-[22px] leading-[1.18] tracking-[-0.01em] sm:text-[30px] lg:text-[38px] lg:leading-[1.12] lg:tracking-[-0.02em]",
+        featured: "text-[19px] leading-[1.28]",
+        horizontal: "text-[18px] leading-[1.28] sm:text-[22px] sm:leading-[1.25]",
+        compact: "text-[14.5px] leading-[1.32]",
       },
     },
     defaultVariants: {
@@ -127,7 +128,8 @@ function StoryCard({
       tabIndex={-1}
       aria-hidden="true"
       className={cn(
-        "relative block aspect-video overflow-hidden bg-muted",
+        "relative block overflow-hidden border border-[#ded7cb] bg-[#e7e0d4]",
+        variant === "standard" || variant === "featured" ? "aspect-[3/2]" : "aspect-video",
         imageOrder[variant ?? "standard"],
       )}
     >
@@ -137,6 +139,7 @@ function StoryCard({
         width={image.width ?? 960}
         height={image.height ?? 540}
         priority={priority}
+        unoptimized={image.unoptimized}
         sizes={
           variant === "hero"
             ? "(min-width: 1024px) 48vw, 100vw"
@@ -144,7 +147,7 @@ function StoryCard({
               ? "(min-width: 768px) 240px, 38vw"
               : "(min-width: 1024px) 30vw, 100vw"
         }
-        className="size-full object-cover transition-transform duration-200 group-hover:scale-[1.01] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+        className="size-full object-cover transition-opacity duration-200 group-hover:opacity-90 motion-reduce:transition-none"
       />
       <span className="sr-only">{image.alt}</span>
     </Link>

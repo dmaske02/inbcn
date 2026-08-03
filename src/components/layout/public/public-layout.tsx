@@ -10,7 +10,6 @@ import { MobileNavigation } from "./mobile-navigation";
 import { PrimaryNavigation } from "./primary-navigation";
 import { SearchTrigger } from "./search-trigger";
 import { SkipToContent } from "./skip-to-content";
-import { ThemeToggle } from "./theme-toggle";
 import type {
   PublicFooterGroup,
   PublicLayoutSlots,
@@ -18,9 +17,11 @@ import type {
   PublicNavigationItem,
 } from "./types";
 import { UtilityBar } from "./utility-bar";
+import { getPublicBreakingAlerts } from "@/features/alerts/breaking-alerts.service";
+import { PublicAlerts } from "@/features/alerts/public-alerts";
 
 const publicLayoutVariants = cva(
-  "flex min-h-dvh flex-col bg-background text-foreground",
+  "public-site flex min-h-dvh min-w-0 flex-col overflow-x-clip bg-background text-foreground",
 );
 
 type PublicLayoutProps = Omit<HTMLAttributes<HTMLDivElement>, "children"> &
@@ -40,10 +41,10 @@ export async function PublicLayout({
   footer,
   ...props
 }: PublicLayoutProps) {
-  const t = await getTranslations({
+  const [t, alerts] = await Promise.all([getTranslations({
     locale,
     namespace: "publicLayout",
-  });
+  }), getPublicBreakingAlerts(locale)]);
 
   const navigationItems: PublicNavigationItem[] = [
     { label: t("navigation.national"), href: `/${locale}#national` },
@@ -96,6 +97,7 @@ export async function PublicLayout({
           weather={t("utility.weather")}
           market={t("utility.market")}
           liveLabel={t("utility.live")}
+          tagline={t("utility.tagline")}
         />
       )}
       {header ?? (
@@ -124,17 +126,12 @@ export async function PublicLayout({
               closeLabel={t("actions.closeSearch")}
             />
           }
-          theme={
-            <ThemeToggle
-              lightLabel={t("actions.lightTheme")}
-              darkLabel={t("actions.darkTheme")}
-            />
-          }
           languageLabel={t("actions.language")}
           currentLanguageLabel={t("actions.currentLanguage")}
           navigationLabel={t("actions.primaryNavigation")}
         />
       )}
+      <PublicAlerts alerts={alerts} />
       {signalRail}
       <main id="main-content" tabIndex={-1} className="flex-1">
         {children}
@@ -150,6 +147,7 @@ export async function PublicLayout({
           copyright={t("footer.copyright", {
             year: new Date().getFullYear(),
           })}
+          compliance={t("footer.compliance")}
         />
       )}
     </div>

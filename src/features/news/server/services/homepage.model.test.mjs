@@ -20,6 +20,8 @@ function story(overrides) {
     title: overrides.title ?? overrides.id,
     summary: `${overrides.id} summary`,
     featuredMediaId: overrides.featuredMediaId ?? null,
+    featuredMedia: overrides.featuredMedia ?? null,
+    externalImageUrl: overrides.externalImageUrl ?? null,
     isFeatured: overrides.isFeatured ?? false,
     isBreaking: overrides.isBreaking ?? false,
     isSponsored: false,
@@ -53,6 +55,18 @@ test("uses the latest story as hero and assigns the stable fallback image", () =
   assert.equal(result.hero?.href, "/hi/story/newest");
   assert.equal(result.hero?.image.src, "/images/news/story-fallback.svg");
   assert.equal(result.signal?.id, "newest");
+});
+
+test("uses a provider image when a story has no Cloudinary media", () => {
+  const externalImageUrl = "https://provider.example/homepage-story.jpg";
+  const result = composeHomepageData(
+    "en",
+    [story({ id: "external", publishedAt: "2026-08-02T10:00:00.000Z", externalImageUrl })],
+    categories,
+    "inbcn",
+  );
+
+  assert.equal(result.hero?.image.src, externalImageUrl);
 });
 
 test("returns a complete empty homepage model when no stories exist", () => {

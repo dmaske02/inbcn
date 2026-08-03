@@ -20,6 +20,7 @@ export function resolvePublicStoryImage(
     secureUrl: string;
     altText: string | null;
   }> | null | undefined,
+  externalImageUrl: string | null | undefined,
   cloudName: string | null | undefined,
   title: string,
-): Readonly<{ src: string; alt: string }>;
+): Readonly<{ src: string; alt: string; unoptimized: boolean }>;

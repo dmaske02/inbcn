@@ -22,6 +22,7 @@ export type CategoryModelStory = Readonly<{
   externalAuthor: string | null;
   publishedAt: string;
   isFeatured: boolean;
+  externalImageUrl: string | null;
   featuredMedia: Readonly<{
     publicId: string;
     secureUrl: string;
@@ -37,7 +38,7 @@ export type CategoryStoryCardModel = Readonly<{
   author: string;
   publishedAt: string;
   readTime: number;
-  image: Readonly<{ src: string; alt: string }>;
+  image: Readonly<{ src: string; alt: string; unoptimized: boolean }>;
 }>;
 
 export type CategoryPaginationModel = Readonly<{
@@ -107,7 +108,12 @@ function toCard(
     author: formatPublicAuthor(story.externalAuthor, newsDeskLabel),
     publishedAt: story.publishedAt,
     readTime: calculateReadTime(story.content),
-    image: resolvePublicStoryImage(story.featuredMedia, cloudName, story.title),
+    image: resolvePublicStoryImage(
+      story.featuredMedia,
+      story.externalImageUrl,
+      cloudName,
+      story.title,
+    ),
   };
 }
 
