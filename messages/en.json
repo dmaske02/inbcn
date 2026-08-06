@@ -32,6 +32,13 @@
       "leaderboard": "Advertisement · Leaderboard",
       "inFeed": "Advertisement · In feed"
     },
+    "actions": {
+      "allStories": "All stories"
+    },
+    "sources": {
+      "title": "Sources in this feed",
+      "description": "Headlines from partner publishers are shown with attribution and link to the original source. INBCN does not republish their full text."
+    },
     "empty": {
       "heroTitle": "No published stories yet",
       "heroDescription": "The latest verified coverage will appear here when it is published.",
@@ -97,12 +104,28 @@
       "compliance": "DPDP-compliant · Google News Publisher"
     }
   },
+  "publicChrome": {
+    "navigation": { "top": "Top", "india": "India", "world": "World", "politics": "Politics", "business": "Business", "technology": "Technology", "ai": "AI", "sports": "Sports", "entertainment": "Entertainment", "health": "Health", "lifestyle": "Lifestyle", "education": "Education", "jobs": "Jobs", "opinion": "Opinion", "factCheck": "Fact Check" },
+    "actions": { "liveTv": "Live TV", "login": "Log in", "signup": "Sign up", "searchPlaceholder": "Search stories, sources, cities", "openMenu": "Open menu", "closeMenu": "Close menu", "enableAlerts": "Enable alerts", "latestUpdate": "Latest update", "dismiss": "Dismiss" },
+    "utility": { "tagline": "India-first news in English, Hindi and Marathi", "weather": "Mumbai 29°C · Light rain", "notifications": "Notifications {count}", "reportIncident": "Report incident", "descriptor": "Multilingual public-interest news platform" },
+    "accessibility": { "home": "INBCN News home", "sections": "Sections", "mobileNavigation": "Mobile navigation", "breakingNews": "Breaking news", "skipToContent": "Skip to content" },
+    "breaking": "Breaking",
+    "pinnedAlert": "Pinned alert"
+  },
+  "publicFooter": {
+    "description": "Independent, multilingual public-interest journalism for India.",
+    "copyright": "© 2026 INBCN News. All rights reserved.",
+    "company": { "title": "Company", "about": "About INBCN", "contact": "Contact us", "careers": "Careers" },
+    "policies": { "title": "Policies", "editorial": "Editorial policy", "privacy": "Privacy policy", "terms": "Terms of use" },
+    "services": { "title": "News services", "liveTv": "Live TV", "factCheck": "Fact Check", "newsletters": "Newsletters" },
+    "connect": { "title": "Connect", "description": "Get the day’s essential stories in your inbox.", "email": "Email address", "subscribe": "Subscribe" }
+  },
   "storyReader": {
     "breadcrumb": { "home": "Home" },
     "author": { "newsDesk": "INBCN News Desk" },
     "meta": { "published": "Published", "updated": "Updated", "readTime": "{minutes} min read" },
-    "sections": { "tags": "Topics", "share": "Share this story", "related": "Related Stories" },
-    "share": { "copy": "Copy Link", "copied": "Copied", "x": "X", "facebook": "Facebook", "linkedin": "LinkedIn", "email": "Email" },
+    "sections": { "tags": "Topics", "share": "Share this story", "related": "Related Stories", "author": "About the author", "previous": "Previous Story", "next": "Next Story", "trending": "Trending", "latest": "Latest", "editorPicks": "Editor's Picks", "breaking": "Breaking", "newsletter": "Newsletter" },
+    "share": { "copy": "Copy Link", "copied": "Copied", "x": "X", "facebook": "Facebook", "linkedin": "LinkedIn", "telegram": "Telegram", "email": "Email" },
     "advertisement": "Advertisement"
   },
   "categoryPage": {

@@ -5,7 +5,7 @@ import type { AnchorHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 const navigationItemVariants = cva(
-  "inline-flex min-h-11 items-center border-b-2 text-sm font-medium transition-colors",
+  "inline-flex min-h-11 items-center border-b-[3px] text-[13.5px] font-medium transition-colors",
   {
     variants: {
       active: {

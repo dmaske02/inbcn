@@ -32,7 +32,7 @@ test("builds the published locale-aware full-text search request", async () => {
     publishedAfter: "2026-07-26T12:00:00.000Z",
     page: 2,
     pageSize: 12,
-  });
+  }, "2026-08-04T10:30:00.000Z");
 
   assert.ok(capturedUrl);
   assert.equal(capturedUrl.pathname, "/rest/v1/stories");
@@ -40,6 +40,7 @@ test("builds the published locale-aware full-text search request", async () => {
   assert.equal(capturedUrl.searchParams.get("status"), "eq.published");
   assert.deepEqual(capturedUrl.searchParams.getAll("published_at"), [
     "not.is.null",
+    "lte.2026-08-04T10:30:00.000Z",
     "gte.2026-07-26T12:00:00.000Z",
   ]);
   assert.equal(capturedUrl.searchParams.get("category_id"), "eq.category-id");

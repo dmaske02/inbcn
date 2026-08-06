@@ -6,7 +6,7 @@ import { Typography } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
 
 const errorStateVariants = cva(
-  "border-s-2 border-destructive py-4 ps-5 text-foreground",
+  "border border-[#e3ddd3] border-s-2 border-s-[#b3261e] bg-[#fcf1f0] p-6 text-foreground",
 );
 
 type ErrorStateProps = HTMLAttributes<HTMLDivElement> & {

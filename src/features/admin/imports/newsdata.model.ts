@@ -44,6 +44,48 @@ const LANGUAGE_CODES: Readonly<Record<string, "en" | "hi" | "mr">> = {
   marathi: "mr",
 };
 
+const CATEGORY_SLUG_BY_PROVIDER_LABEL: Readonly<Record<string, string>> = {
+  india: "national",
+  national: "national",
+  "राष्ट्रीय": "national",
+  "महाराष्ट्र": "national",
+  "मुंबई": "national",
+  world: "world",
+  "विश्व": "world",
+  "जागतिक": "world",
+  politics: "politics",
+  "राजनीति": "politics",
+  "राजकारण": "politics",
+  business: "business",
+  "व्यापार": "business",
+  "व्यवसाय": "business",
+  technology: "technology",
+  tech: "technology",
+  "तकनीक": "technology",
+  "प्रौद्योगिकी": "technology",
+  "तंत्रज्ञान": "technology",
+  sports: "sports",
+  sport: "sports",
+  "खेल": "sports",
+  "क्रीडा": "sports",
+  entertainment: "entertainment",
+  "मनोरंजन": "entertainment",
+  health: "health",
+  "स्वास्थ्य": "health",
+  "आरोग्य": "health",
+  lifestyle: "lifestyle",
+  "जीवनशैली": "lifestyle",
+  education: "education",
+  "शिक्षा": "education",
+  "शिक्षण": "education",
+  science: "science",
+  "विज्ञान": "science",
+  crime: "crime",
+  "अपराध": "crime",
+  "गुन्हे": "crime",
+  "क्राईम": "crime",
+};
+
 const countrySchema = z.preprocess(
   (value) =>
     typeof value === "string" ? value.trim().toLocaleLowerCase("en") : value,
@@ -161,6 +203,8 @@ export type NormalizedNewsDataArticle = Readonly<{
   externalAuthor: string | null;
   externalPublishedAt: string | null;
   externalImageUrl: string | null;
+  externalImageWidth: number | null;
+  externalImageHeight: number | null;
   tags: readonly string[];
   categories: readonly string[];
   languageCode: "en" | "hi" | "mr" | null;
@@ -260,7 +304,9 @@ export function selectProviderCategory(
     supportedCategorySlugs.map((value) => value.toLocaleLowerCase("en")),
   );
   return (
-    normalizeList(providerCategories).find((category) => supported.has(category)) ??
+    normalizeList(providerCategories)
+      .map((category) => CATEGORY_SLUG_BY_PROVIDER_LABEL[category] ?? category)
+      .find((category) => supported.has(category)) ??
     fallback
   );
 }
@@ -304,6 +350,8 @@ export function normalizeNewsDataArticle(
     externalAuthor: creators.map(cleanText).filter(Boolean).join(", ") || null,
     externalPublishedAt: normalizeProviderDate(article.pubDate, article.pubDateTZ),
     externalImageUrl: normalizeExternalUrl(article.image_url),
+    externalImageWidth: null,
+    externalImageHeight: null,
     tags: normalizeList([
       ...(article.keywords ?? []),
       ...asTextList(article.ai_tag),

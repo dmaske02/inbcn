@@ -11,6 +11,8 @@ const entry = {
   author: " Example News Desk ",
   categories: ["Technology", "National", "Technology"],
   imageUrl: "https://cdn.example.com/programme.jpg",
+  imageWidth: 1600,
+  imageHeight: 900,
   language: "en-IN",
 };
 
@@ -27,6 +29,8 @@ test("normalizes an RSS entry into the shared external article shape", async () 
     externalAuthor: "Example News Desk",
     externalPublishedAt: "2026-08-02T10:30:00.000Z",
     externalImageUrl: "https://cdn.example.com/programme.jpg",
+    externalImageWidth: 1600,
+    externalImageHeight: 900,
     tags: ["technology", "national"],
     categories: ["technology", "national"],
     languageCode: "en",

@@ -1,39 +1,21 @@
-"use client";
-
 import { cva } from "class-variance-authority";
-import {
-  useSyncExternalStore,
-  type ComponentProps,
-  type ReactNode,
-} from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 
-import { Header as BaseHeader } from "@/components/layout/header";
+import { Container } from "@/components/layout/container";
 import { Logo } from "@/components/layout/logo";
 import { cn } from "@/lib/utils";
 import { LanguageSwitcher } from "./language-switcher";
 import type { PublicLocale } from "./types";
 
 const headerVariants = cva(
-  "bg-background transition-[box-shadow,border-color] duration-200 ease-out supports-[backdrop-filter]:bg-background motion-reduce:transition-none",
-  {
-    variants: {
-      stuck: {
-        true: "shadow-sm",
-        false: "shadow-none",
-      },
-    },
-  },
+  "sticky top-0 z-40 border-b border-[#14110f] bg-[#fbf9f5]",
 );
 
-type HeaderProps = Omit<
-  ComponentProps<typeof BaseHeader>,
-  "logo" | "navigation" | "actions" | "mobileNavigation" | "height"
-> & {
+type HeaderProps = HTMLAttributes<HTMLElement> & {
   locale: PublicLocale;
   primaryNavigation?: ReactNode;
   mobileNavigation?: ReactNode;
   search?: ReactNode;
-  theme?: ReactNode;
   languageLabel?: string;
   currentLanguageLabel?: string;
   navigationLabel?: string;
@@ -45,42 +27,29 @@ function Header({
   primaryNavigation,
   mobileNavigation,
   search,
-  theme,
   languageLabel,
   currentLanguageLabel,
   navigationLabel,
   ...props
 }: HeaderProps) {
-  const stuck = useSyncExternalStore(
-    (onStoreChange) => {
-      window.addEventListener("scroll", onStoreChange, { passive: true });
-      return () => window.removeEventListener("scroll", onStoreChange);
-    },
-    () => window.scrollY > 36,
-    () => false,
-  );
-
   return (
-    <BaseHeader
-      logo={<Logo href={`/${locale}`} imagePreload />}
-      navigation={primaryNavigation}
-      navigationLabel={navigationLabel}
-      actions={
-        <>
-          {search}
-          <LanguageSwitcher
-            locale={locale}
-            label={languageLabel}
-            currentLabel={currentLanguageLabel}
-          />
-          <span className="hidden sm:inline-flex">{theme}</span>
-        </>
-      }
-      mobileNavigation={mobileNavigation}
-      height="default"
-      className={cn(headerVariants({ stuck }), className)}
-      {...props}
-    />
+    <header className={cn(headerVariants(), className)} {...props}>
+      <Container>
+        <div className="flex min-h-[60px] items-center gap-5 sm:min-h-[64px] sm:gap-8">
+          <Logo href={`/${locale}`} size="lg" imagePreload />
+          <div className="ms-auto flex min-w-0 items-center gap-2">
+            {search}
+            <div className="hidden sm:block">
+              <LanguageSwitcher locale={locale} label={languageLabel} currentLabel={currentLanguageLabel} />
+            </div>
+            <div className="lg:hidden">{mobileNavigation}</div>
+          </div>
+        </div>
+        <nav aria-label={navigationLabel} className="hidden min-w-0 border-t border-[#e3ddd3] lg:block">
+          {primaryNavigation}
+        </nav>
+      </Container>
+    </header>
   );
 }
 

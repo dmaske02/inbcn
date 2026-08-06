@@ -19,8 +19,48 @@ export function resolvePublicStoryImage(
     publicId: string;
     secureUrl: string;
     altText: string | null;
+    width?: number | null;
+    height?: number | null;
   }> | null | undefined,
   externalImageUrl: string | null | undefined,
   cloudName: string | null | undefined,
   title: string,
-): Readonly<{ src: string; alt: string; unoptimized: boolean }>;
+  externalImageWidth?: number | null,
+  externalImageHeight?: number | null,
+): Readonly<{
+  src: string;
+  alt: string;
+  unoptimized: boolean;
+  width: number | null;
+  height: number | null;
+  aspectRatio: number | null;
+}>;
+
+export function resolveAvailablePublicStoryImage(
+  image: Readonly<{
+    src: string;
+    alt: string;
+    unoptimized: boolean;
+    width: number | null;
+    height: number | null;
+    aspectRatio: number | null;
+  }>,
+  fetcher?: typeof fetch,
+): Promise<Readonly<{
+  src: string;
+  alt: string;
+  unoptimized: boolean;
+  width: number | null;
+  height: number | null;
+  aspectRatio: number | null;
+}>>;
+
+export function getHeroImagePresentation(image: Readonly<{
+  width: number | null;
+  height: number | null;
+}>): Readonly<{
+  objectFit: "cover" | "contain";
+  objectPosition: "center";
+  maxWidth: string | undefined;
+  maxHeight: string | undefined;
+}>;

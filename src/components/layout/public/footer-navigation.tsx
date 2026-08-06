@@ -5,7 +5,7 @@ import { Typography } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
 import type { PublicFooterGroup, PublicLocale } from "./types";
 
-const footerNavigationVariants = cva("space-y-7");
+const footerNavigationVariants = cva("");
 
 type FooterNavigationProps = {
   locale: PublicLocale;
@@ -44,13 +44,13 @@ function FooterNavigation({
     >
       {groups.map((group) => (
         <nav key={group.label} aria-label={group.label}>
-          <Typography variant="label" className="mb-3">
+          <Typography variant="label" className="mb-4 text-[10px] uppercase tracking-[0.14em] text-white">
             {group.label}
           </Typography>
-          <ul className="space-y-2 text-sm text-muted-foreground">
+          <ul className="space-y-2 text-[12.5px] text-[#b9b0a5]">
             {group.items.map((item) => (
               <li key={item.href}>
-                <Link href={item.href} className="hover:text-foreground hover:underline">
+                <Link href={item.href} className="inline-flex min-h-11 items-center hover:text-white hover:underline sm:min-h-0">
                   {item.label}
                 </Link>
               </li>

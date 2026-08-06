@@ -3,12 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdminUser } from "@/features/admin/auth/server";
+import { revalidatePublicNews } from "@/features/admin/public-revalidation";
 import { alertFormSchema } from "./breaking-alerts.model";
 import { AlertManagementError, createBreakingAlert, runBreakingAlertCommand, saveBreakingAlert } from "./breaking-alerts.service";
 
 export type AlertActionState = Readonly<{ status: "idle"|"error"; message?: string; fieldErrors?: Record<string,string[]|undefined> }>;
 function values(form: FormData) { return { title: form.get("title"), message: form.get("message"), type: form.get("type"), placement: form.get("placement"), status: form.get("status") ?? "draft", isActive: form.get("isActive") === "on", priority: form.get("priority"), targetScope: form.get("targetScope"), languageId: form.get("languageId"), categoryId: form.get("categoryId") ?? "", storyId: form.get("storyId") ?? "", backgroundColor: form.get("backgroundColor"), textColor: form.get("textColor"), dismissible: form.get("dismissible") === "on", startAt: form.get("startAt"), endAt: form.get("endAt") ?? "" }; }
-function refresh() { revalidatePath("/admin/alerts"); revalidatePath("/en"); revalidatePath("/hi"); revalidatePath("/mr"); }
+function refresh() { revalidatePath("/admin/alerts"); revalidatePublicNews(); }
 function safe(error: unknown): AlertActionState { return { status: "error", message: error instanceof AlertManagementError ? error.message : "The alert could not be saved." }; }
 
 export async function createAlertAction(_state: AlertActionState, form: FormData): Promise<AlertActionState> {

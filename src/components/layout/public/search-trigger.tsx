@@ -1,24 +1,12 @@
-"use client";
-
 import { cva } from "class-variance-authority";
-import { Search, X } from "lucide-react";
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type KeyboardEvent,
-} from "react";
+import { Search } from "lucide-react";
+import Link from "next/link";
 
-import { SearchTrigger as BaseSearchTrigger } from "@/components/common/search-trigger";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { PublicLocale } from "./types";
 
-const searchTriggerVariants = cva("");
-const searchPanelVariants = cva(
-  "absolute inset-x-4 top-full z-50 border border-border bg-background p-4 shadow-lg sm:inset-x-auto sm:end-4 sm:w-96",
-);
+const searchTriggerVariants = cva("hidden min-w-[200px] items-center sm:flex lg:w-[300px]");
+const searchPanelVariants = cva("");
 
 type SearchTriggerProps = Readonly<{
   locale: PublicLocale;
@@ -34,96 +22,20 @@ function SearchTrigger({
   label = "Search",
   placeholder = "Search news",
   submitLabel = "Search",
-  closeLabel = "Close search",
   className,
 }: SearchTriggerProps) {
-  const [open, setOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const close = useCallback((restoreFocus = false) => {
-    setOpen(false);
-    if (restoreFocus) requestAnimationFrame(() => triggerRef.current?.focus());
-  }, []);
-
-  useEffect(() => {
-    if (!open) return;
-    inputRef.current?.focus();
-
-    function onPointerDown(event: MouseEvent) {
-      const target = event.target as Node;
-      if (
-        !panelRef.current?.contains(target)
-        && !triggerRef.current?.contains(target)
-      ) {
-        close();
-      }
-    }
-
-    document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
-  }, [close, open]);
-
-  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      close(true);
-    }
-  }
-
   return (
-    <div className="static">
-      <BaseSearchTrigger
-        ref={triggerRef}
-        label={label}
-        aria-expanded={open}
-        aria-controls="public-search-panel"
-        className={cn(searchTriggerVariants(), className)}
-        onClick={() => setOpen((value) => !value)}
-      />
-      {open ? (
-        <div
-          id="public-search-panel"
-          ref={panelRef}
-          className={searchPanelVariants()}
-          onKeyDown={onKeyDown}
-        >
-          <form
-            action={`/${locale}/search`}
-            method="get"
-            role="search"
-            aria-label={label}
-            className="flex items-center gap-2"
-          >
-            <label htmlFor="header-search-query" className="sr-only">{label}</label>
-            <input
-              ref={inputRef}
-              id="header-search-query"
-              name="q"
-              type="search"
-              required
-              maxLength={160}
-              autoComplete="off"
-              placeholder={placeholder}
-              className="min-h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-            />
-            <Button type="submit" size="icon" variant="signal" aria-label={submitLabel}>
-              <Search aria-hidden="true" />
-            </Button>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              aria-label={closeLabel}
-              onClick={() => close(true)}
-            >
-              <X aria-hidden="true" />
-            </Button>
-          </form>
-        </div>
-      ) : null}
-    </div>
+    <>
+      <form action={`/${locale}/search`} method="get" role="search" aria-label={label} className={cn(searchTriggerVariants(), className)}>
+        <label htmlFor="header-search-query" className="sr-only">{label}</label>
+        <Search className="pointer-events-none ms-3 me-[-30px] z-10 size-3.5 text-[#6e655c]" aria-hidden="true" />
+        <input id="header-search-query" name="q" type="search" required maxLength={160} autoComplete="off" placeholder={placeholder} className="min-h-9 min-w-0 flex-1 rounded-[2px] border border-[#ded7cb] bg-white py-2 pe-3 ps-9 text-[12.5px] outline-none placeholder:text-[#8a7f73] focus-visible:border-[#b3261e]" />
+        <button type="submit" className="sr-only">{submitLabel}</button>
+      </form>
+      <Link href={`/${locale}/search`} aria-label={label} className="grid size-11 place-items-center sm:hidden">
+        <Search className="size-4" aria-hidden="true" />
+      </Link>
+    </>
   );
 }
 

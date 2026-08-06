@@ -27,12 +27,12 @@ import {
 const DEFAULT_STORY_LIMIT = 20;
 const IMPORTED_IDENTITY_PAGE_SIZE = 500;
 const STORY_SUMMARY_COLUMNS =
-  "id, translation_group_id, language_id, category_id, source_id, external_author, story_type, slug, title, summary, external_image_url, featured_media_id, is_featured, is_breaking, is_sponsored, published_at" as const;
+  "id, translation_group_id, language_id, category_id, source_id, external_author, story_type, slug, title, summary, external_image_url, external_image_width, external_image_height, featured_media_id, is_featured, is_breaking, is_sponsored, published_at" as const;
 const STORY_DETAIL_COLUMNS =
   `${STORY_SUMMARY_COLUMNS}, content, updated_at, external_url, seo_title, seo_description, seo_keywords, canonical_url` as const;
 const CATEGORY_STORY_COLUMNS = `${STORY_SUMMARY_COLUMNS}, content` as const;
 const CMS_STORY_COLUMNS =
-  "id, language_id, category_id, source_id, created_by, approved_by, story_type, status, slug, title, summary, content, external_id, external_url, external_author, external_published_at, external_image_url, featured_media_id, seo_title, seo_description, seo_keywords, canonical_url, is_featured, is_breaking, submitted_at, approved_at, scheduled_at, published_at, created_at, updated_at" as const;
+  "id, language_id, category_id, source_id, created_by, approved_by, story_type, status, slug, title, summary, content, external_id, external_url, external_author, external_published_at, external_image_url, external_image_width, external_image_height, featured_media_id, seo_title, seo_description, seo_keywords, canonical_url, is_featured, is_breaking, submitted_at, approved_at, scheduled_at, published_at, created_at, updated_at" as const;
 
 export type CmsStoryListQuery = Readonly<{
   page: number;
@@ -60,6 +60,8 @@ type StorySummaryRow = Pick<
   | "title"
   | "summary"
   | "external_image_url"
+  | "external_image_width"
+  | "external_image_height"
   | "featured_media_id"
   | "is_featured"
   | "is_breaking"
@@ -84,7 +86,7 @@ type CategoryStoryRow = StorySummaryRow & Pick<TableRow<"stories">, "content">;
 type CmsStoryRow = Pick<TableRow<"stories">, keyof CmsStoryDto extends never ? never :
   | "id" | "language_id" | "category_id" | "source_id" | "created_by" | "approved_by"
   | "story_type" | "status" | "slug" | "title" | "summary" | "content"
-  | "external_id" | "external_url" | "external_author" | "external_published_at" | "external_image_url"
+  | "external_id" | "external_url" | "external_author" | "external_published_at" | "external_image_url" | "external_image_width" | "external_image_height"
   | "featured_media_id" | "seo_title" | "seo_description" | "seo_keywords"
   | "canonical_url" | "is_featured" | "is_breaking" | "submitted_at" | "approved_at"
   | "scheduled_at" | "published_at" | "created_at" | "updated_at">;
@@ -99,6 +101,8 @@ function toCmsStoryDto(row: CmsStoryRow): CmsStoryDto {
     externalAuthor: row.external_author,
     externalPublishedAt: row.external_published_at,
     externalImageUrl: row.external_image_url,
+    externalImageWidth: row.external_image_width,
+    externalImageHeight: row.external_image_height,
     featuredMediaId: row.featured_media_id,
     seoTitle: row.seo_title, seoDescription: row.seo_description,
     seoKeywords: row.seo_keywords, canonicalUrl: row.canonical_url,
@@ -129,6 +133,8 @@ function toStorySummaryDto(
     title: row.title,
     summary: row.summary,
     externalImageUrl: row.external_image_url,
+    externalImageWidth: row.external_image_width,
+    externalImageHeight: row.external_image_height,
     featuredMediaId: row.featured_media_id,
     featuredMedia: media ? toFeaturedMediaDto(media) : null,
     isFeatured: row.is_featured,
@@ -237,6 +243,7 @@ async function getPublishedStories(
     .select(STORY_SUMMARY_COLUMNS)
     .eq("status", "published")
     .not("published_at", "is", null)
+    .lte("published_at", new Date().toISOString())
     .order("published_at", { ascending: false })
     .limit(DEFAULT_STORY_LIMIT);
 
@@ -287,6 +294,7 @@ export async function getStoryBySlug(
     .eq("slug", slug)
     .eq("status", "published")
     .not("published_at", "is", null)
+    .lte("published_at", new Date().toISOString())
     .maybeSingle();
 
   assertRepositoryQuerySucceeded(error, "load story");
@@ -347,6 +355,7 @@ export async function getCategoryStoryCandidates(
     .eq("category_id", categoryId)
     .eq("status", "published")
     .not("published_at", "is", null)
+    .lte("published_at", new Date().toISOString())
     .eq("is_featured", true)
     .order("published_at", { ascending: false })
     .limit(1);
@@ -357,6 +366,7 @@ export async function getCategoryStoryCandidates(
     .eq("category_id", categoryId)
     .eq("status", "published")
     .not("published_at", "is", null)
+    .lte("published_at", new Date().toISOString())
     .order("published_at", { ascending: false })
     .limit(1);
   const [featuredResult, latestResult] = await Promise.all([
@@ -385,6 +395,7 @@ export async function getPublishedCategoryStoryPage(
     .eq("category_id", query.categoryId)
     .eq("status", "published")
     .not("published_at", "is", null)
+    .lte("published_at", new Date().toISOString())
     .order("published_at", { ascending: false });
 
   if (query.excludeStoryId) request = request.neq("id", query.excludeStoryId);

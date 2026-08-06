@@ -2,6 +2,7 @@ import { hasLocale } from "next-intl";
 import { setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { PublicLayout } from "@/components/layout/public";
+import { getHomepageData } from "@/features/news/server/services/homepage.service";
 import { routing } from "@/i18n/routing";
 
 type LocaleLayoutProps = {
@@ -24,6 +25,7 @@ export default async function LocaleLayout({
   }
 
   setRequestLocale(locale);
+  const homepageData = await getHomepageData(locale);
 
-  return <PublicLayout locale={locale}>{children}</PublicLayout>;
+  return <PublicLayout locale={locale} homepageData={homepageData}>{children}</PublicLayout>;
 }

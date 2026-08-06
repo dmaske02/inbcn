@@ -3,10 +3,10 @@ import type { HTMLAttributes } from "react";
 
 import { cn } from "@/lib/utils";
 
-const containerVariants = cva("mx-auto w-full px-4 sm:px-6 lg:px-8", {
+const containerVariants = cva("mx-auto w-full px-4 sm:px-6", {
   variants: {
     size: {
-      default: "max-w-7xl",
+      default: "max-w-[1288px]",
       wide: "max-w-[1440px]",
       reading: "max-w-3xl",
       full: "max-w-none",

@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { Timestamp } from "./timestamp";
 
 const storyMetaVariants = cva(
-  "flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground",
+  "flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[#8a7f73]",
   {
     variants: {
       density: {

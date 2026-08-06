@@ -23,6 +23,8 @@ const entry = {
   author: "Example Desk",
   categories: ["Technology"],
   imageUrl: "https://cdn.example.com/rss-programme.jpg",
+  imageWidth: 1200,
+  imageHeight: 675,
   language: "en",
 };
 
@@ -91,6 +93,8 @@ test("imports RSS entries through the shared private-draft workflow", async () =
     deps.inserted[0].external_image_url,
     "https://cdn.example.com/rss-programme.jpg",
   );
+  assert.equal(deps.inserted[0].external_image_width, 1200);
+  assert.equal(deps.inserted[0].external_image_height, 675);
   assert.equal(deps.completed[0].result.status, "completed");
 });
 
@@ -130,9 +134,10 @@ test("reuses provider id, canonical URL, and title-source duplicate checks", asy
 
 test("finalizes RSS run history when feed retrieval fails", async () => {
   const { runRssImportOperation } = await loadOperations();
+  const { RssRepositoryError } = await import("./rss.request.ts");
   const deps = dependencies({
     fetchFeed: async () => {
-      throw new Error("feed unavailable");
+      throw new RssRepositoryError("UNAVAILABLE", "Feed returned HTTP 404 (text/html).");
     },
   });
 
@@ -145,9 +150,10 @@ test("finalizes RSS run history when feed retrieval fails", async () => {
       },
       deps.value,
     ),
-    /RSS import could not be completed/i,
+    /Feed returned HTTP 404 \(text\/html\)\./i,
   );
   assert.equal(deps.completed.length, 1);
   assert.equal(deps.completed[0].result.status, "failed");
-  assert.equal(deps.completed[0].result.errorMessage, "RSS import failed.");
+  assert.equal(deps.completed[0].result.errorMessage, "Feed returned HTTP 404 (text/html).");
+  assert.equal(deps.completed[0].result.details[0].reason, "Feed returned HTTP 404 (text/html).");
 });

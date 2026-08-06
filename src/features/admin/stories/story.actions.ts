@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireAdminUser } from "@/features/admin/auth/server";
+import { revalidatePublicNews } from "@/features/admin/public-revalidation";
 import { storyFormSchema, type StoryFormValues } from "./story.model";
 import {
   createStory,
@@ -64,9 +65,7 @@ function safeError(error: unknown): StoryActionState {
 
 function revalidateStories() {
   revalidatePath("/admin/stories");
-  revalidatePath("/en");
-  revalidatePath("/hi");
-  revalidatePath("/mr");
+  revalidatePublicNews();
 }
 
 export async function createStoryAction(

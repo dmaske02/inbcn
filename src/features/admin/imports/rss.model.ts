@@ -97,6 +97,8 @@ export type NormalizedRssArticle = Readonly<{
   externalAuthor: string | null;
   externalPublishedAt: string | null;
   externalImageUrl: string | null;
+  externalImageWidth: number | null;
+  externalImageHeight: number | null;
   tags: readonly string[];
   categories: readonly string[];
   languageCode: "en" | "hi" | "mr" | null;
@@ -173,6 +175,8 @@ export function normalizeRssEntry(entry: ParsedRssEntry): NormalizedRssArticle {
     externalAuthor: cleanText(entry.author),
     externalPublishedAt: normalizeDate(entry.publishedAt),
     externalImageUrl: normalizeExternalUrl(entry.imageUrl),
+    externalImageWidth: entry.imageWidth,
+    externalImageHeight: entry.imageHeight,
     tags: categories,
     categories,
     languageCode: normalizeLanguage(entry.language),

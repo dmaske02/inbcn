@@ -4,7 +4,6 @@ import { createClient } from "@/lib/supabase/server";
 import type { Database, Json, TableRow } from "@/lib/supabase/types";
 import { assertRepositoryQuerySucceeded } from "@/features/news/server/errors";
 import type { ImportCompletion } from "./ingestion.operations";
-import { parseImportRunMetadata } from "./newsdata.model";
 import type {
   IngestRunDto,
   IngestRunPageDto,
@@ -16,7 +15,7 @@ const SOURCE_COLUMNS =
   "id, name, slug, source_type, website_url, feed_url, default_language_id, default_category_id, country, ingestion_priority, is_active, last_ingested_at, created_at, updated_at" as const;
 
 const RUN_COLUMNS =
-  "id, source_id, triggered_by, status, items_fetched, items_created, items_updated, items_failed, error_message, metadata, started_at, completed_at, created_at, source:sources!ingest_runs_source_id_fkey(name)" as const;
+  "id, source_id, triggered_by, status, items_fetched, items_created, items_updated, items_failed, error_message, started_at, completed_at, created_at, source_name, metadata_skipped, metadata_duplicates, failure_reason" as const;
 
 type SourceRow = Pick<
   TableRow<"sources">,
@@ -55,14 +54,6 @@ function toSourceDto(row: SourceRow): IngestionSourceDto {
   };
 }
 
-function relationName(
-  relation: Readonly<{ name: string }> | readonly Readonly<{ name: string }>[] | null,
-): string {
-  if (!relation) return "Unknown source";
-  if ("name" in relation) return relation.name;
-  return relation[0]?.name ?? "Unknown source";
-}
-
 function toRunDto(row: {
   id: string;
   source_id: string | null;
@@ -73,11 +64,13 @@ function toRunDto(row: {
   items_updated: number;
   items_failed: number;
   error_message: string | null;
-  metadata: Json;
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
-  source: Readonly<{ name: string }> | readonly Readonly<{ name: string }>[] | null;
+  source_name: string;
+  metadata_skipped: number;
+  metadata_duplicates: number;
+  failure_reason: string | null;
 }): IngestRunDto {
   const status = ["queued", "running", "completed", "partial", "failed", "skipped"].includes(
     row.status,
@@ -87,7 +80,7 @@ function toRunDto(row: {
   return {
     id: row.id,
     sourceId: row.source_id,
-    sourceName: relationName(row.source),
+    sourceName: row.source_name,
     triggeredBy: row.triggered_by,
     status,
     itemsFetched: row.items_fetched,
@@ -95,7 +88,14 @@ function toRunDto(row: {
     itemsUpdated: row.items_updated,
     itemsFailed: row.items_failed,
     errorMessage: row.error_message,
-    metadata: parseImportRunMetadata(row.metadata),
+    metadata: {
+      skipped: row.metadata_skipped,
+      duplicates: row.metadata_duplicates,
+      details: row.failure_reason
+        ? [{ externalId: null, title: "", outcome: "failed", reason: row.failure_reason }]
+        : [],
+      quota: null,
+    },
     startedAt: row.started_at,
     completedAt: row.completed_at,
     createdAt: row.created_at,
@@ -207,7 +207,7 @@ export async function getIngestRunPage(
   const supabase = await createClient();
   const from = (page - 1) * pageSize;
   const { data, error, count } = await supabase
-    .from("ingest_runs")
+    .from("ingest_run_dashboard")
     .select(RUN_COLUMNS, { count: "exact" })
     .order("created_at", { ascending: false })
     .range(from, from + pageSize - 1);

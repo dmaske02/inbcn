@@ -1,263 +1,39 @@
+import Image from "next/image";
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
+import type { HomepageStory, HomepageViewModel } from "@/features/news/server/services/homepage.service";
+import { getHeroImagePresentation } from "@/features/news/server/services/story-reader.model";
 
-import { AdvertisementPlaceholder } from "@/components/common/advertisement-placeholder";
-import { EmptyState } from "@/components/common/empty-state";
-import { FeaturedCard } from "@/components/common/featured-card";
-import { HorizontalCard } from "@/components/common/horizontal-card";
-import { StoryCard } from "@/components/common/story-card";
-import { Container } from "@/components/layout/container";
-import { Grid } from "@/components/layout/grid";
-import { SignalRail } from "@/components/layout/public";
-import { Section } from "@/components/layout/section";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import type {
-  HomepageCategorySection,
-  HomepageCategorySlug,
-  HomepageStory,
-  HomepageViewModel,
-} from "@/features/news/server/services/homepage.service";
+type HomepageProps = { locale: string; data: HomepageViewModel };
 
-type HomepageProps = {
-  locale: string;
-  data: HomepageViewModel;
-};
-
-function storyProps(story: HomepageStory, locale: string) {
-  return {
-    title: story.title,
-    summary: story.summary,
-    href: story.href,
-    category: story.categoryName ?? undefined,
-    publishedAt: story.publishedAt,
-    locale,
-    image: story.image,
-  };
+function publishedLabel(locale: string, publishedAt: string) {
+  return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(publishedAt));
 }
 
-function StoryCollection({
-  section,
-  locale,
-  emptyTitle,
-  emptyDescription,
-}: {
-  section: HomepageCategorySection;
-  locale: string;
-  emptyTitle: string;
-  emptyDescription: string;
-}) {
-  if (section.stories.length === 0) {
-    return (
-      <EmptyState
-        title={emptyTitle}
-        description={emptyDescription}
-        className="min-h-40 justify-center"
-      />
-    );
-  }
-
-  return (
-    <Grid columns={{ base: 1, md: 2, lg: 4 }} gap="md">
-      {section.stories.map((story, index) => (
-        <StoryCard
-          key={story.id}
-          {...storyProps(story, locale)}
-          priority={index === 0}
-        />
-      ))}
-    </Grid>
-  );
+function StoryImage({ story, className, priority = false }: { story: HomepageStory; className: string; priority?: boolean }) {
+  const presentation = priority ? getHeroImagePresentation(story.image) : null;
+  return <div className={className} style={{ position: "relative" }}><Image src={story.image.src} alt={story.image.alt} fill priority={priority} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : "auto"} unoptimized={story.image.unoptimized} className="object-cover" style={presentation ? { objectFit: presentation.objectFit, objectPosition: presentation.objectPosition, maxWidth: presentation.maxWidth, maxHeight: presentation.maxHeight, margin: "auto" } : undefined} sizes="(min-width: 1024px) 40vw, 100vw" /></div>;
 }
 
 export async function Homepage({ locale, data }: HomepageProps) {
-  const t = await getTranslations({ locale, namespace: "homepage" });
-  const signal = data.signal;
-  const hero = data.hero;
-  const sectionOrder: HomepageCategorySlug[] = [
-    "national",
-    "world",
-    "business",
-    "technology",
-    "sports",
-    "entertainment",
-    "opinion",
-  ];
+  const heroDeck = data.editorPicks.slice(0, 3);
+  const lowerEditorPicks = data.editorPicks.slice(3);
+  return <main className="proto-page"><div className="proto-wrap">
+    <div className="proto-ad-slot"><span>Advertisement</span><small>728 × 90 reserved</small></div>
 
-  return (
-    <>
-      <SignalRail
-        state={signal?.isBreaking ? "breaking" : "developing"}
-        label={signal?.isBreaking ? t("signals.breaking") : t("signals.developing")}
-        headline={signal?.title ?? t("signals.empty")}
-        timestamp={signal ? undefined : t("signals.standby")}
-        href={signal?.href ?? `/${locale}`}
-      />
+    {data.featured && <section className="proto-hero-grid" aria-label="Featured story">
+      <article className="proto-hero-card"><StoryImage story={data.featured} className="proto-photo proto-hero-photo" priority /><div className="proto-hero-copy"><div className="proto-label">Featured story</div><h1><Link href={data.featured.href}>{data.featured.title}</Link></h1><p>{data.featured.summary}</p><div className="proto-story-meta">{data.featured.categoryName} · {publishedLabel(locale, data.featured.publishedAt)}</div><div className="proto-hero-actions"><Link href={data.featured.href}>Read full analysis</Link><button>Save for later</button></div></div></article>
+      {heroDeck.length > 0 && <div className="proto-hero-deck">{heroDeck.map((story) => <article className="proto-brief" key={story.id}><StoryImage story={story} className="proto-rail-image" /><span className="proto-badge verified">Editor&apos;s pick</span><h2><Link href={story.href}>{story.title}</Link></h2><p>{story.summary}</p></article>)}</div>}
+    </section>}
 
-      <Container className="max-w-[1360px] px-6">
-        <Section id="latest" spacing="sm" className="lg:py-12">
-          {hero ? (
-            <Grid columns={{ base: 1, lg: 12 }} gap="lg">
-              <div className="lg:col-span-8">
-                <FeaturedCard
-                  {...storyProps(hero, locale)}
-                  priority
-                  className="grid items-start gap-5 lg:grid-cols-[minmax(0,.88fr)_minmax(20rem,1.12fr)]"
-                />
-              </div>
-              <aside
-                aria-labelledby="latest-news-heading"
-                className="border-t-2 border-foreground pt-3 lg:col-span-4"
-              >
-                <h2
-                  id="latest-news-heading"
-                  className="font-heading text-xl font-semibold tracking-tight"
-                >
-                  {t("sections.latest")}
-                </h2>
-                {data.latest.length > 0 ? (
-                  <div className="mt-6 divide-y divide-border">
-                    {data.latest.map((story) => (
-                      <article key={story.id} className="py-5 first:pt-0">
-                        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide">
-                          {story.isBreaking && (
-                            <Badge variant="signal">{t("signals.breaking")}</Badge>
-                          )}
-                          {story.categoryName && <span>{story.categoryName}</span>}
-                          <time
-                            dateTime={story.publishedAt}
-                            className="ms-auto shrink-0 text-right text-muted-foreground"
-                          >
-                            {new Intl.DateTimeFormat(locale, {
-                              hour: "numeric",
-                              minute: "2-digit",
-                            }).format(new Date(story.publishedAt))}
-                          </time>
-                        </div>
-                        <Link
-                          href={story.href}
-                          className="mt-2 block text-base font-semibold leading-snug hover:underline"
-                        >
-                          {story.title}
-                        </Link>
-                      </article>
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyState
-                    title={t("empty.latestTitle")}
-                    description={t("empty.latestDescription")}
-                    className="mt-6"
-                  />
-                )}
-              </aside>
-            </Grid>
-          ) : (
-            <EmptyState
-              align="center"
-              title={t("empty.heroTitle")}
-              description={t("empty.heroDescription")}
-              className="min-h-72 justify-center"
-            />
-          )}
-        </Section>
+    {data.topHeadlines.length > 0 && <section className="proto-section"><div className="proto-section-head"><h2>Top headlines</h2><div className="proto-section-rule" /><button aria-label="Previous headlines">←</button><button aria-label="Next headlines">→</button></div><div className="proto-headline-row">{data.topHeadlines.map((story, index) => <article className="proto-headline" key={story.id}><span>{String(index+1).padStart(2,"0")}</span><div><div className="proto-label">{story.categoryName}</div><h3><Link href={story.href}>{story.title}</Link></h3><p>{story.summary}</p></div></article>)}</div></section>}
 
-        <AdvertisementPlaceholder label={t("advertisement.leaderboard")} />
+    {(data.latest.length > 0 || data.trending.length > 0) && <div className="proto-content-grid">
+      {data.latest.length > 0 && <section className="proto-section"><div className="proto-section-head"><h2>Latest news</h2><div className="proto-section-rule" /><Link href={`/${locale}/search`}>View all</Link></div><div className="proto-feed">{data.latest.map((story) => <article className="proto-feed-card" key={story.id}><StoryImage story={story} className="proto-thumb" /><div><div className="proto-label">{story.categoryName}</div><h3><Link href={story.href}>{story.title}</Link></h3><p>{story.summary}</p><small>{publishedLabel(locale, story.publishedAt)}</small></div></article>)}</div></section>}
+      <aside className="proto-side-stack">{data.trending.length > 0 && <section className="proto-panel"><div className="proto-panel-title">Trending</div><ol>{data.trending.map((story, index) => <li key={story.id}><b>{index+1}</b><Link href={story.href}>{story.title}</Link></li>)}</ol></section>}<div className="proto-ad-slot proto-ad-rectangle"><span>Advertisement</span><small>300 × 250 reserved</small></div></aside>
+    </div>}
 
-        <Section title={t("sections.across")} spacing="sm" className="lg:py-12">
-          {data.across.length > 0 ? (
-            <Grid columns={{ base: 1, md: 2, lg: 3 }} gap="md">
-              {data.across.map(({ category, stories }) => {
-                if (!category) return null;
-                const lead = stories[0];
-                return (
-                  <Card key={category.id} variant="bordered" className="overflow-hidden">
-                    {lead ? (
-                      <StoryCard
-                        {...storyProps(lead, locale)}
-                        category={category.name}
-                        className="p-4 sm:p-5"
-                      />
-                    ) : (
-                      <div className="p-5">
-                        <Badge variant="outline">{category.name}</Badge>
-                        <p className="mt-4 text-sm text-muted-foreground">
-                          {t("empty.categoryCard")}
-                        </p>
-                      </div>
-                    )}
-                  </Card>
-                );
-              })}
-            </Grid>
-          ) : (
-            <EmptyState
-              title={t("empty.categoriesTitle")}
-              description={t("empty.categoriesDescription")}
-            />
-          )}
-        </Section>
+    {data.categoryRails.length > 0 && <section className="proto-section proto-category-rails"><div className="proto-section-head"><h2>Category rails</h2><div className="proto-section-rule" /></div>{data.categoryRails.map(({ category, stories }) => <div className="proto-rail" key={category.id}><div className="proto-rail-title"><h3>{category.name}</h3><Link href={`/${locale}/category/${category.slug}`}>View all →</Link></div><div className="proto-rail-grid">{stories.map((story) => <article key={story.id}><StoryImage story={story} className="proto-rail-image" /><div className="proto-label">{category.name}</div><h4><Link href={story.href}>{story.title}</Link></h4><p>{story.summary}</p></article>)}</div></div>)}</section>}
 
-        {sectionOrder.map((slug, index) => {
-          const section = data.sections[slug];
-          return (
-            <div key={slug}>
-              {index === 3 && (
-                <AdvertisementPlaceholder
-                  size="mobile"
-                  label={t("advertisement.inFeed")}
-                  className="mb-6 sm:mb-8"
-                />
-              )}
-              <Section
-                id={slug}
-                title={section.category?.name ?? t(`categories.${slug}`)}
-                spacing="sm"
-                className="lg:py-12"
-              >
-                <StoryCollection
-                  section={section}
-                  locale={locale}
-                  emptyTitle={t("empty.sectionTitle", {
-                    category: section.category?.name ?? t(`categories.${slug}`),
-                  })}
-                  emptyDescription={t("empty.sectionDescription")}
-                />
-              </Section>
-            </div>
-          );
-        })}
-
-        <Section title={t("sections.editorsPicks")} spacing="sm" className="lg:py-12">
-          {data.editorsPicks.length > 0 ? (
-            <Grid columns={{ base: 1, md: 2 }} gap="lg">
-              {data.editorsPicks.map((story) => (
-                <FeaturedCard key={story.id} {...storyProps(story, locale)} />
-              ))}
-            </Grid>
-          ) : (
-            <EmptyState
-              title={t("empty.editorsTitle")}
-              description={t("empty.editorsDescription")}
-            />
-          )}
-        </Section>
-
-        <Section title={t("sections.trending")} spacing="sm" className="lg:py-12">
-          {data.trending.length > 0 ? (
-            <div className="divide-y divide-border">
-              {data.trending.map((story) => (
-                <HorizontalCard key={story.id} {...storyProps(story, locale)} />
-              ))}
-            </div>
-          ) : (
-            <EmptyState
-              title={t("empty.trendingTitle")}
-              description={t("empty.trendingDescription")}
-            />
-          )}
-        </Section>
-      </Container>
-    </>
-  );
+    {lowerEditorPicks.length > 0 && <section className="proto-section proto-editors"><div className="proto-section-head"><h2>Editor&apos;s picks</h2><div className="proto-section-rule" /></div><div className="proto-editors-grid"><article className="proto-editors-lead"><StoryImage story={lowerEditorPicks[0]} className="proto-photo" /><div className="proto-label">{lowerEditorPicks[0].categoryName}</div><h3><Link href={lowerEditorPicks[0].href}>{lowerEditorPicks[0].title}</Link></h3><p>{lowerEditorPicks[0].summary}</p></article><div className="proto-editors-list">{lowerEditorPicks.slice(1).map((story) => <article key={story.id}><div className="proto-label">{story.categoryName}</div><h3><Link href={story.href}>{story.title}</Link></h3></article>)}</div></div></section>}
+  </div></main>;
 }

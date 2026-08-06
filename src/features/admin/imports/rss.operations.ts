@@ -9,6 +9,7 @@ import type {
   ParsedRssEntry,
   ParsedSyndicationFeed,
 } from "./rss.parser.ts";
+import { RssRepositoryError } from "./rss.request.ts";
 
 const RSS_IMPORT_LIMIT = 50;
 
@@ -51,6 +52,10 @@ export async function runRssImportOperation(
     },
     normalizeArticle: (value) => normalizeRssEntry(value as ParsedRssEntry),
     createError: (message) => new RssImportError(message),
+    failureReason: (error) =>
+      error instanceof RssRepositoryError
+        ? error.message
+        : "RSS feed could not be retrieved.",
   });
 }
 

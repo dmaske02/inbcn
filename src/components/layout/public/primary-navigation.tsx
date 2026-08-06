@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import type { PublicLocale, PublicNavigationItem } from "./types";
 
 const primaryNavigationVariants = cva(
-  "flex min-w-0 items-center gap-4 xl:gap-5",
+  "flex min-w-0 items-center gap-0 overflow-x-auto [scrollbar-width:thin]",
 );
 
 const defaultLabels = [
@@ -35,7 +35,7 @@ function PrimaryNavigation({
   return (
     <div className={cn(primaryNavigationVariants(), className)}>
       {items.map((item) => (
-        <NavigationItem key={item.href} href={item.href}>
+        <NavigationItem key={item.href} href={item.href} className="shrink-0 px-4 first:ps-0">
           {item.label}
         </NavigationItem>
       ))}

@@ -3,10 +3,23 @@ import {
   parseSyndicationFeed,
   type ParsedSyndicationFeed,
 } from "./rss.parser.ts";
+import {
+  enrichRssEntryImages,
+  requestArticleImage,
+  requestImageDimensions,
+} from "./rss.article-image.ts";
 
 const MAX_RSS_BYTES = 5 * 1024 * 1024;
 const MAX_RSS_REDIRECTS = 5;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+function responseContentType(response: Response): string | null {
+  return response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLocaleLowerCase("en") || null;
+}
+
+function isTimeoutError(error: unknown): boolean {
+  return error instanceof Error && error.name === "TimeoutError";
+}
 
 export class RssRepositoryError extends Error {
   readonly code:
@@ -103,25 +116,47 @@ export async function requestRssFeed(
     }
   } catch (error) {
     if (error instanceof RssRepositoryError) throw error;
+    if (isTimeoutError(error)) {
+      throw new RssRepositoryError(
+        "UNAVAILABLE",
+        "Feed request timed out after 15 seconds.",
+      );
+    }
     throw new RssRepositoryError("UNAVAILABLE", "The RSS feed could not be reached.");
   }
   if (!response) {
     throw new RssRepositoryError("UNAVAILABLE", "The RSS feed could not be reached.");
   }
   if (!response.ok) {
+    const contentType = responseContentType(response);
     throw new RssRepositoryError(
       "UNAVAILABLE",
-      "The RSS feed returned an unsuccessful response.",
+      `Feed returned HTTP ${response.status}${contentType ? ` (${contentType})` : ""}.`,
     );
   }
 
   const body = await readLimitedBody(response);
+  const contentType = responseContentType(response);
+  if (contentType === "text/html" || /^\s*(?:<!doctype\s+html|<html\b)/iu.test(body)) {
+    throw new RssRepositoryError(
+      "INVALID_FEED",
+      "Feed returned HTML instead of RSS.",
+    );
+  }
+  let parsedFeed: ParsedSyndicationFeed;
   try {
-    return parseSyndicationFeed(body);
+    parsedFeed = parseSyndicationFeed(body);
   } catch {
     throw new RssRepositoryError(
       "INVALID_FEED",
-      "The source did not return a valid RSS or Atom feed.",
+      "Invalid RSS: response could not be parsed.",
     );
   }
+  return {
+    ...parsedFeed,
+    entries: await enrichRssEntryImages(parsedFeed.entries, (articleUrl) =>
+      requestArticleImage(articleUrl, fetcher),
+      (imageUrl) => requestImageDimensions(imageUrl, fetcher),
+    ),
+  };
 }

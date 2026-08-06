@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
@@ -7,7 +8,6 @@ import { AdvertisementPlaceholder } from "@/components/common/advertisement-plac
 import { Breadcrumb } from "@/components/common/breadcrumb";
 import { EmptyState } from "@/components/common/empty-state";
 import { Pagination } from "@/components/common/pagination";
-import { StoryCard } from "@/components/common/story-card";
 import { Badge } from "@/components/ui/badge";
 import { getCategoryPageData } from "@/features/news/server/services/category.service";
 
@@ -59,7 +59,7 @@ export default async function CategoryPage({
   const firstPage = data.pagination.page === 1;
 
   return (
-    <div className="mx-auto w-full max-w-[1360px] px-6 py-8 sm:py-10 lg:py-12">
+    <div className="mx-auto w-full max-w-[1288px] px-4 py-7 sm:px-6 sm:py-10">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
 
       <Breadcrumb
@@ -69,48 +69,26 @@ export default async function CategoryPage({
         ]}
       />
 
-      <header className="mt-7 border-t-2 border-foreground pt-6">
-        <p className="text-sm font-semibold uppercase tracking-[0.14em] text-signal">
-          {data.category.name}
-        </p>
-        <h1 className="mt-3 text-4xl font-semibold leading-tight tracking-tight text-balance sm:text-5xl lg:text-6xl">
+      <header className="mt-6 border-b-2 border-[#14110f] pb-5">
+        <h1 className="text-[30px] font-bold leading-tight tracking-[-0.02em] sm:text-[34px]">
           {data.category.name}
         </h1>
         {firstPage ? (
           <>
-            <p className="mt-4 max-w-3xl text-lg leading-8 text-muted-foreground">
+            <p className="mt-3 max-w-[70ch] text-[14px] leading-[1.55] text-[#5c534b]">
               {data.category.description ?? t("description", { category: data.category.name })}
             </p>
-            <p className="mt-4 text-sm font-medium text-muted-foreground">
+            <p className="mt-3 text-[12px] text-[#8a7f73]">
               {t("storyCount", { count: data.storyCount })}
             </p>
           </>
         ) : null}
       </header>
 
-      {firstPage && data.hero ? (
-        <section className="mt-10" aria-label={data.hero.title}>
-          <StoryCard
-            variant="hero"
-            priority
-            title={data.hero.title}
-            href={data.hero.href}
-            summary={data.hero.summary}
-            category={data.category.name}
-            publishedAt={data.hero.publishedAt}
-            author={data.hero.author}
-            readingTimeMinutes={data.hero.readTime}
-            locale={locale}
-            image={data.hero.image}
-          />
-        </section>
-      ) : null}
+      {firstPage ? <AdvertisementPlaceholder className="mt-7" label={t("advertisement")} /> : null}
 
-      {firstPage ? (
-        <AdvertisementPlaceholder className="mt-10" label={t("advertisement")} />
-      ) : null}
-
-      <section className="mt-12 border-t-2 border-foreground pt-5" aria-labelledby="category-stories">
+      <div className="mt-9 grid gap-9 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-10">
+      <section aria-labelledby="category-stories">
         <h2 id="category-stories" className={firstPage
           ? "text-2xl font-semibold tracking-tight sm:text-3xl"
           : "sr-only"}>
@@ -124,24 +102,25 @@ export default async function CategoryPage({
             description={data.emptyState.description}
           />
         ) : (
-          <div className="mt-6 grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-2 divide-y divide-[#e3ddd3] border-t border-[#e3ddd3]">
+            {firstPage && data.hero ? (
+              <article className="grid gap-4 py-6 sm:grid-cols-[200px_1fr] sm:gap-5">
+                <Link href={data.hero.href} className="relative aspect-[3/2] overflow-hidden border border-[#ded7cb] bg-[#e7e0d4]"><Image src={data.hero.image.src} alt={data.hero.image.alt} fill priority unoptimized={data.hero.image.unoptimized} className="object-cover" sizes="200px" /></Link>
+                <div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#b3261e]">{data.category.name}</p><Link href={data.hero.href}><h3 className="mt-2 text-[22px] font-semibold leading-[1.25] hover:text-[#b3261e]">{data.hero.title}</h3></Link><p className="mt-2 max-w-[70ch] text-[14px] leading-[1.5] text-[#5c534b]">{data.hero.summary}</p><p className="mt-3 text-[11.5px] text-[#8a7f73]">{data.hero.author}</p></div>
+              </article>
+            ) : null}
             {data.stories.map((story) => (
-              <StoryCard
-                key={story.id}
-                title={story.title}
-                href={story.href}
-                summary={story.summary}
-                category={data.category.name}
-                publishedAt={story.publishedAt}
-                author={story.author}
-                readingTimeMinutes={story.readTime}
-                locale={locale}
-                image={story.image}
-              />
+              <article key={story.id} className="grid gap-4 py-6 sm:grid-cols-[200px_1fr] sm:gap-5">
+                <Link href={story.href} className="relative aspect-[3/2] overflow-hidden border border-[#ded7cb] bg-[#e7e0d4]"><Image src={story.image.src} alt={story.image.alt} fill unoptimized={story.image.unoptimized} className="object-cover" sizes="200px" /></Link>
+                <div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#b3261e]">{data.category.name}</p><Link href={story.href}><h3 className="mt-2 text-[22px] font-semibold leading-[1.25] hover:text-[#b3261e]">{story.title}</h3></Link><p className="mt-2 max-w-[70ch] text-[14px] leading-[1.5] text-[#5c534b]">{story.summary}</p><p className="mt-3 text-[11.5px] text-[#8a7f73]">{story.author}</p></div>
+              </article>
             ))}
           </div>
         )}
       </section>
+
+      <aside className="space-y-7"><AdvertisementPlaceholder size="rectangle" label={t("advertisement")} className="lg:sticky lg:top-5" /></aside>
+      </div>
 
       {data.pagination.totalPages > 1 ? (
         <Pagination
@@ -160,8 +139,6 @@ export default async function CategoryPage({
           ofLabel={t("pagination.of")}
         />
       ) : null}
-
-      <AdvertisementPlaceholder className="mt-12" label={t("advertisement")} />
 
       {firstPage && data.relatedCategories.length > 0 ? (
         <nav className="mt-12 border-t border-border pt-6" aria-labelledby="related-categories">

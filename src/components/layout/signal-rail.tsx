@@ -6,15 +6,15 @@ import { cn } from "@/lib/utils";
 import { Container } from "./container";
 
 const signalRailVariants = cva(
-  "border-b border-border border-s-4 bg-background",
+  "border-b",
   {
     variants: {
       state: {
-        breaking: "border-signal",
-        live: "border-signal",
-        verified: "border-verified",
-        corrected: "border-signal",
-        developing: "border-muted-foreground",
+        breaking: "border-[#8f1d16] bg-[#b3261e] text-white",
+        live: "border-[#8f1d16] bg-[#b3261e] text-white",
+        verified: "border-[#b9dcc8] bg-[#dff0e6] text-[#1f6f4a]",
+        corrected: "border-[#8f1d16] bg-[#b3261e] text-white",
+        developing: "border-[#e3ddd3] bg-[#fbf9f5] text-[#14110f]",
       },
       sticky: {
         true: "sticky top-16 z-30",
@@ -37,10 +37,10 @@ const signalLabelVariants = cva(
   {
     variants: {
       state: {
-        breaking: "text-signal",
-        live: "text-signal",
+        breaking: "text-white",
+        live: "text-white",
         verified: "text-verified",
-        corrected: "text-signal",
+        corrected: "text-white",
         developing: "text-foreground",
       },
     },
@@ -79,16 +79,16 @@ function SignalRail({
       aria-label="Editorial signal"
       {...props}
     >
-      <Container className="grid min-h-11 grid-cols-[auto_auto] items-center gap-x-3 gap-y-1 py-2 sm:flex">
-        <span className={signalLabelVariants({ state })}>
+      <Container className="grid min-h-[48px] grid-cols-[auto_1fr] items-center gap-x-4 gap-y-1 py-2 sm:flex">
+        <span className={cn(signalLabelVariants({ state }), "border border-current/50 px-2 py-1 text-[10px] tracking-[0.14em]")}>
           {label ?? defaultLabels[state ?? "developing"]}
         </span>
         {timestamp && (
-          <time className="text-xs text-muted-foreground">{timestamp}</time>
+          <time className="text-xs opacity-75">{timestamp}</time>
         )}
         <Link
           href={href}
-          className="col-span-2 min-w-0 text-sm font-medium hover:underline sm:col-span-1 sm:truncate"
+          className="font-heading col-span-2 min-w-0 text-[16px] font-semibold leading-snug hover:underline sm:col-span-1 sm:truncate"
         >
           {headline}
         </Link>

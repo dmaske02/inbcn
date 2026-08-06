@@ -120,6 +120,21 @@ test("selects a supported provider category or the configured fallback", () => {
   assert.equal(selectProviderCategory(["other"], ["national", "business"], "national"), "national");
 });
 
+test("resolves localized feed category labels to canonical slugs", () => {
+  assert.equal(
+    selectProviderCategory(["राष्ट्रीय"], ["national", "world"], "world"),
+    "national",
+  );
+  assert.equal(
+    selectProviderCategory(["क्राईम"], ["national", "crime"], "national"),
+    "crime",
+  );
+  assert.equal(
+    selectProviderCategory(["जागतिक"], ["national", "world"], "national"),
+    "world",
+  );
+});
+
 test("creates the same title and source fingerprint despite case and spacing", () => {
   assert.equal(
     createExternalFingerprint("  A Major Headline ", "Example   News"),
