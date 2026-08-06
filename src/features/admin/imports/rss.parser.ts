@@ -1,4 +1,4 @@
-import { XMLParser } from "fast-xml-parser";
+import { XMLParser, XMLValidator } from "fast-xml-parser";
 
 export type ParsedRssEntry = Readonly<{
   id: string | null;
@@ -10,6 +10,8 @@ export type ParsedRssEntry = Readonly<{
   author: string | null;
   categories: readonly string[];
   imageUrl: string | null;
+  imageWidth: number | null;
+  imageHeight: number | null;
   language: string | null;
 }>;
 
@@ -56,6 +58,13 @@ function attribute(value: unknown, name: string): string | null {
   return isRecord(value) ? text(value[`@_${name}`]) : null;
 }
 
+type ImageCandidate = Readonly<{ url: string; width: number | null; height: number | null }>;
+
+function positiveInteger(value: string | null): number | null {
+  const parsed = value === null ? Number.NaN : Number.parseInt(value, 10);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
 function linkFrom(value: unknown): string | null {
   const links = asArray(value);
   const alternate = links.find((link) => {
@@ -81,29 +90,59 @@ function contentImage(value: string | null): string | null {
   return value?.match(/<img\b[^>]*\bsrc=["']([^"']+)["']/iu)?.[1] ?? null;
 }
 
-function mediaUrl(value: unknown): string | null {
+function mediaImage(value: unknown): ImageCandidate | null {
   for (const item of asArray(value)) {
     const url = attribute(item, "url") ?? attribute(item, "href");
-    if (url) return url;
+    const medium = attribute(item, "medium")?.toLocaleLowerCase("en");
+    const type = attribute(item, "type")?.toLocaleLowerCase("en");
+    if (medium && medium !== "image") continue;
+    if (type && !type.startsWith("image/")) continue;
+    if (url) return {
+      url,
+      width: positiveInteger(attribute(item, "width")),
+      height: positiveInteger(attribute(item, "height")),
+    };
   }
   return null;
 }
 
-function enclosureImage(value: unknown): string | null {
+function enclosureImage(value: unknown): ImageCandidate | null {
   for (const item of asArray(value)) {
     const url = attribute(item, "url");
     const type = attribute(item, "type");
     if (url && (!type || type.toLocaleLowerCase("en").startsWith("image/"))) {
-      return url;
+      return {
+        url,
+        width: positiveInteger(attribute(item, "width")),
+        height: positiveInteger(attribute(item, "height")),
+      };
     }
   }
   return null;
+}
+
+function imageElementUrl(value: unknown): string | null {
+  if (!isRecord(value)) return text(value);
+  return (
+    attribute(value, "url") ??
+    attribute(value, "href") ??
+    attribute(value, "src") ??
+    text(value.url) ??
+    text(value.href) ??
+    text(value.src) ??
+    text(value)
+  );
 }
 
 function toEntry(value: unknown, language: string | null): ParsedRssEntry | null {
   if (!isRecord(value)) return null;
   const summary = text(value.description) ?? text(value.summary);
   const content = text(value["content:encoded"]) ?? text(value.content);
+  const image =
+    mediaImage(value["media:content"]) ??
+    enclosureImage(value.enclosure) ??
+    mediaImage(value["media:thumbnail"]);
+  const fallbackImageUrl = imageElementUrl(value.image) ?? contentImage(content) ?? contentImage(summary);
   return {
     id: text(value.guid) ?? text(value.id),
     title: text(value.title),
@@ -117,12 +156,9 @@ function toEntry(value: unknown, language: string | null): ParsedRssEntry | null
       text(value["dc:date"]),
     author: authorFrom(value),
     categories: categoriesFrom(value.category),
-    imageUrl:
-      mediaUrl(value["media:content"]) ??
-      mediaUrl(value["media:thumbnail"]) ??
-      enclosureImage(value.enclosure) ??
-      contentImage(content) ??
-      contentImage(summary),
+    imageUrl: image?.url ?? fallbackImageUrl,
+    imageWidth: image?.width ?? null,
+    imageHeight: image?.height ?? null,
     language,
   };
 }
@@ -173,6 +209,9 @@ function atomFeed(input: XmlRecord): ParsedSyndicationFeed | null {
 
 export function parseSyndicationFeed(xml: string): ParsedSyndicationFeed {
   if (/<!DOCTYPE\b/iu.test(xml)) {
+    throw new Error("The document is not a valid RSS or Atom feed.");
+  }
+  if (XMLValidator.validate(xml) !== true) {
     throw new Error("The document is not a valid RSS or Atom feed.");
   }
 

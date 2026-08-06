@@ -6,12 +6,12 @@ import { Typography } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
 
 const emptyStateVariants = cva(
-  "flex flex-col items-start border-s-2 border-border py-4 ps-5",
+  "flex flex-col items-start border border-[#e3ddd3] bg-[#fbf9f5] p-6",
   {
     variants: {
       align: {
         start: "items-start text-start",
-        center: "items-center border-s-0 text-center",
+        center: "items-center text-center",
       },
     },
     defaultVariants: {

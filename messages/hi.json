@@ -32,6 +32,13 @@
       "leaderboard": "विज्ञापन · लीडरबोर्ड",
       "inFeed": "विज्ञापन · समाचारों के बीच"
     },
+    "actions": {
+      "allStories": "सभी खबरें"
+    },
+    "sources": {
+      "title": "इस फ़ीड के स्रोत",
+      "description": "साझेदार प्रकाशकों की सुर्खियाँ श्रेय और मूल स्रोत के लिंक के साथ दिखाई जाती हैं। INBCN उनका पूरा लेख दोबारा प्रकाशित नहीं करता।"
+    },
     "empty": {
       "heroTitle": "अभी कोई प्रकाशित खबर नहीं",
       "heroDescription": "प्रकाशित होने पर नवीनतम सत्यापित खबरें यहाँ दिखाई देंगी।",
@@ -97,12 +104,28 @@
       "compliance": "DPDP-अनुपालक · Google News प्रकाशक"
     }
   },
+  "publicChrome": {
+    "navigation": { "top": "प्रमुख", "india": "भारत", "world": "विश्व", "politics": "राजनीति", "business": "व्यापार", "technology": "प्रौद्योगिकी", "ai": "एआई", "sports": "खेल", "entertainment": "मनोरंजन", "health": "स्वास्थ्य", "lifestyle": "जीवनशैली", "education": "शिक्षा", "jobs": "नौकरियाँ", "opinion": "राय", "factCheck": "तथ्य जांच" },
+    "actions": { "liveTv": "लाइव टीवी", "login": "लॉग इन", "signup": "साइन अप", "searchPlaceholder": "समाचार, स्रोत, शहर खोजें", "openMenu": "मेन्यू खोलें", "closeMenu": "मेन्यू बंद करें", "enableAlerts": "अलर्ट चालू करें", "latestUpdate": "नवीनतम अपडेट", "dismiss": "बंद करें" },
+    "utility": { "tagline": "अंग्रेज़ी, हिंदी और मराठी में भारत-केंद्रित समाचार", "weather": "मुंबई 29°C · हल्की बारिश", "notifications": "सूचनाएँ {count}", "reportIncident": "घटना रिपोर्ट करें", "descriptor": "बहुभाषी जनहित समाचार मंच" },
+    "accessibility": { "home": "INBCN समाचार मुखपृष्ठ", "sections": "समाचार अनुभाग", "mobileNavigation": "मोबाइल नेविगेशन", "breakingNews": "ब्रेकिंग न्यूज़", "skipToContent": "मुख्य सामग्री पर जाएँ" },
+    "breaking": "ब्रेकिंग",
+    "pinnedAlert": "पिन किया गया अलर्ट"
+  },
+  "publicFooter": {
+    "description": "भारत के लिए स्वतंत्र, बहुभाषी जनहित पत्रकारिता।",
+    "copyright": "© 2026 INBCN News. सर्वाधिकार सुरक्षित।",
+    "company": { "title": "कंपनी", "about": "INBCN के बारे में", "contact": "संपर्क करें", "careers": "करियर" },
+    "policies": { "title": "नीतियाँ", "editorial": "संपादकीय नीति", "privacy": "गोपनीयता नीति", "terms": "उपयोग की शर्तें" },
+    "services": { "title": "समाचार सेवाएँ", "liveTv": "लाइव टीवी", "factCheck": "तथ्य जांच", "newsletters": "न्यूज़लेटर" },
+    "connect": { "title": "जुड़ें", "description": "दिन की आवश्यक खबरें अपने इनबॉक्स में पाएँ।", "email": "ईमेल पता", "subscribe": "सदस्यता लें" }
+  },
   "storyReader": {
     "breadcrumb": { "home": "होम" },
     "author": { "newsDesk": "INBCN समाचार डेस्क" },
     "meta": { "published": "प्रकाशित", "updated": "अपडेटेड", "readTime": "{minutes} मिनट पढ़ें" },
-    "sections": { "tags": "विषय", "share": "यह खबर साझा करें", "related": "संबंधित खबरें" },
-    "share": { "copy": "लिंक कॉपी करें", "copied": "कॉपी हुआ", "x": "X", "facebook": "Facebook", "linkedin": "LinkedIn", "email": "ईमेल" },
+    "sections": { "tags": "विषय", "share": "यह खबर साझा करें", "related": "संबंधित खबरें", "author": "लेखक के बारे में", "previous": "पिछली खबर", "next": "अगली खबर", "trending": "ट्रेंडिंग", "latest": "नवीनतम", "editorPicks": "संपादक की पसंद", "breaking": "ब्रेकिंग", "newsletter": "न्यूज़लेटर" },
+    "share": { "copy": "लिंक कॉपी करें", "copied": "कॉपी हुआ", "x": "X", "facebook": "Facebook", "linkedin": "LinkedIn", "telegram": "Telegram", "email": "ईमेल" },
     "advertisement": "विज्ञापन"
   },
   "categoryPage": {

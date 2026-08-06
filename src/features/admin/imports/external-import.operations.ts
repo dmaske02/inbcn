@@ -31,6 +31,8 @@ export type NormalizedExternalArticle = Readonly<{
   externalAuthor: string | null;
   externalPublishedAt: string | null;
   externalImageUrl: string | null;
+  externalImageWidth: number | null;
+  externalImageHeight: number | null;
   tags: readonly string[];
   categories: readonly string[];
   languageCode: "en" | "hi" | "mr" | null;
@@ -52,6 +54,8 @@ export type ImportedStoryDraft = Readonly<{
   external_author: string | null;
   external_published_at: string | null;
   external_image_url: string | null;
+  external_image_width: number | null;
+  external_image_height: number | null;
   featured_media_id: null;
   seo_keywords: readonly string[];
   canonical_url: null;
@@ -144,6 +148,7 @@ export type ExternalImportAdapter = Readonly<{
   fetchBatch(): Promise<ExternalImportBatch>;
   normalizeArticle(input: unknown): NormalizedExternalArticle;
   createError(message: string): Error;
+  failureReason?(error: unknown): string | null;
 }>;
 
 function assertSourceReady(
@@ -216,26 +221,38 @@ export async function runExternalArticleImportOperation(
   const failRun = async (
     nextPage: string | null = null,
     quota: ImportQuota | null = null,
+    error?: unknown,
   ): Promise<never> => {
+    const failureReason = error === undefined
+      ? null
+      : (adapter.failureReason?.(error) ?? null);
+    if (failureReason) {
+      details.push({
+        externalId: null,
+        title: "",
+        outcome: "failed",
+        reason: failureReason,
+      });
+    }
     await dependencies.completeRun(run.id, {
       status: "failed",
       counts,
       details,
       nextPage,
       quota,
-      errorMessage: `${adapter.providerName} import failed.`,
+      errorMessage: failureReason ?? `${adapter.providerName} import failed.`,
       completedAt: dependencies.now(),
     });
     throw adapter.createError(
-      `The ${adapter.providerName} import could not be completed.`,
+      failureReason ?? `The ${adapter.providerName} import could not be completed.`,
     );
   };
 
   let batch: ExternalImportBatch;
   try {
     batch = await adapter.fetchBatch();
-  } catch {
-    return failRun();
+  } catch (error) {
+    return failRun(null, null, error);
   }
   counts.fetched = batch.articles.length;
 
@@ -351,6 +368,8 @@ export async function runExternalArticleImportOperation(
         external_author: article.externalAuthor,
         external_published_at: article.externalPublishedAt,
         external_image_url: article.externalImageUrl,
+        external_image_width: article.externalImageWidth,
+        external_image_height: article.externalImageHeight,
         featured_media_id: null,
         seo_keywords: article.tags,
         canonical_url: null,

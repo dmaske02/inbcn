@@ -8,74 +8,103 @@ const categories = [
   { id: "world-id", languageId: "en-id", parentId: null, name: "World", slug: "world", description: null, sortOrder: 20 },
 ];
 
-function story(overrides) {
+function story(id, index, overrides = {}) {
   return {
-    id: overrides.id,
-    translationGroupId: `${overrides.id}-translations`,
-    languageId: "en-id",
-    categoryId: overrides.categoryId ?? "national-id",
-    sourceId: null,
-    type: "staff_article",
-    slug: overrides.id,
-    title: overrides.title ?? overrides.id,
-    summary: `${overrides.id} summary`,
-    featuredMediaId: overrides.featuredMediaId ?? null,
-    featuredMedia: overrides.featuredMedia ?? null,
+    id, translationGroupId: `${id}-translations`, languageId: "en-id",
+    categoryId: overrides.categoryId ?? (index % 2 ? "world-id" : "national-id"),
+    sourceId: null, type: "staff_article", slug: id, title: overrides.title ?? id,
+    summary: `${id} summary`, featuredMediaId: null, featuredMedia: null,
     externalImageUrl: overrides.externalImageUrl ?? null,
-    isFeatured: overrides.isFeatured ?? false,
-    isBreaking: overrides.isBreaking ?? false,
-    isSponsored: false,
-    publishedAt: overrides.publishedAt,
+    isFeatured: overrides.isFeatured ?? false, isBreaking: overrides.isBreaking ?? false,
+    isSponsored: false, publishedAt: new Date(Date.UTC(2026, 6, 31, 20 - index)).toISOString(),
   };
 }
 
-const stories = [
-  story({ id: "newest", publishedAt: "2026-07-31T10:00:00.000Z", isBreaking: true }),
-  story({ id: "featured", publishedAt: "2026-07-31T09:00:00.000Z", isFeatured: true, categoryId: "world-id" }),
-  story({ id: "older-featured", publishedAt: "2026-07-31T08:00:00.000Z", isFeatured: true }),
-  story({ id: "oldest", publishedAt: "2026-07-31T07:00:00.000Z" }),
-];
+const stories = Array.from({ length: 18 }, (_, index) => story(`story-${index}`, index, {
+  isFeatured: index === 1 || index === 4,
+  isBreaking: index === 0 || index === 2,
+}));
 
-test("composes hero, editorial collections, and category groups from locale stories", () => {
-  const result = composeHomepageData("en", stories, categories);
-
-  assert.equal(result.hero?.id, "featured");
-  assert.deepEqual(result.latest.map(({ id }) => id), ["newest", "older-featured", "oldest"]);
-  assert.deepEqual(result.editorsPicks.map(({ id }) => id), ["older-featured"]);
-  assert.deepEqual(result.trending.map(({ id }) => id), ["newest", "featured", "older-featured", "oldest"]);
-  assert.deepEqual(result.sections.national.stories.map(({ id }) => id), ["newest", "older-featured", "oldest"]);
-  assert.deepEqual(result.sections.world.stories.map(({ id }) => id), ["featured"]);
-  assert.equal(result.sections.opinion.category, null);
-});
-
-test("uses the latest story as hero and assigns the stable fallback image", () => {
-  const result = composeHomepageData("hi", [stories[0]], categories);
-
-  assert.equal(result.hero?.id, "newest");
-  assert.equal(result.hero?.href, "/hi/story/newest");
-  assert.equal(result.hero?.image.src, "/images/news/story-fallback.svg");
-  assert.equal(result.signal?.id, "newest");
-});
-
-test("uses a provider image when a story has no Cloudinary media", () => {
-  const externalImageUrl = "https://provider.example/homepage-story.jpg";
-  const result = composeHomepageData(
-    "en",
-    [story({ id: "external", publishedAt: "2026-08-02T10:00:00.000Z", externalImageUrl })],
-    categories,
-    "inbcn",
+test("uses the newest published story as hero when no story is manually featured", () => {
+  const unfeatured = Array.from({ length: 8 }, (_, index) =>
+    story(`latest-${index}`, index),
   );
 
-  assert.equal(result.hero?.image.src, externalImageUrl);
+  const result = composeHomepageData("en", unfeatured, categories);
+
+  assert.equal(result.featured?.id, "latest-0");
+  assert.equal(result.featured?.image.src, "/images/news/story-fallback.svg");
 });
 
-test("returns a complete empty homepage model when no stories exist", () => {
-  const result = composeHomepageData("mr", [], categories);
+test("allocates the next two newest stories to the hero side rail without duplication", () => {
+  const unfeatured = Array.from({ length: 10 }, (_, index) =>
+    story(`latest-${index}`, index),
+  );
 
-  assert.equal(result.hero, null);
-  assert.equal(result.signal, null);
-  assert.deepEqual(result.latest, []);
-  assert.deepEqual(result.editorsPicks, []);
-  assert.deepEqual(result.trending, []);
-  assert.deepEqual(result.sections.opinion.stories, []);
+  const result = composeHomepageData("en", unfeatured, categories);
+
+  assert.deepEqual(result.editorPicks.map(({ id }) => id), ["latest-1", "latest-2"]);
+  assert.deepEqual(result.topHeadlines.map(({ id }) => id), ["latest-3", "latest-4", "latest-5"]);
+  const visibleIds = [
+    result.featured.id,
+    ...result.editorPicks.map(({ id }) => id),
+    ...result.topHeadlines.map(({ id }) => id),
+    ...result.trending.map(({ id }) => id),
+    ...result.latest.map(({ id }) => id),
+    ...result.categoryRails.flatMap(({ stories: items }) => items.map(({ id }) => id)),
+  ];
+  assert.equal(new Set(visibleIds).size, visibleIds.length);
+});
+
+test("allocates mutually exclusive homepage collections in editorial priority order", () => {
+  const pinned = { id: "alert-1", title: "District warning", message: "Official advisory", placement: "pinned_banner", dismissible: true };
+  const result = composeHomepageData("en", stories, categories, undefined, [pinned]);
+
+  assert.equal(result.featured?.id, "story-1");
+  assert.deepEqual(result.breaking.map(({ id }) => id), ["story-0", "story-2"]);
+  assert.deepEqual(result.topHeadlines.map(({ id }) => id), ["story-3", "story-4", "story-5"]);
+  assert.deepEqual(result.trending.map(({ id }) => id), ["story-6", "story-7", "story-8"]);
+  assert.equal(result.pinnedAlert?.id, "alert-1");
+
+  const ids = [
+    result.featured?.id,
+    ...result.topHeadlines.map(({ id }) => id),
+    ...result.trending.map(({ id }) => id),
+    ...result.categoryRails.flatMap(({ stories: items }) => items.map(({ id }) => id)),
+    ...result.latest.map(({ id }) => id),
+    ...result.editorPicks.map(({ id }) => id),
+  ].filter(Boolean);
+  assert.equal(new Set(ids).size, ids.length);
+});
+
+test("hides categories with no remaining stories and returns a complete empty snapshot", () => {
+  const empty = composeHomepageData("mr", [], categories, undefined, []);
+  assert.equal(empty.featured, null);
+  assert.deepEqual(empty.breaking, []);
+  assert.equal(empty.pinnedAlert, null);
+  assert.deepEqual(empty.topHeadlines, []);
+  assert.deepEqual(empty.trending, []);
+  assert.deepEqual(empty.categoryRails, []);
+  assert.deepEqual(empty.latest, []);
+  assert.deepEqual(empty.editorPicks, []);
+});
+
+test("uses only pinned-banner alerts and the provider image when media is absent", () => {
+  const externalImageUrl = "https://provider.example/homepage-story.jpg";
+  const input = [story("featured", 0, { isFeatured: true, externalImageUrl })];
+  const alerts = [
+    { id: "ticker", title: "Ticker", message: "Ticker message", placement: "breaking_ticker", dismissible: false },
+    { id: "pinned", title: "Pinned", message: "Pinned message", placement: "pinned_banner", dismissible: true },
+  ];
+  const result = composeHomepageData("en", input, categories, "inbcn", alerts);
+  assert.equal(result.featured?.image.src, externalImageUrl);
+  assert.equal(result.pinnedAlert?.id, "pinned");
+});
+
+test("selects the newest active pinned alert from the service snapshot", () => {
+  const alerts = [
+    { id: "older", title: "Older", message: "Older message", placement: "pinned_banner", dismissible: true, startAt: "2026-08-03T10:00:00.000Z" },
+    { id: "newer", title: "Newer", message: "Newer message", placement: "pinned_banner", dismissible: true, startAt: "2026-08-04T10:00:00.000Z" },
+  ];
+  assert.equal(composeHomepageData("en", [], categories, undefined, alerts).pinnedAlert?.id, "newer");
 });

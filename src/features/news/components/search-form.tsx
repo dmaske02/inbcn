@@ -28,7 +28,7 @@ type SearchFormProps = Readonly<{
 }>;
 
 const fieldClassName =
-  "min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
+  "min-h-10 w-full rounded-[2px] border border-[#ded7cb] bg-white px-3 text-[13px] text-[#14110f] outline-none transition-colors placeholder:text-[#8a7f73] focus-visible:border-[#b3261e] focus-visible:ring-1 focus-visible:ring-[#b3261e]/20 disabled:cursor-not-allowed disabled:bg-[#f3eee6] disabled:text-[#8a7f73]";
 
 export function SearchForm({
   locale,
@@ -45,7 +45,7 @@ export function SearchForm({
       method="get"
       role="search"
       aria-label={labels.search}
-      className="border-y border-border py-6"
+      className="border border-[#e3ddd3] bg-[#fbf9f5] p-5"
     >
       <label htmlFor="public-search-query" className="text-sm font-semibold">
         {labels.search}

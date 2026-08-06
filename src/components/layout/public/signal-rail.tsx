@@ -4,7 +4,7 @@ import type { ComponentProps } from "react";
 import { SignalRail as BaseSignalRail } from "@/components/layout/signal-rail";
 import { cn } from "@/lib/utils";
 
-const signalRailVariants = cva("top-16 lg:top-[76px] xl:top-[116px]");
+const signalRailVariants = cva("");
 
 type SignalRailProps = ComponentProps<typeof BaseSignalRail>;
 

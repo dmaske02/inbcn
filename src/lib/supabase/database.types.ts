@@ -444,6 +444,8 @@ export type Database = {
           external_author: string | null
           external_id: string | null
           external_image_url: string | null
+          external_image_width: number | null
+          external_image_height: number | null
           external_published_at: string | null
           external_url: string | null
           featured_media_id: string | null
@@ -481,6 +483,8 @@ export type Database = {
           external_author?: string | null
           external_id?: string | null
           external_image_url?: string | null
+          external_image_width?: number | null
+          external_image_height?: number | null
           external_published_at?: string | null
           external_url?: string | null
           featured_media_id?: string | null
@@ -518,6 +522,8 @@ export type Database = {
           external_author?: string | null
           external_id?: string | null
           external_image_url?: string | null
+          external_image_width?: number | null
+          external_image_height?: number | null
           external_published_at?: string | null
           external_url?: string | null
           featured_media_id?: string | null
@@ -591,7 +597,27 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      ingest_run_dashboard: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          failure_reason: string | null
+          id: string
+          items_created: number
+          items_failed: number
+          items_fetched: number
+          items_updated: number
+          metadata_duplicates: number
+          metadata_skipped: number
+          source_id: string | null
+          source_name: string
+          started_at: string | null
+          status: string
+          triggered_by: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       claim_auto_import_batch: {

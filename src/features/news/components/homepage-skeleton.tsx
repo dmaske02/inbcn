@@ -1,35 +1,17 @@
-import { HeroCardSkeleton, ListSkeleton, StoryCardSkeleton } from "@/components/common/loading-skeletons";
 import { Container } from "@/components/layout/container";
-import { Grid } from "@/components/layout/grid";
-import { Section } from "@/components/layout/section";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function HomepageSkeleton() {
   return (
     <div aria-busy="true" aria-label="Loading homepage">
-      <Skeleton className="h-11 w-full rounded-none" />
-      <Container className="max-w-[1360px] px-6">
-        <Section spacing="sm" className="lg:py-12">
-          <Grid columns={{ base: 1, lg: 12 }} gap="lg">
-            <HeroCardSkeleton className="lg:col-span-8" />
-            <div className="space-y-3 border-t-2 border-foreground pt-4 lg:col-span-4">
-              <Skeleton className="h-7 w-36" />
-              {Array.from({ length: 4 }, (_, index) => (
-                <ListSkeleton key={index} />
-              ))}
-            </div>
-          </Grid>
-        </Section>
-        {Array.from({ length: 3 }, (_, sectionIndex) => (
-          <Section key={sectionIndex} spacing="sm" className="lg:py-12">
-            <Skeleton className="mb-6 h-7 w-44" />
-            <Grid columns={{ base: 1, md: 2, lg: 4 }} gap="md">
-              {Array.from({ length: 4 }, (_, cardIndex) => (
-                <StoryCardSkeleton key={cardIndex} />
-              ))}
-            </Grid>
-          </Section>
-        ))}
+      <Skeleton className="h-12 w-full rounded-none" />
+      <Container className="py-8">
+        <Skeleton className="h-[90px] w-full rounded-none" />
+        <div className="mt-7 grid gap-8 border-b-2 border-[#14110f] pb-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="grid gap-7 md:grid-cols-[1.55fr_1fr]"><div><Skeleton className="aspect-video w-full rounded-none" /><Skeleton className="mt-4 h-9 w-4/5" /><Skeleton className="mt-3 h-5 w-full" /></div><div className="space-y-5">{Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-24 w-full rounded-none" />)}</div></div>
+          <Skeleton className="h-[420px] w-full rounded-none" />
+        </div>
+        <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]"><div className="grid gap-6 sm:grid-cols-3">{Array.from({ length: 3 }, (_, i) => <div key={i}><Skeleton className="aspect-[3/2] w-full rounded-none" /><Skeleton className="mt-3 h-7 w-full" /></div>)}</div><Skeleton className="h-[250px] rounded-none" /></div>
       </Container>
     </div>
   );

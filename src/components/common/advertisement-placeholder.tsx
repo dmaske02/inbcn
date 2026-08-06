@@ -4,13 +4,14 @@ import type { HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 const advertisementVariants = cva(
-  "grid w-full place-items-center border border-dashed border-muted-foreground/50 bg-muted/20 px-4 text-center text-xs tracking-wide text-muted-foreground",
+  "grid w-full place-items-center border border-dashed border-[#d5ccbe] bg-[#fbf9f5] px-4 text-center text-[10px] uppercase tracking-[0.18em] text-[#a79c8e]",
   {
     variants: {
       size: {
-        banner: "min-h-24",
-        rectangle: "min-h-64",
-        mobile: "min-h-28",
+        banner: "min-h-[90px]",
+        rectangle: "min-h-[250px]",
+        mobile: "min-h-[110px]",
+        halfPage: "min-h-[600px]",
       },
     },
     defaultVariants: {
@@ -36,7 +37,7 @@ function AdvertisementPlaceholder({
       className={cn(advertisementVariants({ size }), className)}
       {...props}
     >
-      {label}
+      <span>{label}<span className="ms-2 normal-case tracking-normal text-[#c3b9aa]" aria-hidden="true">reserved</span></span>
     </aside>
   );
 }

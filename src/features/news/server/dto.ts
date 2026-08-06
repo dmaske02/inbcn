@@ -51,6 +51,8 @@ export type StorySummaryDto = Readonly<{
   title: string;
   summary: string;
   externalImageUrl: string | null;
+  externalImageWidth: number | null;
+  externalImageHeight: number | null;
   featuredMediaId: string | null;
   featuredMedia: FeaturedMediaDto | null;
   isFeatured: boolean;
@@ -103,6 +105,8 @@ export type CmsStoryDto = Readonly<{
   externalAuthor: string | null;
   externalPublishedAt: string | null;
   externalImageUrl: string | null;
+  externalImageWidth: number | null;
+  externalImageHeight: number | null;
   featuredMediaId: string | null;
   seoTitle: string | null;
   seoDescription: string | null;

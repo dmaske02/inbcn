@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+import { getPublicBreakingAlerts } from "@/features/alerts/breaking-alerts.service";
 import { getCategories } from "../categories.repository";
 import { getStoriesByLanguage } from "../stories.repository";
 import {
@@ -7,26 +9,36 @@ import {
   type HomepageViewModel,
 } from "./homepage.model";
 import { env } from "@/config/env";
+import { resolveAvailablePublicStoryImage } from "./public-story.mjs";
 
-export async function getHomepageData(
+export const getHomepageData = cache(async function getHomepageData(
   locale: string,
 ): Promise<HomepageViewModel> {
-  const [stories, categories] = await Promise.all([
+  const [stories, categories, alerts] = await Promise.all([
     getStoriesByLanguage(locale),
     getCategories(locale),
+    getPublicBreakingAlerts(locale),
   ]);
 
-  return composeHomepageData(
+  const homepage = composeHomepageData(
     locale,
     stories,
     categories,
     env.public.cloudinaryCloudName,
+    alerts,
   );
-}
+  if (!homepage.featured) return homepage;
+
+  const heroImage = await resolveAvailablePublicStoryImage(homepage.featured.image);
+  return {
+    ...homepage,
+    featured: { ...homepage.featured, image: heroImage },
+  };
+});
 
 export type {
   HomepageCategorySection,
-  HomepageCategorySlug,
+  HomepagePinnedAlert,
   HomepageStory,
   HomepageViewModel,
 } from "./homepage.model";

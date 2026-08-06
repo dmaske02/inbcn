@@ -1,14 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 
 import { requireAdminUser } from "@/features/admin/auth/server";
+import { revalidatePublicNews } from "@/features/admin/public-revalidation";
 import {
   IngestionManagementError,
   runManualSourceImport,
   saveIngestionSource,
 } from "./ingestion.service";
-import { runAutomatedImports, setSchedulerEnabled } from "./scheduler.service";
+import { enqueueAutomatedImports, setSchedulerEnabled } from "./scheduler.service";
 
 export type IngestionActionState = Readonly<{
   status: "idle" | "success" | "error";
@@ -29,6 +31,7 @@ function refreshIngestionViews(): void {
   revalidatePath("/admin/imports");
   revalidatePath("/admin/sources");
   revalidatePath("/admin/stories");
+  revalidatePublicNews();
 }
 
 export async function saveIngestionSourceAction(
@@ -91,6 +94,20 @@ export async function resumeSchedulerAction(): Promise<void> {
 
 export async function runSchedulerNowAction(): Promise<void> {
   await requireAdminUser();
-  await runAutomatedImports({ force: true });
+  const queued = await enqueueAutomatedImports({ force: true });
+  if (queued.run) {
+    after(async () => {
+      try {
+        await queued.run?.();
+      } catch (error) {
+        console.error(JSON.stringify({
+          event: "scheduler_background_failed",
+          reason: error instanceof Error ? error.message : "Unknown scheduler error",
+        }));
+      } finally {
+        refreshIngestionViews();
+      }
+    });
+  }
   refreshIngestionViews();
 }

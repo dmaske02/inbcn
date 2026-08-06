@@ -43,7 +43,10 @@ import {
 } from "./rss.model";
 import { RssImportError, runRssImportOperation } from "./rss.operations";
 import { fetchRssFeed } from "./rss.repository";
-import { getSchedulerDashboard } from "./scheduler.service";
+import {
+  getSchedulerDashboard,
+  getSchedulerDashboardForSources,
+} from "./scheduler.service";
 
 const HISTORY_PAGE_SIZE = 20;
 
@@ -136,10 +139,13 @@ export async function getImportDashboard(
   assertManager(admin);
   const parsedPage = Number.parseInt(requestedPage ?? "1", 10);
   const page = Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+  const sourceViewPromise = getSourcesDashboard(admin);
   const [sourceView, history, scheduler] = await Promise.all([
-    getSourcesDashboard(admin),
+    sourceViewPromise,
     getIngestRunPage(page, HISTORY_PAGE_SIZE),
-    getSchedulerDashboard(),
+    getSchedulerDashboardForSources(
+      sourceViewPromise.then((view) => view.sources),
+    ),
   ]);
   return {
     sources: sourceView.sources,

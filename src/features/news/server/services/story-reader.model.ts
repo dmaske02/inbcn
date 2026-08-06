@@ -4,13 +4,90 @@ export {
   buildPublicStoryUrl,
   calculateReadTime,
   formatPublicAuthor,
+  getHeroImagePresentation,
   resolvePublicStoryImage,
 } from "./public-story.mjs";
 
 import { buildPublicStoryUrl } from "./public-story.mjs";
 
-export function selectRelatedStories<T extends { id: string }>(currentStoryId: string, stories: readonly T[], limit = 4): T[] {
-  return stories.filter((story) => story.id !== currentStoryId).slice(0, limit);
+export function selectRelatedStories<T extends { id: string }>(
+  currentStoryId: string,
+  preferred: readonly T[],
+  fallback: readonly T[] = [],
+  limit = 4,
+): T[] {
+  const selected: T[] = [];
+  const seen = new Set([currentStoryId]);
+  for (const story of [...preferred, ...fallback]) {
+    if (selected.length >= limit) break;
+    if (!seen.has(story.id)) {
+      seen.add(story.id);
+      selected.push(story);
+    }
+  }
+  return selected;
+}
+
+export function composeInlineRelated<T>(
+  paragraphCount: number,
+  related: readonly T[],
+  interval = 6,
+): ReadonlyArray<Readonly<{ afterParagraph: number; story: T }>> {
+  if (paragraphCount <= 0 || related.length === 0 || interval <= 0) return [];
+  const placementCount = Math.min(related.length, Math.max(1, Math.floor(paragraphCount / interval)));
+  return related.slice(0, placementCount).map((story, index) => ({
+    afterParagraph: paragraphCount < interval ? paragraphCount : interval * (index + 1),
+    story,
+  }));
+}
+
+export function selectAdjacentStories<T extends { id: string; publishedAt: string }>(
+  currentStoryId: string,
+  preferred: readonly T[],
+  fallback: readonly T[] = [],
+  excludedIds: ReadonlySet<string> = new Set(),
+): Readonly<{ previous: T | null; next: T | null }> {
+  const adjacent = (stories: readonly T[]) => {
+    const sorted = stories
+      .filter(({ id }) => id === currentStoryId || !excludedIds.has(id))
+      .sort((left, right) => Date.parse(right.publishedAt) - Date.parse(left.publishedAt));
+    const currentIndex = sorted.findIndex(({ id }) => id === currentStoryId);
+    return currentIndex < 0
+      ? { previous: null, next: null }
+      : { previous: sorted[currentIndex + 1] ?? null, next: sorted[currentIndex - 1] ?? null };
+  };
+  const preferredAdjacent = adjacent(preferred);
+  const fallbackAdjacent = adjacent(fallback);
+  return {
+    previous: preferredAdjacent.previous ?? fallbackAdjacent.previous,
+    next: preferredAdjacent.next ?? fallbackAdjacent.next,
+  };
+}
+
+export function composeArticleSidebar<
+  T extends { id: string; publishedAt: string; isBreaking: boolean; isFeatured: boolean },
+>(currentStoryId: string, storyDtos: readonly T[], limit = 3, excludedIds: ReadonlySet<string> = new Set()) {
+  const stories = [...storyDtos]
+    .filter(({ id }) => id !== currentStoryId && !excludedIds.has(id))
+    .sort((left, right) => Date.parse(right.publishedAt) - Date.parse(left.publishedAt));
+  const assigned = new Set<string>();
+  const allocate = (predicate: (story: T) => boolean) => {
+    const selected: T[] = [];
+    for (const story of stories) {
+      if (selected.length >= limit) break;
+      if (!assigned.has(story.id) && predicate(story)) {
+        assigned.add(story.id);
+        selected.push(story);
+      }
+    }
+    return selected;
+  };
+  return {
+    breaking: allocate((story) => story.isBreaking),
+    editorPicks: allocate((story) => story.isFeatured),
+    latest: allocate(() => true),
+    trending: allocate(() => true),
+  } as const;
 }
 
 export function splitStoryBody(content: string): string[] {
@@ -57,6 +134,7 @@ export function buildArticleJsonLd(input: Readonly<{
   author: string;
   publishedAt: string;
   updatedAt: string;
+  readTime: number;
 }>) {
   return {
     "@context": "https://schema.org",
@@ -67,6 +145,7 @@ export function buildArticleJsonLd(input: Readonly<{
     image: [input.imageUrl],
     datePublished: input.publishedAt,
     dateModified: input.updatedAt,
+    timeRequired: `PT${input.readTime}M`,
     author: { "@type": "Organization", name: input.author },
     publisher: { "@type": "Organization", name: "INBCN" },
   } as const;

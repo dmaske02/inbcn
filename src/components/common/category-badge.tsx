@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 const categoryBadgeVariants = cva(
-  "border-0 bg-transparent px-0 py-0 font-semibold tracking-[0.08em] text-muted-foreground uppercase",
+  "border-0 bg-transparent px-0 py-0 text-[10px] font-bold tracking-[0.14em] text-[#b3261e] uppercase",
   {
     variants: {
       emphasis: {

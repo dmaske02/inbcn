@@ -10,7 +10,6 @@ import {
   SearchTrigger,
   SignalRail,
   SkipToContent,
-  ThemeToggle,
   UtilityBar,
 } from "@/components/layout/public";
 
@@ -25,7 +24,6 @@ export function PublicLayoutTypeContract() {
           primaryNavigation={<PrimaryNavigation locale="en" />}
           mobileNavigation={<MobileNavigation locale="en" />}
           search={<SearchTrigger locale="en" label="Search" />}
-          theme={<ThemeToggle />}
         />
       }
       signalRail={
