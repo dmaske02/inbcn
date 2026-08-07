@@ -25,6 +25,99 @@ export type Database = {
           { foreignKeyName: "breaking_alerts_created_by_fkey"; columns: ["created_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
         ]
       }
+      live_streams: {
+        Row: {
+          id: string
+          language_id: string
+          internal_name: string
+          title: string
+          description: string
+          provider: "youtube" | "hls"
+          provider_stream_id: string | null
+          stream_url: string | null
+          external_watch_url: string | null
+          poster_url: string | null
+          poster_alt_text: string | null
+          status: "draft" | "scheduled" | "live" | "offline" | "archived"
+          autoplay: boolean
+          muted: boolean
+          starts_at: string | null
+          ends_at: string | null
+          offline_message: string | null
+          related_category_id: string | null
+          related_story_id: string | null
+          seo_title: string | null
+          seo_description: string | null
+          social_image_url: string | null
+          created_by: string | null
+          updated_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          language_id: string
+          internal_name: string
+          title: string
+          description: string
+          provider: "youtube" | "hls"
+          provider_stream_id?: string | null
+          stream_url?: string | null
+          external_watch_url?: string | null
+          poster_url?: string | null
+          poster_alt_text?: string | null
+          status?: "draft" | "scheduled" | "live" | "offline" | "archived"
+          autoplay?: boolean
+          muted?: boolean
+          starts_at?: string | null
+          ends_at?: string | null
+          offline_message?: string | null
+          related_category_id?: string | null
+          related_story_id?: string | null
+          seo_title?: string | null
+          seo_description?: string | null
+          social_image_url?: string | null
+          created_by?: string | null
+          updated_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          language_id?: string
+          internal_name?: string
+          title?: string
+          description?: string
+          provider?: "youtube" | "hls"
+          provider_stream_id?: string | null
+          stream_url?: string | null
+          external_watch_url?: string | null
+          poster_url?: string | null
+          poster_alt_text?: string | null
+          status?: "draft" | "scheduled" | "live" | "offline" | "archived"
+          autoplay?: boolean
+          muted?: boolean
+          starts_at?: string | null
+          ends_at?: string | null
+          offline_message?: string | null
+          related_category_id?: string | null
+          related_story_id?: string | null
+          seo_title?: string | null
+          seo_description?: string | null
+          social_image_url?: string | null
+          created_by?: string | null
+          updated_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "live_streams_language_id_fkey"; columns: ["language_id"]; isOneToOne: false; referencedRelation: "languages"; referencedColumns: ["id"] },
+          { foreignKeyName: "live_streams_related_category_id_fkey"; columns: ["related_category_id"]; isOneToOne: false; referencedRelation: "categories"; referencedColumns: ["id"] },
+          { foreignKeyName: "live_streams_related_story_id_fkey"; columns: ["related_story_id"]; isOneToOne: false; referencedRelation: "stories"; referencedColumns: ["id"] },
+          { foreignKeyName: "live_streams_created_by_fkey"; columns: ["created_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "live_streams_updated_by_fkey"; columns: ["updated_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ]
+      }
       categories: {
         Row: {
           created_at: string

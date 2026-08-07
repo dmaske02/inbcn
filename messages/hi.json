@@ -180,5 +180,38 @@
     },
     "pagination": { "previous": "पिछला", "next": "अगला", "page": "पृष्ठ", "of": "में से" },
     "advertisement": "विज्ञापन"
+  },
+  "liveTvPage": {
+    "home": "मुखपृष्ठ",
+    "title": "लाइव टीवी",
+    "live": "लाइव",
+    "nowPlaying": "अभी प्रसारित",
+    "liveNow": "अभी लाइव",
+    "liveUntil": "{time} तक लाइव",
+    "scheduled": "अगला निर्धारित कार्यक्रम",
+    "startsAt": "{time} से शुरू",
+    "offline": "ऑफलाइन",
+    "defaultOfflineMessage": "प्रसारण अभी ऑफलाइन है। न्यूज़रूम के ऑन एयर होते ही लाइव कवरेज फिर शुरू होगा।",
+    "youtubeProvider": "YouTube प्रसारण कॉन्फ़िगर किया गया",
+    "hlsProvider": "HLS प्रसारण कॉन्फ़िगर किया गया",
+    "breaking": "ब्रेकिंग न्यूज़",
+    "latest": "ताज़ा खबरें",
+    "advertisement": "विज्ञापन",
+    "playerLabel": "लाइव टीवी प्रसारण प्लेयर",
+    "play": "लाइव प्रसारण चलाएं",
+    "playerLoading": "लाइव प्रसारण लोड हो रहा है",
+    "playerOffline": "यह प्रसारण ऑफलाइन है।",
+    "playerUnavailable": "लाइव प्रसारण अभी उपलब्ध नहीं है।",
+    "unsupportedBrowser": "यह ब्राउज़र लाइव प्रसारण नहीं चला सकता।",
+    "youtubeUnavailable": "YouTube प्रसारण लोड नहीं हो सका।",
+    "hlsUnavailable": "HLS प्रसारण लोड नहीं हो सका।"
+    ,"schedule": "कार्यक्रम अनुसूची",
+    "related": "संबंधित समाचार",
+    "current": "अभी प्रसारित",
+    "upcoming": "आगामी",
+    "completed": "समाप्त",
+    "archive": "संग्रह",
+    "share": "लाइव टीवी साझा करें",
+    "copied": "लिंक कॉपी हुआ"
   }
 }

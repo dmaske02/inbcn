@@ -1,0 +1,275 @@
+[live-tv-trace] start getLiveTvPageData en
+[live-tv-trace] repository streams start en
+[live-tv-trace] start streams
+[live-tv-trace] homepage news start en
+[live-tv-trace] start news
+[live-tv-trace] start labels
+[live-tv-trace] finish labels +41ms
+[live-tv-trace] homepage news finish en
+[live-tv-trace] finish news +975ms
+[live-tv-trace] compose +976ms
+[live-tv-trace] start getLiveTvPageData en
+[live-tv-trace] repository streams start en
+[live-tv-trace] start streams
+[live-tv-trace] homepage news start en
+[live-tv-trace] start news
+[live-tv-trace] start labels
+[live-tv-trace] finish labels +21ms
+[live-tv-trace] homepage news finish en
+[live-tv-trace] finish news +249ms
+[live-tv-trace] compose +250ms
+⨯ Error: {"code":"PGRST205","details":null,"hint":null,"message":"Could not find the table 'public.live_streams' in the schema cache"}
+    at ignore-listed frames {
+  digest: '2509038207@E394'
+}
+[browser] Uncaught Error: {code: ..., details: Null, hint: Null, message: ...}
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[live-tv:supabase-error] {
+  operation: 'live_streams.publicByLanguage',
+  code: 'PGRST205',
+  message: "Could not find the table 'public.live_streams' in the schema cache",
+  details: null,
+  hint: null
+}
+[live-tv:supabase-error] {
+  operation: 'live_streams.cmsList',
+  code: 'PGRST205',
+  message: "Could not find the table 'public.live_streams' in the schema cache",
+  details: null,
+  hint: null
+}
+⨯ Error: {"code":"PGRST205","details":null,"hint":null,"message":"Could not find the table 'public.live_streams' in the schema cache"}
+    at ignore-listed frames {
+  digest: '2509038207@E394'
+}
+[browser] Uncaught Error: {code: ..., details: Null, hint: Null, message: ...}
+[live-tv:supabase-error] {
+  operation: 'live_streams.cmsList',
+  code: 'PGRST205',
+  message: "Could not find the table 'public.live_streams' in the schema cache",
+  details: null,
+  hint: null
+}
+⨯ Error: {"code":"PGRST205","details":null,"hint":null,"message":"Could not find the table 'public.live_streams' in the schema cache"}
+    at ignore-listed frames {
+  digest: '2509038207@E394'
+}
+[browser] Uncaught Error: {code: ..., details: Null, hint: Null, message: ...}
+[live-tv:supabase-error] {
+  operation: 'live_streams.cmsList',
+  code: 'PGRST205',
+  message: "Could not find the table 'public.live_streams' in the schema cache",
+  details: null,
+  hint: null
+}
+⨯ Error: {"code":"PGRST205","details":null,"hint":null,"message":"Could not find the table 'public.live_streams' in the schema cache"}
+    at ignore-listed frames {
+  digest: '2509038207@E394'
+}
+[browser] Uncaught Error: {code: ..., details: Null, hint: Null, message: ...}
+[live-tv:supabase-error] operation live_streams.publicByLanguage
+[live-tv:supabase-error] operation live_streams.cmsList
+⨯ TypeError: Cannot read properties of undefined (reading 'table')
+    at throwSupabaseError (src\features\live-tv\server\live-tv.repository.ts:34:59)
+    at getCmsLiveChannels (src\features\live-tv\server\live-tv.repository.ts:158:14)
+    at async getLiveTvEditorView (src\features\admin\live-tv\live-tv.service.ts:54:30)
+    at async LiveTvAdminPage (src\app\admin\(protected)\live-tv\page.tsx:14:12)
+  32 | ): never {
+  33 |   console.error("[live-tv:supabase-error] operation", operation);
+> 34 |   console.error("[live-tv:supabase-error] table", context.table);
+     |                                                           ^
+  35 |   console.error("[live-tv:supabase-error] select", context.select);
+  36 |   console.error("[live-tv:supabase-error] filters", context.filters ?? {});
+  37 |   console.error( {
+  digest: '538489621'
+}
+[live-tv:supabase-error] operation live_streams.cmsList
+[live-tv:supabase-error] table live_streams
+[live-tv:supabase-error] select id,language_id,internal_name,title,description,provider,provider_stream_id,stream_url,external_watch_url,poster_url,poster_alt_text,status,autoplay,muted,starts_at,ends_at,offline_message,related_category_id,related_story_id,seo_title,seo_description,social_image_url,created_by,updated_by,created_at,updated_at,language relationship (code,name)
+[live-tv:supabase-error] filters { order: 'updated_at desc' }
+[live-tv:supabase-error] authenticatedRole admin
+[live-tv:supabase-error] code PGRST205
+[live-tv:supabase-error] message Could not find the table 'public.live_streams' in the schema cache
+[live-tv:supabase-error] details null
+[live-tv:supabase-error] hint null
+[live-tv:supabase-error] json {
+  "code": "PGRST205",
+  "details": null,
+  "hint": null,
+  "message": "Could not find the table 'public.live_streams' in the schema cache"
+}
+⨯ Error: {"code":"PGRST205","details":null,"hint":null,"message":"Could not find the table 'public.live_streams' in the schema cache"}
+    at ignore-listed frames {
+  digest: '2509038207@E394'
+}
+[live-tv:supabase-error] operation live_streams.publicByLanguage
+[live-tv:supabase-error] table live_streams
+[live-tv:supabase-error] select id,language_id,internal_name,title,description,provider,provider_stream_id,stream_url,external_watch_url,poster_url,poster_alt_text,status,autoplay,muted,starts_at,ends_at,offline_message,related_category_id,related_story_id,seo_title,seo_description,social_image_url,created_by,updated_by,created_at,updated_at,language relationship
+[live-tv:supabase-error] filters { 'language.code': 'en', status: [ 'live', 'scheduled', 'offline' ] }
+[live-tv:supabase-error] authenticatedRole admin
+[live-tv:supabase-error] code PGRST205
+[live-tv:supabase-error] message Could not find the table 'public.live_streams' in the schema cache
+[live-tv:supabase-error] details null
+[live-tv:supabase-error] hint null
+[live-tv:supabase-error] json {
+  "code": "PGRST205",
+  "details": null,
+  "hint": null,
+  "message": "Could not find the table 'public.live_streams' in the schema cache"
+}
+[live-tv:supabase-error] operation live_streams.publicByLanguage
+[live-tv:supabase-error] table live_streams
+[live-tv:supabase-error] select id,language_id,internal_name,title,description,provider,provider_stream_id,stream_url,external_watch_url,poster_url,poster_alt_text,status,autoplay,muted,starts_at,ends_at,offline_message,related_category_id,related_story_id,seo_title,seo_description,social_image_url,created_by,updated_by,created_at,updated_at,language relationship
+[live-tv:supabase-error] filters { 'language.code': 'en', status: [ 'live', 'scheduled', 'offline' ] }
+[live-tv:supabase-error] authenticatedRole admin
+[live-tv:supabase-error] code PGRST205
+[live-tv:supabase-error] message Could not find the table 'public.live_streams' in the schema cache
+[live-tv:supabase-error] details null
+[live-tv:supabase-error] hint null
+[live-tv:supabase-error] json {
+  "code": "PGRST205",
+  "details": null,
+  "hint": null,
+  "message": "Could not find the table 'public.live_streams' in the schema cache"
+}
+[live-tv:supabase-error] operation live_streams.tableExists
+[live-tv:supabase-error] table live_streams
+[live-tv:supabase-error] select id
+[live-tv:supabase-error] filters { limit: 0 }
+[live-tv:supabase-error] authenticatedRole admin
+[live-tv:supabase-error] code PGRST205
+[live-tv:supabase-error] message Could not find the table 'public.live_streams' in the schema cache
+[live-tv:supabase-error] details null
+[live-tv:supabase-error] hint null
+[live-tv:supabase-error] json {
+  "code": "PGRST205",
+  "details": null,
+  "hint": null,
+  "message": "Could not find the table 'public.live_streams' in the schema cache"
+}
+⨯ Error: {"code":"PGRST205","details":null,"hint":null,"message":"Could not find the table 'public.live_streams' in the schema cache"}
+    at ignore-listed frames {
+  digest: '2509038207@E394'
+}
+[browser] Uncaught Error: {code: ..., details: Null, hint: Null, message: ...}
+Error [AuthApiError]: Request rate limit reached
+    at ignore-listed frames {
+  __isAuthError: true,
+  status: 429,
+  code: 'over_request_rate_limit'
+}
+Error [AuthApiError]: Request rate limit reached
+    at ignore-listed frames {
+  __isAuthError: true,
+  status: 429,
+  code: 'over_request_rate_limit'
+}
+Error [AuthApiError]: Request rate limit reached
+    at ignore-listed frames {
+  __isAuthError: true,
+  status: 429,
+  code: 'over_request_rate_limit'
+}
+Error [AuthApiError]: Request rate limit reached
+    at ignore-listed frames {
+  __isAuthError: true,
+  status: 429,
+  code: 'over_request_rate_limit'
+}
+Error [AuthApiError]: Request rate limit reached
+    at ignore-listed frames {
+  __isAuthError: true,
+  status: 429,
+  code: 'over_request_rate_limit'
+}
+Error [AuthApiError]: Request rate limit reached
+    at ignore-listed frames {
+  __isAuthError: true,
+  status: 429,
+  code: 'over_request_rate_limit'
+}
+Error [AuthApiError]: Request rate limit reached
+    at ignore-listed frames {
+  __isAuthError: true,
+  status: 429,
+  code: 'over_request_rate_limit'
+}
+Error [AuthApiError]: Request rate limit reached
+    at ignore-listed frames {
+  __isAuthError: true,
+  status: 429,
+  code: 'over_request_rate_limit'
+}
+Error [AuthApiError]: Request rate limit reached
+    at ignore-listed frames {
+  __isAuthError: true,
+  status: 429,
+  code: 'over_request_rate_limit'
+}
+Error [AuthApiError]: Request rate limit reached
+    at ignore-listed frames {
+  __isAuthError: true,
+  status: 429,
+  code: 'over_request_rate_limit'
+}
+Error [AuthApiError]: Request rate limit reached
+    at ignore-listed frames {
+  __isAuthError: true,
+  status: 429,
+  code: 'over_request_rate_limit'
+}
+Error [AuthApiError]: Request rate limit reached
+    at ignore-listed frames {
+  __isAuthError: true,
+  status: 429,
+  code: 'over_request_rate_limit'
+}
+Error [AuthApiError]: Request rate limit reached
+    at ignore-listed frames {
+  __isAuthError: true,
+  status: 429,
+  code: 'over_request_rate_limit'
+}
+Error [AuthApiError]: Request rate limit reached
+    at ignore-listed frames {
+  __isAuthError: true,
+  status: 429,
+  code: 'over_request_rate_limit'
+}
+Error [AuthApiError]: Request rate limit reached
+    at ignore-listed frames {
+  __isAuthError: true,
+  status: 429,
+  code: 'over_request_rate_limit'
+}
+Error [AuthApiError]: Request rate limit reached
+    at ignore-listed frames {
+  __isAuthError: true,
+  status: 429,
+  code: 'over_request_rate_limit'
+}
+Error [AuthApiError]: Request rate limit reached
+    at ignore-listed frames {
+  __isAuthError: true,
+  status: 429,
+  code: 'over_request_rate_limit'
+}
+Error [AuthApiError]: Request rate limit reached
+    at ignore-listed frames {
+  __isAuthError: true,
+  status: 429,
+  code: 'over_request_rate_limit'
+}
+Error [AuthApiError]: Request rate limit reached
+    at ignore-listed frames {
+  __isAuthError: true,
+  status: 429,
+  code: 'over_request_rate_limit'
+}
+Error [AuthApiError]: Request rate limit reached
+    at ignore-listed frames {
+  __isAuthError: true,
+  status: 429,
+  code: 'over_request_rate_limit'
+}

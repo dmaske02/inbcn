@@ -20,6 +20,7 @@ export type HomepageCategorySection = Readonly<{
 }>;
 
 export type HomepageViewModel = Readonly<{
+  all: readonly HomepageStory[];
   featured: HomepageStory | null;
   breaking: readonly HomepageStory[];
   pinnedAlert: HomepagePinnedAlert | null;
@@ -95,6 +96,7 @@ export function composeHomepageData(
     .toSorted((left, right) => Date.parse(right.startAt ?? "") - Date.parse(left.startAt ?? ""))[0] ?? null;
 
   return {
+    all: stories,
     featured,
     breaking,
     pinnedAlert: pinned ? { id: pinned.id, title: pinned.title, message: pinned.message, dismissible: pinned.dismissible } : null,

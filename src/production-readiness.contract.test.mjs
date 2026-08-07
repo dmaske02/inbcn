@@ -37,9 +37,6 @@ test("environment configuration contains only implemented integrations", async (
     "NEXT_PUBLIC_VERCEL_ANALYTICS_ID",
     "NEXT_PUBLIC_VAPID_PUBLIC_KEY",
     "VAPID_PRIVATE_KEY",
-    "LIVEKIT_API_KEY",
-    "LIVEKIT_API_SECRET",
-    "LIVEKIT_URL",
   ];
 
   for (const name of unused) {

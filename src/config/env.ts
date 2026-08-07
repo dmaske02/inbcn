@@ -15,6 +15,11 @@ const optionalHttpUrl = z.preprocess(
   z.url({ protocol: /^https?$/ }).optional(),
 );
 
+const optionalLiveKitUrl = z.preprocess(
+  emptyStringToUndefined,
+  z.url({ protocol: /^(?:https?|wss?)$/ }).optional(),
+);
+
 const environmentSchema = z
   .object({
     NODE_ENV: z
@@ -39,6 +44,10 @@ const environmentSchema = z
     AUTO_IMPORT_TIMEOUT_SECONDS: z.coerce.number().positive().default(120),
     AUTO_IMPORT_SECRET: optionalString,
 
+    LIVEKIT_URL: optionalLiveKitUrl,
+    LIVEKIT_API_KEY: optionalString,
+    LIVEKIT_API_SECRET: optionalString,
+
   })
   .superRefine((values, context) => {
     if (values.NODE_ENV === "production" && !values.NEXT_PUBLIC_APP_URL) {
@@ -47,6 +56,23 @@ const environmentSchema = z
         path: ["NEXT_PUBLIC_APP_URL"],
         message: "NEXT_PUBLIC_APP_URL is required in production.",
       });
+    }
+
+    const liveKitEntries = [
+      ["LIVEKIT_URL", values.LIVEKIT_URL],
+      ["LIVEKIT_API_KEY", values.LIVEKIT_API_KEY],
+      ["LIVEKIT_API_SECRET", values.LIVEKIT_API_SECRET],
+    ] as const;
+    if (liveKitEntries.some(([, value]) => value)) {
+      for (const [name, value] of liveKitEntries) {
+        if (!value) {
+          context.addIssue({
+            code: "custom",
+            path: [name],
+            message: `${name} is required when LiveKit is configured.`,
+          });
+        }
+      }
     }
   });
 
@@ -71,6 +97,10 @@ const parsedEnvironment = environmentSchema.safeParse({
   AUTO_IMPORT_RETRY_COUNT: process.env.AUTO_IMPORT_RETRY_COUNT,
   AUTO_IMPORT_TIMEOUT_SECONDS: process.env.AUTO_IMPORT_TIMEOUT_SECONDS,
   AUTO_IMPORT_SECRET: process.env.AUTO_IMPORT_SECRET,
+
+  LIVEKIT_URL: process.env.LIVEKIT_URL,
+  LIVEKIT_API_KEY: process.env.LIVEKIT_API_KEY,
+  LIVEKIT_API_SECRET: process.env.LIVEKIT_API_SECRET,
 
 });
 
@@ -102,6 +132,11 @@ export const env = Object.freeze({
       retryCount: values.AUTO_IMPORT_RETRY_COUNT,
       timeoutSeconds: values.AUTO_IMPORT_TIMEOUT_SECONDS,
       secret: values.AUTO_IMPORT_SECRET,
+    }),
+    liveKit: Object.freeze({
+      url: values.LIVEKIT_URL,
+      apiKey: values.LIVEKIT_API_KEY,
+      apiSecret: values.LIVEKIT_API_SECRET,
     }),
   }),
 });

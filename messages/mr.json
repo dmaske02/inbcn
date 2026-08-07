@@ -180,5 +180,38 @@
     },
     "pagination": { "previous": "मागील", "next": "पुढील", "page": "पृष्ठ", "of": "पैकी" },
     "advertisement": "जाहिरात"
+  },
+  "liveTvPage": {
+    "home": "मुख्यपृष्ठ",
+    "title": "थेट टीव्ही",
+    "live": "थेट",
+    "nowPlaying": "आता सुरू आहे",
+    "liveNow": "आत्ता थेट",
+    "liveUntil": "{time} पर्यंत थेट",
+    "scheduled": "पुढील नियोजित कार्यक्रम",
+    "startsAt": "{time} वाजता सुरू",
+    "offline": "ऑफलाइन",
+    "defaultOfflineMessage": "प्रसारण सध्या ऑफलाइन आहे. न्यूजरूम ऑन एअर झाल्यावर थेट वार्तांकन पुन्हा सुरू होईल.",
+    "youtubeProvider": "YouTube प्रसारण कॉन्फिगर केले आहे",
+    "hlsProvider": "HLS प्रसारण कॉन्फिगर केले आहे",
+    "breaking": "ब्रेकिंग न्यूज",
+    "latest": "ताज्या बातम्या",
+    "advertisement": "जाहिरात",
+    "playerLabel": "थेट टीव्ही प्रसारण प्लेयर",
+    "play": "थेट प्रसारण सुरू करा",
+    "playerLoading": "थेट प्रसारण लोड होत आहे",
+    "playerOffline": "हे प्रसारण ऑफलाइन आहे.",
+    "playerUnavailable": "थेट प्रसारण सध्या उपलब्ध नाही.",
+    "unsupportedBrowser": "हा ब्राउझर थेट प्रसारण चालवू शकत नाही.",
+    "youtubeUnavailable": "YouTube प्रसारण लोड होऊ शकले नाही.",
+    "hlsUnavailable": "HLS प्रसारण लोड होऊ शकले नाही."
+    ,"schedule": "कार्यक्रम वेळापत्रक",
+    "related": "संबंधित बातम्या",
+    "current": "आता सुरू",
+    "upcoming": "पुढील",
+    "completed": "पूर्ण",
+    "archive": "संग्रह",
+    "share": "लाइव्ह टीव्ही शेअर करा",
+    "copied": "लिंक कॉपी झाली"
   }
 }
