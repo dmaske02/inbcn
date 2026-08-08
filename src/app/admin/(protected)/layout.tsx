@@ -8,6 +8,8 @@ import { canManageMedia } from "@/features/admin/media/media.model";
 import { canManageNewsData } from "@/features/admin/imports/newsdata.model";
 import { canManageAlerts } from "@/features/alerts/breaking-alerts.model";
 import { canManageLiveTv } from "@/features/admin/live-tv/live-tv.model";
+import { BroadcastNavigationLink } from "@/features/admin/navigation/broadcast-navigation-link";
+import { canAccessBroadcastStudio } from "@/features/broadcast-studio/models/broadcast-session.model";
 
 export default async function ProtectedAdminLayout({
   children,
@@ -38,6 +40,7 @@ export default async function ProtectedAdminLayout({
               <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/dashboard">Dashboard</Link>
               <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/stories">Stories</Link>
               {canManageLiveTv(admin.role) ? <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/live-tv">Live TV</Link> : null}
+              {canAccessBroadcastStudio(admin.role) ? <BroadcastNavigationLink /> : null}
               {canManageAlerts(admin.role) ? <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/alerts">Alerts</Link> : null}
               {canManageMedia(admin.role) ? <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/media">Media</Link> : null}
               {canManageNewsData(admin.role) ? <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/sources">Sources</Link> : null}

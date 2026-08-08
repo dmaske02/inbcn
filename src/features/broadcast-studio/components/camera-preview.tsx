@@ -3,19 +3,24 @@
 import { useEffect, useRef } from "react";
 import type { LocalVideoTrack } from "livekit-client";
 
-type CameraPreviewProps = Readonly<{ track: LocalVideoTrack | null }>;
+import { attachPreviewTrack } from "../client/preview-video";
 
-export function CameraPreview({ track }: CameraPreviewProps) {
+type CameraPreviewProps = Readonly<{
+  track: LocalVideoTrack | null;
+  onError(error: unknown): void;
+}>;
+
+export function CameraPreview({ track, onError }: CameraPreviewProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     const element = videoRef.current;
     if (!track || !element) return;
-    track.attach(element);
+    void attachPreviewTrack(track, element).catch(onError);
     return () => {
       track.detach(element);
     };
-  }, [track]);
+  }, [onError, track]);
 
   return (
     <div className="relative aspect-video overflow-hidden rounded-md bg-muted">

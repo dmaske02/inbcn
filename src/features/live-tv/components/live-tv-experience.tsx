@@ -10,10 +10,16 @@ import { ShareButton } from "@/components/common/share-button";
 import { buildLiveTvJsonLd, composeLiveTvMetadata } from "../server/live-tv-editorial.model";
 import { env } from "@/config/env";
 import { routing } from "@/i18n/routing";
+import { LiveViewer } from "@/features/live-broadcast-viewer/components/live-viewer";
+import type { ViewerSession } from "@/features/live-broadcast-viewer/models/viewer.model";
 
 export function LiveTvExperience({
   data,
-}: Readonly<{ data: LiveTvPageViewModel }>) {
+  internalBroadcast,
+}: Readonly<{
+  data: LiveTvPageViewModel;
+  internalBroadcast?: ViewerSession;
+}>) {
   const { labels } = data;
   const source = data.stream ?? data.nextScheduled;
   const metadata = composeLiveTvMetadata({
@@ -37,6 +43,39 @@ export function LiveTvExperience({
     contentUrl: source?.provider === "hls" ? source.playback.streamUrl ?? undefined : undefined,
   });
   const jsonLd = JSON.stringify(Object.values(structuredData)).replace(/</gu, "\\u003c");
+  const offlineFallback = (
+    <div className="relative min-h-[360px] overflow-hidden border border-[#39312c] bg-[#14110f] text-white sm:min-h-[460px]">
+      <Image
+        src={data.offline.poster.src}
+        alt={data.offline.poster.alt}
+        fill
+        priority
+        unoptimized={data.offline.poster.unoptimized}
+        sizes="(min-width: 1280px) 1288px, 100vw"
+        className="object-cover opacity-30"
+      />
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(20,17,15,0.94),rgba(20,17,15,0.58))]" />
+      <div className="relative flex min-h-[360px] max-w-2xl flex-col justify-end p-7 sm:min-h-[460px] sm:p-12">
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#efb2ac]">{labels.offline}</p>
+        <h2 id="live-broadcast-title" className="mt-3 text-3xl font-bold tracking-[-0.02em] sm:text-5xl">
+          {labels.pageTitle}
+        </h2>
+        <p className="mt-5 max-w-[58ch] text-sm leading-6 text-white/75 sm:text-base">
+          {data.offline.message}
+        </p>
+        {data.nextScheduled ? (
+          <div className="mt-7 border-l-2 border-[#b3261e] pl-4">
+            <p className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.15em] text-white/60">
+              <CalendarClock aria-hidden="true" className="size-4" />
+              {labels.scheduled}
+            </p>
+            <h3 className="mt-2 text-xl font-bold">{data.nextScheduled.title}</h3>
+            <p className="mt-1 text-sm text-white/70">{data.nextScheduled.statusLabel}</p>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
   return (
     <div className="bg-[#f6f3ed] pb-16 text-[#14110f] sm:pb-20">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
@@ -64,7 +103,12 @@ export function LiveTvExperience({
         </header>
 
         <section aria-labelledby="live-broadcast-title" className="mt-7">
-          {data.mode === "live" && data.stream ? (
+          {internalBroadcast ? (
+            <LiveViewer
+              session={internalBroadcast}
+              offlineFallback={offlineFallback}
+            />
+          ) : data.mode === "live" && data.stream ? (
             <div className="grid overflow-hidden border border-[#14110f] bg-[#fbf9f5] lg:grid-cols-[minmax(0,1.65fr)_minmax(280px,.65fr)]">
               <LiveTvPlayer
                 key={data.stream.id}
@@ -92,39 +136,7 @@ export function LiveTvExperience({
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="relative min-h-[360px] overflow-hidden border border-[#39312c] bg-[#14110f] text-white sm:min-h-[460px]">
-              <Image
-                src={data.offline.poster.src}
-                alt={data.offline.poster.alt}
-                fill
-                priority
-                unoptimized={data.offline.poster.unoptimized}
-                sizes="(min-width: 1280px) 1288px, 100vw"
-                className="object-cover opacity-30"
-              />
-              <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(20,17,15,0.94),rgba(20,17,15,0.58))]" />
-              <div className="relative flex min-h-[360px] max-w-2xl flex-col justify-end p-7 sm:min-h-[460px] sm:p-12">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#efb2ac]">{labels.offline}</p>
-                <h2 id="live-broadcast-title" className="mt-3 text-3xl font-bold tracking-[-0.02em] sm:text-5xl">
-                  {labels.pageTitle}
-                </h2>
-                <p className="mt-5 max-w-[58ch] text-sm leading-6 text-white/75 sm:text-base">
-                  {data.offline.message}
-                </p>
-                {data.nextScheduled ? (
-                  <div className="mt-7 border-l-2 border-[#b3261e] pl-4">
-                    <p className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.15em] text-white/60">
-                      <CalendarClock aria-hidden="true" className="size-4" />
-                      {labels.scheduled}
-                    </p>
-                    <h3 className="mt-2 text-xl font-bold">{data.nextScheduled.title}</h3>
-                    <p className="mt-1 text-sm text-white/70">{data.nextScheduled.statusLabel}</p>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          )}
+          ) : offlineFallback}
         </section>
 
         <AdvertisementPlaceholder className="mt-8" label={labels.advertisement} />

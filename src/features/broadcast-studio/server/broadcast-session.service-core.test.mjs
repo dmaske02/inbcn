@@ -71,7 +71,7 @@ test("writer receives access denied before any room or token operation", async (
   assert.deepEqual(calls, []);
 });
 
-test("token and room failures return a safe session error", async () => {
+test("token failures retain the provider exception without exposing the token", async () => {
   const { dependencies: deps } = dependencies("editor");
   deps.generateBroadcasterToken = async () => {
     throw new Error("secret provider details");
@@ -82,7 +82,23 @@ test("token and room failures return a safe session error", async () => {
     ok: false,
     error: {
       code: "token-failure",
-      message: "Broadcast credentials could not be created. Try again.",
+      message: "Failed to generate broadcaster token: secret provider details",
+    },
+  });
+});
+
+test("room API failures retain their exact HTTP status", async () => {
+  const { dependencies: deps } = dependencies("editor");
+  deps.createRoom = async () => {
+    throw Object.assign(new Error("Unauthorized"), { status: 401 });
+  };
+  const service = createBroadcastSessionService(deps);
+
+  assert.deepEqual(await service.requestSession("en"), {
+    ok: false,
+    error: {
+      code: "token-failure",
+      message: "Failed to create room: Unauthorized (status 401)",
     },
   });
 });

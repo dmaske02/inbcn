@@ -22,6 +22,7 @@ export type BroadcastStudioErrorCode =
   | "microphone-denied"
   | "microphone-unavailable"
   | "no-devices"
+  | "insecure-context"
   | "token-failure"
   | "connection-failure"
   | "device-switch-failure";

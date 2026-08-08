@@ -17,6 +17,12 @@ type BroadcastSessionDependencies = {
   getServerUrl(): string;
 };
 
+function exceptionMessage(error: unknown) {
+  if (!(error instanceof Error)) return String(error);
+  const status = (error as Error & { status?: string | number }).status;
+  return `${error.message}${status === undefined ? "" : ` (status ${status})`}`;
+}
+
 export function createBroadcastSessionService(
   dependencies: BroadcastSessionDependencies,
 ) {
@@ -35,9 +41,32 @@ export function createBroadcastSessionService(
         };
       }
 
+      let serverUrl: string;
       try {
-        const serverUrl = dependencies.getServerUrl();
+        serverUrl = dependencies.getServerUrl();
+      } catch (error) {
+        return {
+          ok: false,
+          error: {
+            code: "token-failure",
+            message: `LiveKit URL invalid: ${exceptionMessage(error)}`,
+          },
+        };
+      }
+
+      try {
         await dependencies.createRoom(language);
+      } catch (error) {
+        return {
+          ok: false,
+          error: {
+            code: "token-failure",
+            message: `Failed to create room: ${exceptionMessage(error)}`,
+          },
+        };
+      }
+
+      try {
         const token = await dependencies.generateBroadcasterToken({
           identity: identity.id,
           language,
@@ -51,12 +80,12 @@ export function createBroadcastSessionService(
             roomName: toBroadcastRoomName(language),
           },
         };
-      } catch {
+      } catch (error) {
         return {
           ok: false,
           error: {
             code: "token-failure",
-            message: "Broadcast credentials could not be created. Try again.",
+            message: `Failed to generate broadcaster token: ${exceptionMessage(error)}`,
           },
         };
       }

@@ -41,6 +41,22 @@ function safeError(error: unknown): BroadcastStudioError {
   ) {
     return error as BroadcastStudioError;
   }
+  if (error instanceof Error) {
+    const details = error as Error & {
+      code?: string | number;
+      reason?: string | number;
+      status?: string | number;
+    };
+    const metadata = [
+      details.status === undefined ? null : `status ${details.status}`,
+      details.code === undefined ? null : `code ${details.code}`,
+      details.reason === undefined ? null : `reason ${details.reason}`,
+    ].filter(Boolean);
+    return {
+      code: "connection-failure",
+      message: `${error.message}${metadata.length ? ` (${metadata.join(", ")})` : ""}`,
+    };
+  }
   return {
     code: "connection-failure",
     message: "The broadcast could not connect. Check the network and try again.",
@@ -62,7 +78,8 @@ export function createBroadcastStudioController({
     language: "en",
     preview: null,
   };
-  let cleaned = false;
+  let active = true;
+  let stopWatchingDevices: (() => void) | null = null;
   const listeners = new Set<() => void>();
 
   function emit(next: BroadcastStudioSnapshot) {
@@ -80,6 +97,48 @@ export function createBroadcastStudioController({
     emit({ ...state, preview: null });
   }
 
+  function withDevices(
+    devices: Awaited<ReturnType<MediaDeviceService["refreshDevices"]>>,
+  ): BroadcastStudioSnapshot {
+    return {
+      ...state,
+      ...devices,
+      cameraId: devices.cameras.some((device) => device.id === state.cameraId)
+        ? state.cameraId
+        : devices.cameras[0]?.id ?? "",
+      microphoneId: devices.microphones.some(
+        (device) => device.id === state.microphoneId,
+      )
+        ? state.microphoneId
+        : devices.microphones[0]?.id ?? "",
+    };
+  }
+
+  async function refreshDevices() {
+    try {
+      const devices = await media.refreshDevices();
+      const next = withDevices(devices);
+      if (!devices.cameras.length || !devices.microphones.length) {
+        emit(next);
+        transition({
+          type: "failed",
+          error: {
+            code: "no-devices",
+            message: "A camera and microphone are required to broadcast.",
+          },
+        });
+        return;
+      }
+      emit(
+        state.error?.code === "no-devices"
+          ? { ...next, ...initialBroadcastStudioState }
+          : next,
+      );
+    } catch (error) {
+      transition({ type: "failed", error: safeError(error) });
+    }
+  }
+
   return {
     getSnapshot() {
       return state;
@@ -89,8 +148,12 @@ export function createBroadcastStudioController({
       return () => listeners.delete(listener);
     },
     async initialize() {
+      active = true;
       try {
         const devices = await media.listDevices();
+        if (!stopWatchingDevices) {
+          stopWatchingDevices = media.watchDevices(refreshDevices);
+        }
         if (!devices.cameras.length || !devices.microphones.length) {
           transition({
             type: "failed",
@@ -101,19 +164,32 @@ export function createBroadcastStudioController({
           });
           return;
         }
-        emit({
-          ...state,
-          ...devices,
-          cameraId: devices.cameras[0]?.id ?? "",
-          microphoneId: devices.microphones[0]?.id ?? "",
-        });
+        emit(withDevices(devices));
       } catch (error) {
         transition({ type: "failed", error: safeError(error) });
       }
     },
     async startPreview() {
-      if (!state.cameraId || !state.microphoneId) return;
       try {
+        if (!state.cameraId || !state.microphoneId) {
+          const devices = await media.listDevices();
+          if (!stopWatchingDevices) {
+            stopWatchingDevices = media.watchDevices(refreshDevices);
+          }
+          const next = withDevices(devices);
+          if (!next.cameraId || !next.microphoneId) {
+            emit(next);
+            transition({
+              type: "failed",
+              error: {
+                code: "no-devices",
+                message: "A camera and microphone are required to broadcast.",
+              },
+            });
+            return;
+          }
+          emit(next);
+        }
         const preview = await media.createPreview({
           cameraId: state.cameraId,
           microphoneId: state.microphoneId,
@@ -123,6 +199,15 @@ export function createBroadcastStudioController({
       } catch (error) {
         transition({ type: "failed", error: safeError(error) });
       }
+    },
+    reportPreviewError(error: unknown) {
+      transition({
+        type: "failed",
+        error: {
+          code: "camera-unavailable",
+          message: error instanceof Error ? error.message : String(error),
+        },
+      });
     },
     selectLanguage(language: BroadcastLanguage) {
       if (state.status === "live" || state.status === "connecting") return;
@@ -195,12 +280,13 @@ export function createBroadcastStudioController({
       transition({ type: "disconnected" });
     },
     async cleanup() {
-      if (cleaned) return;
-      cleaned = true;
+      if (!active) return;
+      active = false;
+      stopWatchingDevices?.();
+      stopWatchingDevices = null;
       await livekit.disconnect();
       releasePreview();
       transition({ type: "disconnected" });
-      listeners.clear();
     },
   };
 }

@@ -80,11 +80,14 @@ export function BroadcastStudio({
             <Typography as="h2" variant="title">Camera preview</Typography>
           </CardHeader>
           <CardContent className="space-y-5">
-            <CameraPreview track={snapshot.preview?.camera ?? null} />
+            <CameraPreview
+              track={snapshot.preview?.camera ?? null}
+              onError={controller.reportPreviewError}
+            />
             <BroadcastControls
               status={snapshot.status}
               hasPreview={snapshot.preview !== null}
-              disabled={unavailable}
+              disabled={snapshot.preview !== null && unavailable}
               onPreview={() => void controller.startPreview()}
               onStart={() => void controller.startBroadcast()}
               onStop={() => void controller.stopBroadcast()}

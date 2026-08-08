@@ -8,6 +8,7 @@ import { getLiveTvPageData } from "@/features/live-tv/server/live-tv-page.servic
 import { routing } from "@/i18n/routing";
 import { env } from "@/config/env";
 import { composeLiveTvMetadata } from "@/features/live-tv/server/live-tv-editorial.model";
+import { getInternalBroadcastViewerSession } from "@/features/live-broadcast-viewer/services/viewer.service";
 
 type LiveTvPageProps = Readonly<{
   params: Promise<{ locale: string }>;
@@ -39,6 +40,14 @@ export default async function LiveTvPage({ params }: LiveTvPageProps) {
   const { locale } = await params;
   if (!hasLocale(routing.locales, locale)) notFound();
   setRequestLocale(locale);
-  const data = await getLiveTvPageData(locale);
-  return <LiveTvExperience data={data} />;
+  const [data, internalBroadcast] = await Promise.all([
+    getLiveTvPageData(locale),
+    getInternalBroadcastViewerSession(locale),
+  ]);
+  return (
+    <LiveTvExperience
+      data={data}
+      internalBroadcast={internalBroadcast.active ? internalBroadcast.session : undefined}
+    />
+  );
 }

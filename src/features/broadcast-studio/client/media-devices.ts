@@ -1,5 +1,4 @@
 import {
-  Room,
   createLocalAudioTrack,
   createLocalVideoTrack,
   type LocalAudioTrack,
@@ -25,11 +24,13 @@ export type StudioPreviewTracks = Readonly<{
   microphone: LocalAudioTrack;
 }>;
 
-type MediaDeviceSdk = {
-  getLocalDevices(
-    kind: MediaDeviceKind,
-    requestPermissions?: boolean,
-  ): Promise<Array<Pick<MediaDeviceInfo, "deviceId" | "kind" | "label">>>;
+type BrowserMediaSdk = {
+  mediaDevices: Pick<
+    MediaDevices,
+    "enumerateDevices" | "getUserMedia" | "ondevicechange"
+  > | null;
+  isSecureContext(): boolean;
+  getHostname(): string;
   createLocalVideoTrack: typeof createLocalVideoTrack;
   createLocalAudioTrack: typeof createLocalAudioTrack;
 };
@@ -53,6 +54,34 @@ function isPermissionDenied(error: unknown) {
     error instanceof DOMException &&
     (error.name === "NotAllowedError" || error.name === "PermissionDeniedError")
   );
+}
+
+function mediaAccessError(error: unknown): StudioMediaError {
+  const name = error instanceof DOMException ? error.name : "";
+  switch (name) {
+    case "NotAllowedError":
+      return new StudioMediaError("camera-denied", "Camera permission denied", { cause: error });
+    case "NotFoundError":
+      return new StudioMediaError("no-devices", "No camera or microphone was found.", { cause: error });
+    case "NotReadableError":
+      return new StudioMediaError(
+        "camera-unavailable",
+        "Camera or microphone is already in use or unavailable.",
+        { cause: error },
+      );
+    case "SecurityError":
+      return new StudioMediaError(
+        "insecure-context",
+        "Camera and microphone access requires a secure connection.",
+        { cause: error },
+      );
+    default:
+      return new StudioMediaError(
+        "camera-unavailable",
+        "Camera and microphone could not be initialized.",
+        { cause: error },
+      );
+  }
 }
 
 function deviceError(kind: "camera" | "microphone", error: unknown) {
@@ -80,22 +109,81 @@ function mapDevices(
   }));
 }
 
-export function createMediaDeviceService(
-  sdk: MediaDeviceSdk = {
-    getLocalDevices: Room.getLocalDevices,
+function isLocalHostname(hostname: string) {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+}
+
+function defaultBrowserMediaSdk(): BrowserMediaSdk {
+  return {
+    mediaDevices:
+      typeof navigator === "undefined" ? null : navigator.mediaDevices ?? null,
+    isSecureContext: () =>
+      typeof window !== "undefined" && window.isSecureContext,
+    getHostname: () =>
+      typeof window === "undefined" ? "" : window.location.hostname,
     createLocalVideoTrack,
     createLocalAudioTrack,
-  },
+  };
+}
+
+export function createMediaDeviceService(
+  sdk: BrowserMediaSdk = defaultBrowserMediaSdk(),
 ) {
+  function requireMediaDevices() {
+    if (
+      (!sdk.isSecureContext() && !isLocalHostname(sdk.getHostname())) ||
+      !sdk.mediaDevices
+    ) {
+      throw new StudioMediaError(
+        "insecure-context",
+        "Camera and microphone access requires HTTPS or localhost.",
+      );
+    }
+    return sdk.mediaDevices;
+  }
+
+  async function enumerate(): Promise<StudioDeviceList> {
+    try {
+      const devices = await requireMediaDevices().enumerateDevices();
+      return {
+        cameras: mapDevices(
+          devices.filter((device) => device.kind === "videoinput"),
+          "Camera",
+        ),
+        microphones: mapDevices(
+          devices.filter((device) => device.kind === "audioinput"),
+          "Microphone",
+        ),
+      };
+    } catch (error) {
+      if (error instanceof StudioMediaError) throw error;
+      throw mediaAccessError(error);
+    }
+  }
+
   return {
     async listDevices(): Promise<StudioDeviceList> {
-      const [cameras, microphones] = await Promise.all([
-        sdk.getLocalDevices("videoinput", false),
-        sdk.getLocalDevices("audioinput", false),
-      ]);
-      return {
-        cameras: mapDevices(cameras, "Camera"),
-        microphones: mapDevices(microphones, "Microphone"),
+      let permissionStream: Pick<MediaStream, "getTracks">;
+      try {
+        permissionStream = await requireMediaDevices().getUserMedia({
+          video: true,
+          audio: true,
+        });
+      } catch (error) {
+        if (error instanceof StudioMediaError) throw error;
+        throw mediaAccessError(error);
+      }
+      for (const track of permissionStream.getTracks()) track.stop();
+      return enumerate();
+    },
+    refreshDevices: enumerate,
+    watchDevices(listener: () => void) {
+      const mediaDevices = requireMediaDevices();
+      mediaDevices.ondevicechange = listener;
+      return () => {
+        if (mediaDevices.ondevicechange === listener) {
+          mediaDevices.ondevicechange = null;
+        }
       };
     },
     async createPreview(

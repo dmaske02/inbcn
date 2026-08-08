@@ -21,12 +21,25 @@ function track(kind, calls) {
 }
 
 test("device enumeration returns cameras and microphones with useful fallback labels", async () => {
+  const calls = [];
   const service = createMediaDeviceService({
-    async getLocalDevices(kind) {
-      return kind === "videoinput"
-        ? [{ deviceId: "cam-1", kind, label: "" }]
-        : [{ deviceId: "mic-1", kind, label: "Desk microphone" }];
+    mediaDevices: {
+      ondevicechange: null,
+      async getUserMedia(constraints) {
+        calls.push(["permission", constraints]);
+        return { getTracks: () => [{ stop: () => calls.push(["permission-track:stop"]) }] };
+      },
+      async enumerateDevices() {
+        calls.push(["enumerate"]);
+        return [
+          { deviceId: "cam-1", kind: "videoinput", label: "" },
+          { deviceId: "mic-1", kind: "audioinput", label: "Desk microphone" },
+          { deviceId: "speaker-1", kind: "audiooutput", label: "Speaker" },
+        ];
+      },
     },
+    isSecureContext: () => true,
+    getHostname: () => "localhost",
     createLocalVideoTrack() {},
     createLocalAudioTrack() {},
   });
@@ -35,6 +48,86 @@ test("device enumeration returns cameras and microphones with useful fallback la
     cameras: [{ id: "cam-1", label: "Camera 1" }],
     microphones: [{ id: "mic-1", label: "Desk microphone" }],
   });
+  assert.deepEqual(calls, [
+    ["permission", { video: true, audio: true }],
+    ["permission-track:stop"],
+    ["enumerate"],
+  ]);
+});
+
+test("device refresh enumerates without requesting permission again", async () => {
+  const calls = [];
+  const service = createMediaDeviceService({
+    mediaDevices: {
+      ondevicechange: null,
+      async getUserMedia() { calls.push("permission"); return { getTracks: () => [] }; },
+      async enumerateDevices() { calls.push("enumerate"); return []; },
+    },
+    isSecureContext: () => true,
+    getHostname: () => "localhost",
+    createLocalVideoTrack() {},
+    createLocalAudioTrack() {},
+  });
+  await service.refreshDevices();
+  assert.deepEqual(calls, ["enumerate"]);
+});
+
+test("device change listener refreshes devices and is removed during cleanup", () => {
+  const mediaDevices = { ondevicechange: null, async getUserMedia() {}, async enumerateDevices() { return []; } };
+  const service = createMediaDeviceService({
+    mediaDevices,
+    isSecureContext: () => true,
+    getHostname: () => "localhost",
+    createLocalVideoTrack() {},
+    createLocalAudioTrack() {},
+  });
+  let changes = 0;
+  const unsubscribe = service.watchDevices(() => { changes += 1; });
+  mediaDevices.ondevicechange();
+  assert.equal(changes, 1);
+  unsubscribe();
+  assert.equal(mediaDevices.ondevicechange, null);
+});
+
+test("localhost is accepted while an insecure remote origin is rejected", async () => {
+  const create = (hostname) => createMediaDeviceService({
+    mediaDevices: { ondevicechange: null, async getUserMedia() { return { getTracks: () => [] }; }, async enumerateDevices() { return []; } },
+    isSecureContext: () => false,
+    getHostname: () => hostname,
+    createLocalVideoTrack() {},
+    createLocalAudioTrack() {},
+  });
+  await assert.doesNotReject(create("localhost").listDevices());
+  await assert.rejects(
+    create("news.example.com").listDevices(),
+    (error) => error instanceof StudioMediaError && error.code === "insecure-context",
+  );
+});
+
+test("permission and hardware failures map to user-friendly errors", async () => {
+  const cases = [
+    ["NotAllowedError", "camera-denied", "Camera permission denied"],
+    ["NotFoundError", "no-devices", "No camera or microphone was found."],
+    ["NotReadableError", "camera-unavailable", "Camera or microphone is already in use or unavailable."],
+    ["SecurityError", "insecure-context", "Camera and microphone access requires a secure connection."],
+  ];
+  for (const [name, code, message] of cases) {
+    const service = createMediaDeviceService({
+      mediaDevices: {
+        ondevicechange: null,
+        async getUserMedia() { throw new DOMException("failed", name); },
+        async enumerateDevices() { throw new Error("must not enumerate"); },
+      },
+      isSecureContext: () => true,
+      getHostname: () => "localhost",
+      createLocalVideoTrack() {},
+      createLocalAudioTrack() {},
+    });
+    await assert.rejects(
+      service.listDevices(),
+      (error) => error instanceof StudioMediaError && error.code === code && error.message === message,
+    );
+  }
 });
 
 test("preview requests the selected camera and microphone and cleans up both tracks", async () => {
@@ -42,7 +135,9 @@ test("preview requests the selected camera and microphone and cleans up both tra
   const camera = track("video", calls);
   const microphone = track("audio", calls);
   const service = createMediaDeviceService({
-    async getLocalDevices() { return []; },
+    mediaDevices: { ondevicechange: null, async getUserMedia() {}, async enumerateDevices() { return []; } },
+    isSecureContext: () => true,
+    getHostname: () => "localhost",
     async createLocalVideoTrack(options) {
       calls.push(["createVideo", options]);
       return camera;
@@ -68,7 +163,9 @@ test("preview requests the selected camera and microphone and cleans up both tra
 test("camera and microphone selection switch the active preview tracks", async () => {
   const calls = [];
   const service = createMediaDeviceService({
-    async getLocalDevices() { return []; },
+    mediaDevices: { ondevicechange: null, async getUserMedia() {}, async enumerateDevices() { return []; } },
+    isSecureContext: () => true,
+    getHostname: () => "localhost",
     createLocalVideoTrack() {},
     createLocalAudioTrack() {},
   });
@@ -85,7 +182,9 @@ test("camera and microphone selection switch the active preview tracks", async (
 test("preview reports camera denial without requesting the microphone", async () => {
   let microphoneRequested = false;
   const service = createMediaDeviceService({
-    async getLocalDevices() { return []; },
+    mediaDevices: { ondevicechange: null, async getUserMedia() {}, async enumerateDevices() { return []; } },
+    isSecureContext: () => true,
+    getHostname: () => "localhost",
     async createLocalVideoTrack() {
       throw new DOMException("denied", "NotAllowedError");
     },
@@ -104,7 +203,9 @@ test("preview reports camera denial without requesting the microphone", async ()
 test("preview stops the camera when microphone permission is denied", async () => {
   const calls = [];
   const service = createMediaDeviceService({
-    async getLocalDevices() { return []; },
+    mediaDevices: { ondevicechange: null, async getUserMedia() {}, async enumerateDevices() { return []; } },
+    isSecureContext: () => true,
+    getHostname: () => "localhost",
     async createLocalVideoTrack() { return track("video", calls); },
     async createLocalAudioTrack() {
       throw new DOMException("denied", "NotAllowedError");
