@@ -9,7 +9,10 @@ const localeLikeSegment = /^[a-z]{2}$/i;
 export default async function proxy(request: NextRequest) {
   const sessionResponse = await updateSession(request);
 
-  if (request.nextUrl.pathname.startsWith("/admin")) {
+  if (
+    request.nextUrl.pathname.startsWith("/admin")
+    || request.nextUrl.pathname.startsWith("/homepage-builder-preview/")
+  ) {
     return sessionResponse;
   }
 

@@ -21,17 +21,22 @@ test("public chrome exposes every approved prototype control and surface", async
 });
 
 test("homepage contains the complete prototype editorial sequence", async () => {
-  const source = await readFile(
+  const homepage = await readFile(
     new URL("../../../features/news/components/homepage.tsx", import.meta.url),
     "utf8",
   );
+  const sections = await readFile(
+    new URL("../../../features/news/components/homepage-sections.tsx", import.meta.url),
+    "utf8",
+  );
+  const source = homepage + sections;
   for (const section of [
     "Featured story",
     "Top headlines",
     "Latest news",
     "Trending",
     "Category rails",
-    "Editor&apos;s picks",
+    "Editor's picks",
   ]) assert.match(source, new RegExp(section.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
 });
 

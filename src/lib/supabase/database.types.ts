@@ -25,6 +25,26 @@ export type Database = {
           { foreignKeyName: "breaking_alerts_created_by_fkey"; columns: ["created_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
         ]
       }
+      homepage_configurations: {
+        Row: { id: string; language_id: string; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; language_id: string; created_by?: string | null; updated_by?: string | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; language_id?: string; created_by?: string | null; updated_by?: string | null; created_at?: string; updated_at?: string }
+        Relationships: [
+          { foreignKeyName: "homepage_configurations_language_id_fkey"; columns: ["language_id"]; isOneToOne: true; referencedRelation: "languages"; referencedColumns: ["id"] },
+          { foreignKeyName: "homepage_configurations_created_by_fkey"; columns: ["created_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "homepage_configurations_updated_by_fkey"; columns: ["updated_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ]
+      }
+      homepage_sections: {
+        Row: { id: string; homepage_configuration_id: string; block_id: string; title: string; block_type: string; renderer: string; position: number; container: string; width: string; enabled: boolean; starts_at: string | null; ends_at: string | null; configuration: Json; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; homepage_configuration_id: string; block_id: string; title: string; block_type: string; renderer: string; position: number; container?: string; width?: string; enabled?: boolean; starts_at?: string | null; ends_at?: string | null; configuration?: Json; created_by?: string | null; updated_by?: string | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; homepage_configuration_id?: string; block_id?: string; title?: string; block_type?: string; renderer?: string; position?: number; container?: string; width?: string; enabled?: boolean; starts_at?: string | null; ends_at?: string | null; configuration?: Json; created_by?: string | null; updated_by?: string | null; created_at?: string; updated_at?: string }
+        Relationships: [
+          { foreignKeyName: "homepage_sections_homepage_configuration_id_fkey"; columns: ["homepage_configuration_id"]; isOneToOne: false; referencedRelation: "homepage_configurations"; referencedColumns: ["id"] },
+          { foreignKeyName: "homepage_sections_created_by_fkey"; columns: ["created_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "homepage_sections_updated_by_fkey"; columns: ["updated_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ]
+      }
       live_streams: {
         Row: {
           id: string
@@ -717,6 +737,11 @@ export type Database = {
         Args: { p_started_at: string; p_lock_expires_at: string; p_queue_size: number; p_force?: boolean }
         Returns: Json
       }
+      delete_homepage_section: { Args: { section_id: string }; Returns: undefined }
+      delete_homepage_section_if_current: { Args: { section_id: string; expected_updated_at: string; expected_order: string[] }; Returns: boolean }
+      duplicate_homepage_section_after: { Args: { source_section_id: string; expected_updated_at: string; expected_order: string[]; new_block_id: string; new_title: string }; Returns: string | null }
+      move_homepage_section: { Args: { section_id: string; direction: string }; Returns: undefined }
+      move_homepage_section_to: { Args: { section_id: string; target_position: number }; Returns: undefined }
     }
     Enums: {
       media_type: "image" | "video" | "audio" | "document"

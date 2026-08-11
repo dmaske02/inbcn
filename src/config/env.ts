@@ -48,6 +48,8 @@ const environmentSchema = z
     LIVEKIT_API_KEY: optionalString,
     LIVEKIT_API_SECRET: optionalString,
 
+    HOMEPAGE_BUILDER_ENABLED: z.enum(["true", "false"]).default("false"),
+
   })
   .superRefine((values, context) => {
     if (values.NODE_ENV === "production" && !values.NEXT_PUBLIC_APP_URL) {
@@ -102,6 +104,8 @@ const parsedEnvironment = environmentSchema.safeParse({
   LIVEKIT_API_KEY: process.env.LIVEKIT_API_KEY,
   LIVEKIT_API_SECRET: process.env.LIVEKIT_API_SECRET,
 
+  HOMEPAGE_BUILDER_ENABLED: process.env.HOMEPAGE_BUILDER_ENABLED,
+
 });
 
 if (!parsedEnvironment.success) {
@@ -137,6 +141,9 @@ export const env = Object.freeze({
       url: values.LIVEKIT_URL,
       apiKey: values.LIVEKIT_API_KEY,
       apiSecret: values.LIVEKIT_API_SECRET,
+    }),
+    homepageBuilder: Object.freeze({
+      enabled: values.HOMEPAGE_BUILDER_ENABLED === "true",
     }),
   }),
 });
