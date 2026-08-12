@@ -1,0 +1,217 @@
+{
+  "app": {
+    "title": "InBCN"
+  },
+  "home": {
+    "welcome": "Welcome to InBCN",
+    "description": "Your multilingual news experience starts here."
+  },
+  "homepage": {
+    "sections": {
+      "latest": "Latest News",
+      "across": "Across INBCN",
+      "editorsPicks": "Editor's Picks",
+      "trending": "Trending"
+    },
+    "categories": {
+      "national": "National",
+      "world": "World",
+      "business": "Business",
+      "technology": "Technology",
+      "sports": "Sports",
+      "entertainment": "Entertainment",
+      "opinion": "Opinion"
+    },
+    "signals": {
+      "breaking": "Breaking",
+      "developing": "Developing",
+      "standby": "Standby",
+      "empty": "No active editorial alerts"
+    },
+    "advertisement": {
+      "leaderboard": "Advertisement · Leaderboard",
+      "inFeed": "Advertisement · In feed"
+    },
+    "actions": {
+      "allStories": "All stories"
+    },
+    "sources": {
+      "title": "Sources in this feed",
+      "description": "Headlines from partner publishers are shown with attribution and link to the original source. INBCN does not republish their full text."
+    },
+    "empty": {
+      "heroTitle": "No published stories yet",
+      "heroDescription": "The latest verified coverage will appear here when it is published.",
+      "latestTitle": "No additional updates",
+      "latestDescription": "More published stories will appear here.",
+      "categoriesTitle": "No categories available",
+      "categoriesDescription": "Category coverage is not available right now.",
+      "categoryCard": "No published stories in this section yet.",
+      "sectionTitle": "No {category} stories yet",
+      "sectionDescription": "Published coverage for this section will appear here.",
+      "editorsTitle": "No editor's picks yet",
+      "editorsDescription": "Featured stories selected by the newsroom will appear here.",
+      "trendingTitle": "No trending stories yet",
+      "trendingDescription": "The newest published stories will appear here."
+    },
+    "error": {
+      "title": "We couldn't load the news",
+      "description": "Please try again shortly."
+    }
+  },
+  "publicLayout": {
+    "navigation": {
+      "latest": "Latest",
+      "national": "National",
+      "world": "World",
+      "politics": "Politics",
+      "business": "Business",
+      "technology": "Technology",
+      "sports": "Sports",
+      "entertainment": "Entertainment",
+      "opinion": "Opinion"
+    },
+    "actions": {
+      "skipToContent": "Skip to main content",
+      "menu": "Open menu",
+      "closeMenu": "Close menu",
+      "theme": "Theme",
+      "search": "Search",
+      "searchPlaceholder": "Search INBCN news",
+      "searchSubmit": "Submit search",
+      "closeSearch": "Close search",
+      "language": "Language",
+      "currentLanguage": "Current language",
+      "primaryNavigation": "Primary navigation",
+      "lightTheme": "Use light theme",
+      "darkTheme": "Use dark theme"
+    },
+    "utility": {
+      "weather": "Weather —",
+      "market": "Markets —",
+      "live": "Live",
+      "tagline": "India-first news in English, Hindi and Marathi"
+    },
+    "footer": {
+      "explore": "Explore",
+      "categories": "Categories",
+      "trust": "Trust",
+      "about": "About INBCN",
+      "corrections": "Corrections",
+      "contact": "Contact",
+      "description": "Trusted multilingual news for India.",
+      "copyright": "© {year} INBCN. All rights reserved.",
+      "compliance": "DPDP-compliant · Google News Publisher"
+    }
+  },
+  "publicChrome": {
+    "navigation": { "top": "Top", "india": "India", "world": "World", "politics": "Politics", "business": "Business", "technology": "Technology", "ai": "AI", "sports": "Sports", "entertainment": "Entertainment", "health": "Health", "lifestyle": "Lifestyle", "education": "Education", "jobs": "Jobs", "opinion": "Opinion", "factCheck": "Fact Check" },
+    "actions": { "liveTv": "Live TV", "login": "Log in", "signup": "Sign up", "searchPlaceholder": "Search stories, sources, cities", "openMenu": "Open menu", "closeMenu": "Close menu", "enableAlerts": "Enable alerts", "latestUpdate": "Latest update", "dismiss": "Dismiss" },
+    "utility": { "tagline": "India-first news in English, Hindi and Marathi", "weather": "Mumbai 29°C · Light rain", "notifications": "Notifications {count}", "reportIncident": "Report incident", "descriptor": "Multilingual public-interest news platform" },
+    "accessibility": { "home": "INBCN News home", "sections": "Sections", "mobileNavigation": "Mobile navigation", "breakingNews": "Breaking news", "skipToContent": "Skip to content" },
+    "breaking": "Breaking",
+    "pinnedAlert": "Pinned alert"
+  },
+  "publicFooter": {
+    "description": "Independent, multilingual public-interest journalism for India.",
+    "copyright": "© 2026 INBCN News. All rights reserved.",
+    "company": { "title": "Company", "about": "About INBCN", "contact": "Contact us", "careers": "Careers" },
+    "policies": { "title": "Policies", "editorial": "Editorial policy", "privacy": "Privacy policy", "terms": "Terms of use" },
+    "services": { "title": "News services", "liveTv": "Live TV", "factCheck": "Fact Check", "newsletters": "Newsletters" },
+    "connect": { "title": "Connect", "description": "Get the day’s essential stories in your inbox.", "email": "Email address", "subscribe": "Subscribe" }
+  },
+  "storyReader": {
+    "breadcrumb": { "home": "Home" },
+    "author": { "newsDesk": "INBCN News Desk" },
+    "meta": { "published": "Published", "updated": "Updated", "readTime": "{minutes} min read" },
+    "sections": { "tags": "Topics", "share": "Share this story", "related": "Related Stories", "author": "About the author", "previous": "Previous Story", "next": "Next Story", "trending": "Trending", "latest": "Latest", "editorPicks": "Editor's Picks", "breaking": "Breaking", "newsletter": "Newsletter" },
+    "share": { "copy": "Copy Link", "copied": "Copied", "x": "X", "facebook": "Facebook", "linkedin": "LinkedIn", "telegram": "Telegram", "email": "Email" },
+    "advertisement": "Advertisement"
+  },
+  "categoryPage": {
+    "breadcrumb": { "home": "Home" },
+    "author": { "newsDesk": "INBCN News Desk" },
+    "description": "Latest verified {category} coverage from INBCN.",
+    "storyCount": "{count, plural, =0 {No published stories} =1 {1 published story} other {# published stories}}",
+    "sections": { "latest": "Latest {category} Stories", "related": "Explore More Categories" },
+    "empty": { "title": "No {category} stories yet", "description": "Published coverage for this category will appear here." },
+    "pagination": { "previous": "Previous", "next": "Next", "page": "Page", "of": "of" },
+    "advertisement": "Advertisement"
+  },
+  "searchPage": {
+    "breadcrumb": { "label": "Breadcrumb", "home": "Home", "search": "Search" },
+    "author": { "newsDesk": "INBCN News Desk" },
+    "title": "Search",
+    "form": {
+      "label": "Search INBCN news",
+      "placeholder": "Search topics, headlines, or keywords",
+      "submit": "Search"
+    },
+    "filters": {
+      "category": "Category",
+      "allCategories": "All categories",
+      "language": "Language",
+      "date": "Date",
+      "allDates": "All dates",
+      "pastDay": "Past 24 hours",
+      "pastWeek": "Past week",
+      "pastMonth": "Past month",
+      "order": "Order",
+      "newest": "Newest first"
+    },
+    "resultCount": "{count, plural, =0 {No results} =1 {1 result} other {# results}} for “{query}”",
+    "categoryFallback": "News",
+    "initial": {
+      "title": "Search INBCN",
+      "description": "Find verified reporting by topic, headline, or keyword."
+    },
+    "actions": { "allStories": "All stories" },
+    "sources": { "title": "Sources in this feed", "description": "Headlines from partner publishers are shown with attribution and link to the original source. INBCN does not republish their full text." },
+    "empty": {
+      "title": "No results for “{query}”",
+      "description": "Check the spelling, broaden your search, or remove a filter."
+    },
+    "metadata": {
+      "defaultTitle": "Search",
+      "defaultDescription": "Search verified multilingual news from INBCN.",
+      "title": "Search results for {query}",
+      "titlePage": "Search results for {query} - Page {page}",
+      "description": "Verified INBCN news results for {query}."
+    },
+    "pagination": { "previous": "Previous", "next": "Next", "page": "Page", "of": "of" },
+    "advertisement": "Advertisement"
+  },
+  "liveTvPage": {
+    "home": "Home",
+    "title": "Live TV",
+    "live": "LIVE",
+    "nowPlaying": "Now Playing",
+    "liveNow": "Live now",
+    "liveUntil": "Live until {time}",
+    "scheduled": "Next scheduled programme",
+    "startsAt": "Starts {time}",
+    "offline": "Offline",
+    "defaultOfflineMessage": "The broadcast is currently offline. Live coverage will resume when the newsroom goes on air.",
+    "youtubeProvider": "YouTube broadcast configured",
+    "hlsProvider": "HLS broadcast configured",
+    "breaking": "Breaking News",
+    "latest": "Latest Stories",
+    "advertisement": "Advertisement",
+    "playerLabel": "Live TV broadcast player",
+    "play": "Play live broadcast",
+    "playerLoading": "Loading live broadcast",
+    "playerOffline": "This broadcast is offline.",
+    "playerUnavailable": "The live broadcast is currently unavailable.",
+    "unsupportedBrowser": "This browser cannot play the live broadcast.",
+    "youtubeUnavailable": "The YouTube broadcast could not be loaded.",
+    "hlsUnavailable": "The HLS broadcast could not be loaded.",
+    "schedule": "Programme Schedule",
+    "related": "Related Stories",
+    "current": "On now",
+    "upcoming": "Upcoming",
+    "completed": "Completed",
+    "archive": "Archive",
+    "share": "Share Live TV",
+    "copied": "Link copied"
+  }
+}

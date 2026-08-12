@@ -1,0 +1,217 @@
+{
+  "app": {
+    "title": "इनबीसीएन"
+  },
+  "home": {
+    "welcome": "इनबीसीएनमध्ये आपले स्वागत आहे",
+    "description": "तुमचा बहुभाषिक बातम्यांचा अनुभव येथून सुरू होतो."
+  },
+  "homepage": {
+    "sections": {
+      "latest": "ताज्या बातम्या",
+      "across": "INBCN वर",
+      "editorsPicks": "संपादकांची निवड",
+      "trending": "चर्चेत"
+    },
+    "categories": {
+      "national": "राष्ट्रीय",
+      "world": "जागतिक",
+      "business": "व्यवसाय",
+      "technology": "तंत्रज्ञान",
+      "sports": "क्रीडा",
+      "entertainment": "मनोरंजन",
+      "opinion": "मत"
+    },
+    "signals": {
+      "breaking": "ब्रेकिंग",
+      "developing": "विकसनशील बातमी",
+      "standby": "प्रतीक्षा",
+      "empty": "सध्या कोणताही संपादकीय इशारा नाही"
+    },
+    "advertisement": {
+      "leaderboard": "जाहिरात · लीडरबोर्ड",
+      "inFeed": "जाहिरात · बातम्यांमध्ये"
+    },
+    "actions": {
+      "allStories": "सर्व बातम्या"
+    },
+    "sources": {
+      "title": "या फीडमधील स्रोत",
+      "description": "भागीदार प्रकाशकांच्या मथळ्यांना श्रेय आणि मूळ स्रोताची लिंक दिली जाते. INBCN त्यांचा संपूर्ण मजकूर पुन्हा प्रकाशित करत नाही."
+    },
+    "empty": {
+      "heroTitle": "अद्याप कोणतीही प्रकाशित बातमी नाही",
+      "heroDescription": "प्रकाशित झाल्यानंतर नवीनतम सत्यापित बातम्या येथे दिसतील.",
+      "latestTitle": "अतिरिक्त अपडेट नाहीत",
+      "latestDescription": "नवीन प्रकाशित बातम्या येथे दिसतील.",
+      "categoriesTitle": "कोणतेही विभाग उपलब्ध नाहीत",
+      "categoriesDescription": "विभागनिहाय बातम्या सध्या उपलब्ध नाहीत.",
+      "categoryCard": "या विभागात अद्याप प्रकाशित बातमी नाही.",
+      "sectionTitle": "{category} विभागात अद्याप बातम्या नाहीत",
+      "sectionDescription": "या विभागातील प्रकाशित बातम्या येथे दिसतील.",
+      "editorsTitle": "संपादकांची निवड अद्याप उपलब्ध नाही",
+      "editorsDescription": "वृत्तकक्षाने निवडलेल्या बातम्या येथे दिसतील.",
+      "trendingTitle": "सध्या कोणतीही चर्चित बातमी नाही",
+      "trendingDescription": "नवीनतम प्रकाशित बातम्या येथे दिसतील."
+    },
+    "error": {
+      "title": "बातम्या लोड करता आल्या नाहीत",
+      "description": "कृपया थोड्या वेळाने पुन्हा प्रयत्न करा."
+    }
+  },
+  "publicLayout": {
+    "navigation": {
+      "latest": "ताज्या",
+      "national": "राष्ट्रीय",
+      "world": "जागतिक",
+      "politics": "राजकारण",
+      "business": "व्यवसाय",
+      "technology": "तंत्रज्ञान",
+      "sports": "क्रीडा",
+      "entertainment": "मनोरंजन",
+      "opinion": "मत"
+    },
+    "actions": {
+      "skipToContent": "मुख्य मजकुराकडे जा",
+      "menu": "मेनू उघडा",
+      "closeMenu": "मेनू बंद करा",
+      "theme": "थीम",
+      "search": "शोधा",
+      "searchPlaceholder": "INBCN बातम्या शोधा",
+      "searchSubmit": "शोध सुरू करा",
+      "closeSearch": "शोध बंद करा",
+      "language": "भाषा",
+      "currentLanguage": "सध्याची भाषा",
+      "primaryNavigation": "मुख्य नेव्हिगेशन",
+      "lightTheme": "उजळ थीम वापरा",
+      "darkTheme": "गडद थीम वापरा"
+    },
+    "utility": {
+      "weather": "हवामान —",
+      "market": "बाजार —",
+      "live": "थेट",
+      "tagline": "इंग्रजी, हिंदी आणि मराठीमधील भारत-केंद्रित बातम्या"
+    },
+    "footer": {
+      "explore": "शोधा",
+      "categories": "विभाग",
+      "trust": "विश्वास",
+      "about": "इनबीसीएनविषयी",
+      "corrections": "दुरुस्त्या",
+      "contact": "संपर्क",
+      "description": "भारतासाठी विश्वासार्ह बहुभाषिक बातम्या.",
+      "copyright": "© {year} INBCN. सर्व हक्क राखीव.",
+      "compliance": "DPDP-अनुपालक · Google News प्रकाशक"
+    }
+  },
+  "publicChrome": {
+    "navigation": { "top": "प्रमुख", "india": "भारत", "world": "जागतिक", "politics": "राजकारण", "business": "व्यवसाय", "technology": "तंत्रज्ञान", "ai": "एआय", "sports": "क्रीडा", "entertainment": "मनोरंजन", "health": "आरोग्य", "lifestyle": "जीवनशैली", "education": "शिक्षण", "jobs": "नोकऱ्या", "opinion": "मत", "factCheck": "तथ्य पडताळणी" },
+    "actions": { "liveTv": "थेट टीव्ही", "login": "लॉग इन", "signup": "साइन अप", "searchPlaceholder": "बातम्या, स्रोत, शहरे शोधा", "openMenu": "मेनू उघडा", "closeMenu": "मेनू बंद करा", "enableAlerts": "सूचना सुरू करा", "latestUpdate": "नवीनतम अपडेट", "dismiss": "बंद करा" },
+    "utility": { "tagline": "इंग्रजी, हिंदी आणि मराठीमधील भारत-केंद्रित बातम्या", "weather": "मुंबई 29°C · हलका पाऊस", "notifications": "सूचना {count}", "reportIncident": "घटना नोंदवा", "descriptor": "बहुभाषिक जनहित बातमी मंच" },
+    "accessibility": { "home": "INBCN बातम्या मुख्यपृष्ठ", "sections": "बातमी विभाग", "mobileNavigation": "मोबाइल नेव्हिगेशन", "breakingNews": "ब्रेकिंग बातम्या", "skipToContent": "मुख्य मजकुराकडे जा" },
+    "breaking": "ब्रेकिंग",
+    "pinnedAlert": "पिन केलेली सूचना"
+  },
+  "publicFooter": {
+    "description": "भारतासाठी स्वतंत्र, बहुभाषिक जनहित पत्रकारिता.",
+    "copyright": "© 2026 INBCN News. सर्व हक्क राखीव.",
+    "company": { "title": "कंपनी", "about": "INBCN विषयी", "contact": "संपर्क करा", "careers": "करिअर" },
+    "policies": { "title": "धोरणे", "editorial": "संपादकीय धोरण", "privacy": "गोपनीयता धोरण", "terms": "वापराच्या अटी" },
+    "services": { "title": "बातमी सेवा", "liveTv": "थेट टीव्ही", "factCheck": "तथ्य पडताळणी", "newsletters": "वृत्तपत्रे" },
+    "connect": { "title": "संपर्कात रहा", "description": "दिवसातील महत्त्वाच्या बातम्या तुमच्या इनबॉक्समध्ये मिळवा.", "email": "ईमेल पत्ता", "subscribe": "सदस्य व्हा" }
+  },
+  "storyReader": {
+    "breadcrumb": { "home": "मुख्यपृष्ठ" },
+    "author": { "newsDesk": "INBCN वृत्त विभाग" },
+    "meta": { "published": "प्रकाशित", "updated": "अद्ययावत", "readTime": "{minutes} मिनिटांचे वाचन" },
+    "sections": { "tags": "विषय", "share": "ही बातमी शेअर करा", "related": "संबंधित बातम्या", "author": "लेखकाविषयी", "previous": "मागील बातमी", "next": "पुढील बातमी", "trending": "ट्रेंडिंग", "latest": "नवीनतम", "editorPicks": "संपादकांची निवड", "breaking": "ब्रेकिंग", "newsletter": "वृत्तपत्र" },
+    "share": { "copy": "लिंक कॉपी करा", "copied": "कॉपी झाले", "x": "X", "facebook": "Facebook", "linkedin": "LinkedIn", "telegram": "Telegram", "email": "ईमेल" },
+    "advertisement": "जाहिरात"
+  },
+  "categoryPage": {
+    "breadcrumb": { "home": "मुख्यपृष्ठ" },
+    "author": { "newsDesk": "INBCN न्यूज डेस्क" },
+    "description": "INBCN कडून {category} विभागातील नवीनतम सत्यापित बातम्या.",
+    "storyCount": "{count, plural, =0 {प्रकाशित बातम्या नाहीत} =1 {1 प्रकाशित बातमी} other {# प्रकाशित बातम्या}}",
+    "sections": { "latest": "{category} विभागातील नवीनतम बातम्या", "related": "इतर विभाग पाहा" },
+    "empty": { "title": "अद्याप {category} बातम्या नाहीत", "description": "या विभागातील प्रकाशित बातम्या येथे दिसतील." },
+    "pagination": { "previous": "मागील", "next": "पुढील", "page": "पृष्ठ", "of": "पैकी" },
+    "advertisement": "जाहिरात"
+  },
+  "searchPage": {
+    "breadcrumb": { "label": "ब्रेडक्रंब", "home": "मुख्यपृष्ठ", "search": "शोध" },
+    "author": { "newsDesk": "INBCN न्यूज डेस्क" },
+    "title": "शोध",
+    "form": {
+      "label": "INBCN बातम्या शोधा",
+      "placeholder": "विषय, मथळा किंवा कीवर्ड शोधा",
+      "submit": "शोधा"
+    },
+    "filters": {
+      "category": "विभाग",
+      "allCategories": "सर्व विभाग",
+      "language": "भाषा",
+      "date": "तारीख",
+      "allDates": "सर्व तारखा",
+      "pastDay": "मागील 24 तास",
+      "pastWeek": "मागील आठवडा",
+      "pastMonth": "मागील महिना",
+      "order": "क्रम",
+      "newest": "नवीनतम प्रथम"
+    },
+    "resultCount": "“{query}” साठी {count, plural, =0 {निकाल नाहीत} =1 {1 निकाल} other {# निकाल}}",
+    "categoryFallback": "बातम्या",
+    "initial": {
+      "title": "INBCN वर शोधा",
+      "description": "विषय, मथळा किंवा कीवर्डनुसार सत्यापित बातम्या शोधा."
+    },
+    "actions": { "allStories": "सर्व बातम्या" },
+    "sources": { "title": "या फीडमधील स्रोत", "description": "भागीदार प्रकाशकांच्या मथळ्यांना श्रेय आणि मूळ स्रोताची लिंक दिली जाते. INBCN त्यांचा संपूर्ण मजकूर पुन्हा प्रकाशित करत नाही." },
+    "empty": {
+      "title": "“{query}” साठी कोणतेही निकाल नाहीत",
+      "description": "शब्दलेखन तपासा, शोध विस्तृत करा किंवा फिल्टर काढा."
+    },
+    "metadata": {
+      "defaultTitle": "शोध",
+      "defaultDescription": "INBCN वरील सत्यापित बहुभाषिक बातम्या शोधा.",
+      "title": "{query} साठी शोध निकाल",
+      "titlePage": "{query} साठी शोध निकाल - पृष्ठ {page}",
+      "description": "{query} साठी सत्यापित INBCN बातम्यांचे निकाल."
+    },
+    "pagination": { "previous": "मागील", "next": "पुढील", "page": "पृष्ठ", "of": "पैकी" },
+    "advertisement": "जाहिरात"
+  },
+  "liveTvPage": {
+    "home": "मुख्यपृष्ठ",
+    "title": "थेट टीव्ही",
+    "live": "थेट",
+    "nowPlaying": "आता सुरू आहे",
+    "liveNow": "आत्ता थेट",
+    "liveUntil": "{time} पर्यंत थेट",
+    "scheduled": "पुढील नियोजित कार्यक्रम",
+    "startsAt": "{time} वाजता सुरू",
+    "offline": "ऑफलाइन",
+    "defaultOfflineMessage": "प्रसारण सध्या ऑफलाइन आहे. न्यूजरूम ऑन एअर झाल्यावर थेट वार्तांकन पुन्हा सुरू होईल.",
+    "youtubeProvider": "YouTube प्रसारण कॉन्फिगर केले आहे",
+    "hlsProvider": "HLS प्रसारण कॉन्फिगर केले आहे",
+    "breaking": "ब्रेकिंग न्यूज",
+    "latest": "ताज्या बातम्या",
+    "advertisement": "जाहिरात",
+    "playerLabel": "थेट टीव्ही प्रसारण प्लेयर",
+    "play": "थेट प्रसारण सुरू करा",
+    "playerLoading": "थेट प्रसारण लोड होत आहे",
+    "playerOffline": "हे प्रसारण ऑफलाइन आहे.",
+    "playerUnavailable": "थेट प्रसारण सध्या उपलब्ध नाही.",
+    "unsupportedBrowser": "हा ब्राउझर थेट प्रसारण चालवू शकत नाही.",
+    "youtubeUnavailable": "YouTube प्रसारण लोड होऊ शकले नाही.",
+    "hlsUnavailable": "HLS प्रसारण लोड होऊ शकले नाही."
+    ,"schedule": "कार्यक्रम वेळापत्रक",
+    "related": "संबंधित बातम्या",
+    "current": "आता सुरू",
+    "upcoming": "पुढील",
+    "completed": "पूर्ण",
+    "archive": "संग्रह",
+    "share": "लाइव्ह टीव्ही शेअर करा",
+    "copied": "लिंक कॉपी झाली"
+  }
+}

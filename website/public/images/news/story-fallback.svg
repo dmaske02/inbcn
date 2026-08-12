@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title description">
+  <title id="title">INBCN story image</title>
+  <desc id="description">A neutral INBCN news image used when a story has no available media.</desc>
+  <rect width="1600" height="900" fill="#f1f3f5"/>
+  <path d="M0 690 440 390l250 170 250-210 660 420v130H0Z" fill="#dde2e7"/>
+  <circle cx="1260" cy="230" r="96" fill="#d9232e" opacity=".12"/>
+  <path d="M220 228h1160v12H220zm0 72h760v12H220z" fill="#122b55" opacity=".14"/>
+  <g transform="translate(656 388)">
+    <rect width="288" height="124" rx="10" fill="#d9232e"/>
+    <text x="144" y="78" text-anchor="middle" font-family="Arial, sans-serif" font-size="58" font-weight="700" fill="#fff">INBCN</text>
+  </g>
+</svg>

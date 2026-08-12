@@ -1,0 +1,21 @@
+import { defineRouting } from "next-intl/routing";
+
+export const routing = defineRouting({
+  locales: ["en", "hi", "mr"],
+  defaultLocale: "en",
+  localePrefix: "always",
+});
+
+export function localizePublicPath(
+  pathname: string,
+  locale: (typeof routing.locales)[number],
+  search = "",
+  hash = "",
+): string {
+  const segments = pathname.split("/");
+  segments[1] = locale;
+  const localizedPath = segments.join("/") || `/${locale}`;
+  const query = search ? (search.startsWith("?") ? search : `?${search}`) : "";
+  const fragment = hash ? (hash.startsWith("#") ? hash : `#${hash}`) : "";
+  return `${localizedPath}${query}${fragment}`;
+}

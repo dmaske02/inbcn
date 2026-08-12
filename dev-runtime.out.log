@@ -1,0 +1,129 @@
+
+> inbcn@0.1.0 dev
+> next dev
+
+▲ Next.js 16.3.0 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.1.9:3000
+- Environments: .env.local
+✓ Ready in 1157ms
+✓ Running next.config.ts took 111ms
+- Experiments (use with caution):
+  · serverActions
+
+ GET /en/live-tv 200 in 3.4s (next.js: 283ms, proxy.ts: 327ms, generate-params: 1209ms, application-code: 1565ms)
+ GET /en 200 in 3.9s (next.js: 841ms, proxy.ts: 14ms, generate-params: 1897ms, application-code: 1155ms)
+ GET /en/live-tv 200 in 734ms (next.js: 52ms, proxy.ts: 17ms, generate-params: 18ms, application-code: 647ms)
+ GET /admin/live-tv 307 in 1139ms (next.js: 998ms, proxy.ts: 8ms, application-code: 133ms)
+ GET /admin/login 200 in 240ms (next.js: 87ms, proxy.ts: 7ms, application-code: 146ms)
+ GET /en 200 in 987ms (next.js: 153ms, proxy.ts: 8ms, generate-params: 8ms, application-code: 817ms)
+ GET /en 200 in 482ms (next.js: 14ms, proxy.ts: 23ms, generate-params: 0.0ms, application-code: 444ms)
+ GET /en/live-tv 200 in 619ms (next.js: 22ms, proxy.ts: 7ms, generate-params: 7ms, application-code: 583ms)
+ POST /admin/login 303 in 982ms (next.js: 81ms, proxy.ts: 9ms, application-code: 892ms)
+ GET /admin/dashboard 200 in 410ms (next.js: 120ms, proxy.ts: 7ms, application-code: 284ms)
+ GET /admin/live-tv 200 in 1029ms (next.js: 50ms, proxy.ts: 12ms, application-code: 967ms)
+✓ Compiled in 540ms
+ GET /admin/live-tv 500 in 794ms (next.js: 27ms, proxy.ts: 29ms, application-code: 738ms)
+ GET /en/live-tv 200 in 1135ms (next.js: 99ms, proxy.ts: 27ms, generate-params: 10ms, application-code: 999ms)
+ GET /admin/live-tv 500 in 2.5s (next.js: 90ms, proxy.ts: 1709ms, application-code: 740ms)
+ GET /admin/live-tv? 500 in 276ms (next.js: 6ms, proxy.ts: 13ms, application-code: 257ms)
+ GET /admin/live-tv 500 in 585ms (next.js: 33ms, proxy.ts: 14ms, application-code: 538ms)
+ GET /en/live-tv 200 in 769ms (next.js: 72ms, proxy.ts: 45ms, generate-params: 8ms, application-code: 643ms)
+{
+  code: 'PGRST205',
+  details: null,
+  hint: null,
+  message: "Could not find the table 'public.live_streams' in the schema cache"
+}
+ GET /admin/live-tv 500 in 686ms (next.js: 20ms, proxy.ts: 28ms, application-code: 638ms)
+{
+  code: 'PGRST205',
+  details: null,
+  hint: null,
+  message: "Could not find the table 'public.live_streams' in the schema cache"
+}
+ GET /en/live-tv 200 in 1031ms (next.js: 95ms, proxy.ts: 27ms, generate-params: 7ms, application-code: 901ms)
+{
+  code: 'PGRST205',
+  details: null,
+  hint: null,
+  message: "Could not find the table 'public.live_streams' in the schema cache"
+}
+{
+  code: 'PGRST205',
+  details: null,
+  hint: null,
+  message: "Could not find the table 'public.live_streams' in the schema cache"
+}
+ GET /admin/live-tv 500 in 474ms (next.js: 18ms, proxy.ts: 18ms, application-code: 438ms)
+ GET /en/live-tv 200 in 778ms (next.js: 83ms, proxy.ts: 16ms, generate-params: 6ms, application-code: 671ms)
+ GET /en 200 in 1393ms (next.js: 102ms, proxy.ts: 126ms, generate-params: 11ms, application-code: 1155ms)
+ GET /en/live-tv 200 in 746ms (next.js: 30ms, proxy.ts: 11ms, generate-params: 9ms, application-code: 696ms)
+ GET /admin/live-tv 307 in 129ms (next.js: 10ms, proxy.ts: 6ms, application-code: 114ms)
+ GET /en/live-tv 200 in 3.1s (next.js: 19ms, proxy.ts: 2.0s, generate-params: 10ms, application-code: 990ms)
+ GET /admin/live-tv 200 in 993ms (next.js: 19ms, proxy.ts: 137ms, application-code: 837ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 9.5s (next.js: 3.0s, proxy.ts: 168ms, application-code: 6.4s)
+ POST /admin/live-tv 200 in 26.5s (next.js: 2.5s, proxy.ts: 7.4s, application-code: 16.6s)
+  └─ ƒ createLiveTvAction({"status":"idle"}, {}) in 4304ms src/features/admin/live-tv/live-tv.actions.ts
+ GET /en/live-tv 200 in 4.2s (next.js: 1976ms, proxy.ts: 288ms, generate-params: 117ms, application-code: 1844ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 6.2s (next.js: 265ms, proxy.ts: 4.6s, application-code: 1354ms)
+ GET /en/live-tv 200 in 6.9s (next.js: 781ms, proxy.ts: 4.8s, generate-params: 24ms, application-code: 1301ms)
+✓ Compiled in 1563ms
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 6.3s (next.js: 1478ms, proxy.ts: 1556ms, application-code: 3.2s)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 2.2s (next.js: 90ms, proxy.ts: 368ms, application-code: 1705ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1985ms (next.js: 16ms, proxy.ts: 1014ms, application-code: 954ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1642ms (next.js: 113ms, proxy.ts: 482ms, application-code: 1047ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1325ms (next.js: 45ms, proxy.ts: 150ms, application-code: 1130ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1358ms (next.js: 71ms, proxy.ts: 431ms, application-code: 855ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1565ms (next.js: 126ms, proxy.ts: 293ms, application-code: 1147ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1264ms (next.js: 35ms, proxy.ts: 83ms, application-code: 1147ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1852ms (next.js: 175ms, proxy.ts: 481ms, application-code: 1196ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1094ms (next.js: 19ms, proxy.ts: 150ms, application-code: 926ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1341ms (next.js: 171ms, proxy.ts: 413ms, application-code: 757ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1339ms (next.js: 128ms, proxy.ts: 142ms, application-code: 1069ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1095ms (next.js: 49ms, proxy.ts: 129ms, application-code: 918ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1416ms (next.js: 107ms, proxy.ts: 352ms, application-code: 957ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1091ms (next.js: 57ms, proxy.ts: 141ms, application-code: 892ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1233ms (next.js: 67ms, proxy.ts: 308ms, application-code: 859ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 948ms (next.js: 11ms, proxy.ts: 106ms, application-code: 830ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1160ms (next.js: 95ms, proxy.ts: 294ms, application-code: 770ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 996ms (next.js: 10ms, proxy.ts: 100ms, application-code: 886ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1662ms (next.js: 87ms, proxy.ts: 337ms, application-code: 1238ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1131ms (next.js: 12ms, proxy.ts: 87ms, application-code: 1033ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1328ms (next.js: 60ms, proxy.ts: 223ms, application-code: 1044ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1162ms (next.js: 81ms, proxy.ts: 256ms, application-code: 825ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1406ms (next.js: 157ms, proxy.ts: 269ms, application-code: 979ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1209ms (next.js: 23ms, proxy.ts: 135ms, application-code: 1051ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1344ms (next.js: 22ms, proxy.ts: 367ms, application-code: 955ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1316ms (next.js: 131ms, proxy.ts: 155ms, application-code: 1030ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1205ms (next.js: 22ms, proxy.ts: 137ms, application-code: 1046ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1653ms (next.js: 76ms, proxy.ts: 327ms, application-code: 1250ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1227ms (next.js: 17ms, proxy.ts: 145ms, application-code: 1065ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1799ms (next.js: 188ms, proxy.ts: 385ms, application-code: 1226ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1136ms (next.js: 35ms, proxy.ts: 87ms, application-code: 1015ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1358ms (next.js: 209ms, proxy.ts: 275ms, application-code: 874ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1094ms (next.js: 70ms, proxy.ts: 203ms, application-code: 821ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 2.6s (next.js: 180ms, proxy.ts: 192ms, application-code: 2.3s)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 2.5s (next.js: 21ms, proxy.ts: 140ms, application-code: 2.4s)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1638ms (next.js: 15ms, proxy.ts: 288ms, application-code: 1335ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 2.6s (next.js: 24ms, proxy.ts: 93ms, application-code: 2.5s)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 3.8s (next.js: 97ms, proxy.ts: 583ms, application-code: 3.2s)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 2.7s (next.js: 64ms, proxy.ts: 94ms, application-code: 2.5s)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 2.1s (next.js: 26ms, proxy.ts: 841ms, application-code: 1216ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1129ms (next.js: 11ms, proxy.ts: 153ms, application-code: 965ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1863ms (next.js: 220ms, proxy.ts: 296ms, application-code: 1347ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 1106ms (next.js: 65ms, proxy.ts: 81ms, application-code: 961ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 806ms (next.js: 296ms, proxy.ts: 310ms, application-code: 200ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 202ms (next.js: 16ms, proxy.ts: 86ms, application-code: 100ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 166ms (next.js: 14ms, proxy.ts: 59ms, application-code: 93ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 154ms (next.js: 11ms, proxy.ts: 56ms, application-code: 87ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 337ms (next.js: 20ms, proxy.ts: 134ms, application-code: 183ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 520ms (next.js: 107ms, proxy.ts: 61ms, application-code: 352ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 772ms (next.js: 18ms, proxy.ts: 73ms, application-code: 682ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 400ms (next.js: 81ms, proxy.ts: 152ms, application-code: 168ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 228ms (next.js: 17ms, proxy.ts: 55ms, application-code: 157ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 251ms (next.js: 18ms, proxy.ts: 66ms, application-code: 167ms)
+ GET /admin/live-tv?id=b483907e-76fa-4cac-a355-00e7fd2f6c85&saved=created 200 in 286ms (next.js: 18ms, proxy.ts: 63ms, application-code: 205ms)
+ GET /admin/login 200 in 554ms (next.js: 397ms, proxy.ts: 15ms, application-code: 142ms)
+ GET /admin/login 200 in 173ms (next.js: 23ms, proxy.ts: 17ms, application-code: 133ms)
+✓ Finished writing to filesystem cache in 18.4s
