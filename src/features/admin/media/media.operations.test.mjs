@@ -3,8 +3,10 @@ import test from "node:test";
 
 import { createMediaOperations, MediaManagementError } from "./media.operations.ts";
 
+const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x02, 0xff, 0xd9]);
+
 const uploadInput = {
-  file: { name: "news.jpg", type: "image/jpeg", size: 5, bytes: new Uint8Array([1, 2, 3, 4, 5]) },
+  file: { name: "news.jpg", type: "image/jpeg", size: jpeg.length, bytes: jpeg },
   title: "News image",
   altText: "A news event",
   caption: "Caption",
@@ -19,7 +21,6 @@ function fixture(overrides = {}) {
   const state = {
     inserted: [],
     updated: [],
-    deleted: [],
     uploaded: [],
     destroyed: [],
   };
@@ -39,10 +40,6 @@ function fixture(overrides = {}) {
       return { ...existing, ...value, id };
     },
     getById: async () => existing,
-    countStoryReferences: async () => 0,
-    delete: async (id) => {
-      state.deleted.push(id);
-    },
     ...overrides.repository,
   };
   const cloudinary = {
@@ -55,7 +52,7 @@ function fixture(overrides = {}) {
         mimeType: "image/jpeg",
         width: 1600,
         height: 900,
-        bytes: 5,
+        bytes: jpeg.length,
       };
       state.uploaded.push(result.publicId);
       return result;
@@ -81,6 +78,32 @@ test("upload rejects a duplicate before contacting Cloudinary", async () => {
   assert.deepEqual(state.uploaded, []);
 });
 
+test("upload rejects spoofed MIME before contacting Cloudinary", async () => {
+  const { operations, state } = fixture();
+
+  await assert.rejects(
+    operations.upload({ ...uploadInput, file: { ...uploadInput.file, type: "image/png" } }),
+    (error) => error instanceof MediaManagementError && error.code === "VALIDATION",
+  );
+  assert.deepEqual(state.uploaded, []);
+  assert.deepEqual(state.inserted, []);
+});
+
+test("Cloudinary failures return a typed sanitized error without persistence", async () => {
+  const { operations, state } = fixture({
+    cloudinary: { upload: async () => { throw new Error("api_secret=do-not-leak"); } },
+  });
+
+  await assert.rejects(
+    operations.upload(uploadInput),
+    (error) => error instanceof MediaManagementError
+      && error.code === "UPLOAD_FAILED"
+      && error.message === "The image could not be uploaded. Please try again."
+      && !error.message.includes("api_secret"),
+  );
+  assert.deepEqual(state.inserted, []);
+});
+
 test("upload removes the new Cloudinary resource when database persistence fails", async () => {
   const { operations, state } = fixture({
     repository: { insert: async () => { throw new Error("database unavailable"); } },
@@ -100,24 +123,8 @@ test("replace keeps the media id and removes the previous Cloudinary resource", 
   assert.deepEqual(state.destroyed, ["inbcn/media/old"]);
 });
 
-test("delete refuses media that is referenced by a story", async () => {
-  const { operations, state } = fixture({
-    repository: { countStoryReferences: async () => 2 },
-  });
-
-  await assert.rejects(
-    operations.remove("media-1"),
-    (error) => error instanceof MediaManagementError && error.code === "IN_USE",
-  );
-  assert.deepEqual(state.deleted, []);
-  assert.deepEqual(state.destroyed, []);
-});
-
-test("delete removes database metadata before the unreferenced Cloudinary resource", async () => {
+test("operations expose no user-requested hard deletion", async () => {
   const { operations, state } = fixture();
-
-  await operations.remove("media-1");
-
-  assert.deepEqual(state.deleted, ["media-1"]);
-  assert.deepEqual(state.destroyed, ["inbcn/media/old"]);
+  assert.equal("remove" in operations, false);
+  assert.deepEqual(state.destroyed, []);
 });

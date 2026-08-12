@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 
 import { requireAdminUser } from "@/features/admin/auth/server";
 import { revalidatePublicNews } from "@/features/admin/public-revalidation";
-import { storyFormSchema, type StoryFormValues } from "./story.model";
+import { storyFormSchema, storyUpdateSubmissionSchema, type StoryFormValues } from "./story.model";
 import {
   createStory,
   runBulkStoryCommand,
@@ -41,10 +41,10 @@ function formValues(formData: FormData) {
   };
 }
 
-function validateForm(formData: FormData):
+function validateForm(formData: FormData, schema: typeof storyFormSchema = storyFormSchema):
   | Readonly<{ ok: true; values: StoryFormValues }>
   | Readonly<{ ok: false; state: StoryActionState }> {
-  const parsed = storyFormSchema.safeParse(formValues(formData));
+  const parsed = schema.safeParse(formValues(formData));
   if (!parsed.success) {
     return {
       ok: false,
@@ -92,7 +92,7 @@ export async function saveStoryAction(
   formData: FormData,
 ): Promise<StoryActionState> {
   const admin = await requireAdminUser();
-  const validated = validateForm(formData);
+  const validated = validateForm(formData, storyUpdateSubmissionSchema);
   if (!validated.ok) return validated.state;
   try {
     await saveStory(admin, id, validated.values);

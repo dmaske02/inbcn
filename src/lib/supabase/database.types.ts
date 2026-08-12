@@ -296,17 +296,23 @@ export type Database = {
           cloudinary_public_id: string
           created_at: string
           created_by: string | null
+          credit: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           duration_seconds: number | null
           height: number | null
           id: string
           media_type: Database["public"]["Enums"]["media_type"]
           metadata: Json
           mime_type: string | null
+          original_filename: string | null
           resource_format: string | null
           secure_url: string
           sort_order: number
           story_id: string | null
+          title: string
           updated_at: string
+          updated_by: string | null
           width: number | null
         }
         Insert: {
@@ -316,17 +322,23 @@ export type Database = {
           cloudinary_public_id: string
           created_at?: string
           created_by?: string | null
+          credit?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           duration_seconds?: number | null
           height?: number | null
           id?: string
           media_type: Database["public"]["Enums"]["media_type"]
           metadata?: Json
           mime_type?: string | null
+          original_filename?: string | null
           resource_format?: string | null
           secure_url: string
           sort_order?: number
           story_id?: string | null
+          title: string
           updated_at?: string
+          updated_by?: string | null
           width?: number | null
         }
         Update: {
@@ -336,17 +348,23 @@ export type Database = {
           cloudinary_public_id?: string
           created_at?: string
           created_by?: string | null
+          credit?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           duration_seconds?: number | null
           height?: number | null
           id?: string
           media_type?: Database["public"]["Enums"]["media_type"]
           metadata?: Json
           mime_type?: string | null
+          original_filename?: string | null
           resource_format?: string | null
           secure_url?: string
           sort_order?: number
           story_id?: string | null
+          title?: string
           updated_at?: string
+          updated_by?: string | null
           width?: number | null
         }
         Relationships: [
@@ -358,10 +376,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "media_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "media_story_id_fkey"
             columns: ["story_id"]
             isOneToOne: false
             referencedRelation: "stories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -742,6 +774,8 @@ export type Database = {
       duplicate_homepage_section_after: { Args: { source_section_id: string; expected_updated_at: string; expected_order: string[]; new_block_id: string; new_title: string }; Returns: string | null }
       move_homepage_section: { Args: { section_id: string; direction: string }; Returns: undefined }
       move_homepage_section_to: { Args: { section_id: string; target_position: number }; Returns: undefined }
+      retire_media_asset: { Args: { media_id: string; expected_updated_at: string }; Returns: string }
+      restore_media_asset: { Args: { media_id: string; expected_updated_at: string }; Returns: string }
     }
     Enums: {
       media_type: "image" | "video" | "audio" | "document"

@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
     root: process.cwd(),
   },
   experimental: {
+    proxyClientMaxBodySize: "11mb",
     serverActions: {
       bodySizeLimit: "11mb",
     },

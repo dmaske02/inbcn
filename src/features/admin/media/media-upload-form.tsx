@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { ImagePlus, LoaderCircle, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ export function MediaUploadForm({
     ? replaceMediaAction.bind(null, mediaId)
     : uploadMediaAction;
   const [state, formAction, pending] = useActionState(action, initialState);
+  const [selectedFileName, setSelectedFileName] = useState("");
   const submitLabel = mediaId ? "Replace image" : "Upload image";
 
   return (
@@ -45,11 +46,15 @@ export function MediaUploadForm({
           accept="image/jpeg,image/png,image/webp,image/avif"
           className={`${control} cursor-pointer py-2 file:me-3 file:rounded-sm file:border-0 file:bg-muted file:px-3 file:py-1 file:text-xs file:font-medium`}
           name="file"
+          onChange={(event) => setSelectedFileName(event.currentTarget.files?.[0]?.name ?? "")}
           required
           type="file"
         />
         <span className="text-xs text-muted-foreground">
           JPEG, PNG, WebP, or AVIF. Maximum 10 MB.
+        </span>
+        <span aria-live="polite" className="text-xs text-muted-foreground">
+          {selectedFileName ? `Selected: ${selectedFileName}` : "No file selected."}
         </span>
       </label>
       <div className={compact ? "grid gap-4" : "grid gap-4 sm:grid-cols-2"}>

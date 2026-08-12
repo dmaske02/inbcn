@@ -1,12 +1,14 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
 import { v2 as cloudinary, type UploadApiResponse } from "cloudinary";
 
 import { env } from "@/config/env";
 import type {
   CloudinaryUploadResult,
-  MediaFileInput,
+  VerifiedMediaFileInput,
 } from "./media.operations";
+import { createCloudinaryObjectIdentifier } from "./file-signature";
 
 function requiredConfiguration() {
   const cloudName = env.server.cloudinaryCloudName;
@@ -38,19 +40,18 @@ function configuredClient() {
 }
 
 export async function uploadCloudinaryImage(
-  file: MediaFileInput,
+  file: VerifiedMediaFileInput,
 ): Promise<CloudinaryUploadResult> {
   const client = configuredClient();
+  const publicId = createCloudinaryObjectIdentifier(new Date(), randomUUID());
   const result = await new Promise<UploadApiResponse>((resolve, reject) => {
     const stream = client.uploader.upload_stream(
       {
         resource_type: "image",
         type: "upload",
-        folder: "inbcn/media",
-        use_filename: true,
-        unique_filename: true,
+        public_id: publicId,
+        allowed_formats: ["jpg", "jpeg", "png", "webp", "avif"],
         overwrite: false,
-        filename_override: file.name,
       },
       (error, response) => {
         if (error) reject(error);

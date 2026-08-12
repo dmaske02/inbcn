@@ -16,6 +16,7 @@ import type { DatabaseEnum } from "@/lib/supabase/types";
 import {
   canCreateStory,
   getAllowedStoryCommands,
+  parseStoryUpdateForm,
   resolveEditableStoryType,
   storyFormSchema,
   type StoryCommand,
@@ -24,11 +25,9 @@ import {
 } from "./story.model";
 import { calculateReadTime } from "@/features/news/server/services/story-reader.model";
 import { buildTransitionPatch, parseTags } from "./story.workflow";
-import {
-  getMediaPickerOptions,
-  isSelectableMedia,
-} from "@/features/admin/media/media.service";
+import { getMediaReferenceView, isSelectableMedia } from "@/features/admin/media/media.service";
 import { resolveFeaturedMediaSelection } from "@/features/admin/media/media.model";
+import { validateFeaturedMediaChange } from "./story-featured-media-policy";
 
 const PAGE_SIZE = 20;
 const STORY_STATUSES: readonly StoryStatus[] = ["draft", "pending_review", "approved", "scheduled", "published", "rejected", "archived"];
@@ -120,20 +119,20 @@ export async function getStoryListView(admin: AdminIdentity, params: StoryListPa
 }
 
 export async function getStoryEditorView(admin: AdminIdentity, id?: string) {
-  const [references, media] = await Promise.all([
-    getCmsStoryReferences(),
-    getMediaPickerOptions(admin),
-  ]);
+  const referencesPromise = getCmsStoryReferences();
   if (!id) {
     if (!canCreateStory(admin.role)) throw new StoryManagementError("FORBIDDEN", "You cannot create stories.");
-    return { story: null, references, media, commands: ["save"] as const, readTime: 0 };
+    return { story: null, references: await referencesPromise, featuredMedia: null, commands: ["save"] as const, readTime: 0 };
   }
-  const story = await getCmsStoryById(id);
+  const [references, story] = await Promise.all([referencesPromise, getCmsStoryById(id)]);
   if (!story) throw new StoryManagementError("NOT_FOUND", "Story not found.");
+  const featuredMedia = story.featuredMediaId
+    ? await getMediaReferenceView(story.featuredMediaId)
+    : null;
   return {
     story,
     references,
-    media,
+    featuredMedia,
     commands: getAllowedStoryCommands(admin.role, story.status, story.createdBy === admin.id, story.type === "external_article"),
     readTime: calculateReadTime(story.content),
   };
@@ -181,19 +180,38 @@ function parseValues(input: StoryFormValues): StoryFormValues {
   return result.data;
 }
 
+function parseUpdateValues(input: StoryFormValues, persistedSummary: string): StoryFormValues {
+  const result = parseStoryUpdateForm(input, persistedSummary);
+  if (!result.success) throw new StoryManagementError("VALIDATION", "Check the story fields and try again.");
+  return result.data;
+}
+
+async function assertFeaturedMediaSelection(
+  admin: AdminIdentity,
+  requestedFeaturedMediaId: string | null,
+  currentFeaturedMediaId: string | null,
+): Promise<void> {
+  const result = await validateFeaturedMediaChange(
+    admin,
+    requestedFeaturedMediaId,
+    currentFeaturedMediaId,
+    isSelectableMedia,
+  );
+  if (!result.ok && result.code === "FORBIDDEN") {
+    throw new StoryManagementError("FORBIDDEN", "You cannot change featured media.");
+  }
+  if (!result.ok) {
+    throw new StoryManagementError("VALIDATION", "Select an available featured image.");
+  }
+}
+
 export async function createStory(admin: AdminIdentity, input: StoryFormValues): Promise<CmsStoryDto> {
   if (!canCreateStory(admin.role)) throw new StoryManagementError("FORBIDDEN", "You cannot create stories.");
   const values = parseValues(input);
   if (await cmsStorySlugExists(values.languageId, values.slug)) {
     throw new StoryManagementError("DUPLICATE_SLUG", "That slug is already used for this language.");
   }
-  if (
-    admin.role !== "writer" &&
-    values.featuredMediaId &&
-    !(await isSelectableMedia(admin, values.featuredMediaId))
-  ) {
-    throw new StoryManagementError("VALIDATION", "Select an available featured image.");
-  }
+  await assertFeaturedMediaSelection(admin, values.featuredMediaId || null, null);
   return insertCmsStory({
     ...normalizeForm(values, admin.role, null, null, null),
     created_by: admin.id,
@@ -207,17 +225,11 @@ export async function saveStory(admin: AdminIdentity, id: string, input: StoryFo
   if (!getAllowedStoryCommands(admin.role, story.status, story.createdBy === admin.id, story.type === "external_article").includes("save")) {
     throw new StoryManagementError("FORBIDDEN", "This story cannot be edited in its current state.");
   }
-  const values = parseValues(input);
+  const values = parseUpdateValues(input, story.summary);
   if (await cmsStorySlugExists(values.languageId, values.slug, id)) {
     throw new StoryManagementError("DUPLICATE_SLUG", "That slug is already used for this language.");
   }
-  if (
-    admin.role !== "writer" &&
-    values.featuredMediaId &&
-    !(await isSelectableMedia(admin, values.featuredMediaId))
-  ) {
-    throw new StoryManagementError("VALIDATION", "Select an available featured image.");
-  }
+  await assertFeaturedMediaSelection(admin, values.featuredMediaId || null, story.featuredMediaId);
   return updateCmsStory(id, {
     ...normalizeForm(
       values,

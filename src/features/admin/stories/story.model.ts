@@ -39,7 +39,28 @@ export const storyFormSchema = z.object({
   isBreaking: z.boolean(),
 });
 
+export const storyUpdateSubmissionSchema = storyFormSchema.extend({
+  summary: z.string().min(1, "Summary is required."),
+});
+
 export type StoryFormValues = z.infer<typeof storyFormSchema>;
+
+function normalizeTextareaLineEndings(value: string): string {
+  return value.replace(/\r\n?/gu, "\n");
+}
+
+export function parseStoryUpdateForm(input: StoryFormValues, persistedSummary: string) {
+  if (normalizeTextareaLineEndings(input.summary) !== normalizeTextareaLineEndings(persistedSummary)) {
+    return storyFormSchema.safeParse(input);
+  }
+
+  const parsed = storyFormSchema.omit({ summary: true }).safeParse(input);
+  if (!parsed.success) return parsed;
+  return {
+    success: true as const,
+    data: { ...parsed.data, summary: persistedSummary },
+  };
+}
 
 export function generateStorySlug(headline: string): string {
   const slug = headline

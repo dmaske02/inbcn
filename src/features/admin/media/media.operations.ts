@@ -1,14 +1,18 @@
 import {
   createMediaMetadata,
-  validateImageUpload,
   type MediaMetadata,
 } from "./media.model.ts";
+import { inspectImageFile, type VerifiedImageFormat } from "./file-signature.ts";
 
 export type MediaFileInput = Readonly<{
   name: string;
   type: string;
   size: number;
   bytes: Uint8Array;
+}>;
+
+export type VerifiedMediaFileInput = MediaFileInput & Readonly<{
+  format: VerifiedImageFormat;
 }>;
 
 export type MediaUploadInput = Readonly<{
@@ -68,11 +72,9 @@ export type MediaOperationsDependencies = Readonly<{
     insert(input: MediaPersistenceInput): Promise<PersistedMedia>;
     update(id: string, input: MediaPersistenceInput): Promise<PersistedMedia>;
     getById(id: string): Promise<PersistedMedia | null>;
-    countStoryReferences(id: string): Promise<number>;
-    delete(id: string): Promise<void>;
   }>;
   cloudinary: Readonly<{
-    upload(file: MediaFileInput): Promise<CloudinaryUploadResult>;
+    upload(file: VerifiedMediaFileInput): Promise<CloudinaryUploadResult>;
     destroy(publicId: string): Promise<void>;
   }>;
 }>;
@@ -85,6 +87,7 @@ export type MediaManagementErrorCode =
   | "IN_USE"
   | "UPLOAD_FAILED"
   | "PERSISTENCE_FAILED"
+  | "CONFLICT"
   | "REMOTE_CLEANUP_FAILED";
 
 export class MediaManagementError extends Error {
@@ -101,14 +104,14 @@ export class MediaManagementError extends Error {
   }
 }
 
-function assertUploadInput(input: MediaUploadInput): void {
-  const validation = validateImageUpload(input.file);
+function assertUploadInput(input: MediaUploadInput): VerifiedMediaFileInput {
+  const validation = inspectImageFile(input.file);
   if (!validation.ok) {
     const message = validation.reason === "FILE_TOO_LARGE"
       ? "Images must be 10 MB or smaller."
-      : validation.reason === "UNSUPPORTED_TYPE"
-        ? "Upload a JPEG, PNG, WebP, or AVIF image."
-        : "Choose an image to upload.";
+      : validation.reason === "EMPTY_FILE"
+        ? "Choose an image to upload."
+        : "Upload a valid JPEG, PNG, WebP, or AVIF image whose type and filename match its contents.";
     throw new MediaManagementError("VALIDATION", message);
   }
   if (!input.title.trim()) {
@@ -117,10 +120,17 @@ function assertUploadInput(input: MediaUploadInput): void {
   if (!input.altText.trim()) {
     throw new MediaManagementError("VALIDATION", "Alt text is required.");
   }
+  return {
+    ...input.file,
+    name: validation.filename,
+    type: validation.mimeType,
+    format: validation.format,
+  };
 }
 
 function persistenceInput(
   input: MediaUploadInput,
+  file: VerifiedMediaFileInput,
   result: CloudinaryUploadResult,
 ): MediaPersistenceInput {
   return {
@@ -140,16 +150,16 @@ function persistenceInput(
       tags: input.tags,
       uploadedBy: input.uploadedBy,
       checksum: input.checksum,
-      originalFilename: input.file.name,
+      originalFilename: file.name,
       assetId: result.assetId,
     }),
   };
 }
 
 export function createMediaOperations(dependencies: MediaOperationsDependencies) {
-  async function uploadToCloudinary(input: MediaUploadInput): Promise<CloudinaryUploadResult> {
+  async function uploadToCloudinary(file: VerifiedMediaFileInput): Promise<CloudinaryUploadResult> {
     try {
-      return await dependencies.cloudinary.upload(input.file);
+      return await dependencies.cloudinary.upload(file);
     } catch (error) {
       throw new MediaManagementError(
         "UPLOAD_FAILED",
@@ -168,11 +178,11 @@ export function createMediaOperations(dependencies: MediaOperationsDependencies)
 
   return {
     async upload(input: MediaUploadInput): Promise<PersistedMedia> {
-      assertUploadInput(input);
+      const file = assertUploadInput(input);
       await assertUnique(input.checksum);
-      const uploaded = await uploadToCloudinary(input);
+      const uploaded = await uploadToCloudinary(file);
       try {
-        return await dependencies.repository.insert(persistenceInput(input, uploaded));
+        return await dependencies.repository.insert(persistenceInput(input, file, uploaded));
       } catch (error) {
         try {
           await dependencies.cloudinary.destroy(uploaded.publicId);
@@ -188,18 +198,18 @@ export function createMediaOperations(dependencies: MediaOperationsDependencies)
     },
 
     async replace(id: string, input: MediaUploadInput): Promise<PersistedMedia> {
-      assertUploadInput(input);
+      const file = assertUploadInput(input);
       const existing = await dependencies.repository.getById(id);
       if (!existing) {
         throw new MediaManagementError("NOT_FOUND", "The image could not be found.");
       }
       await assertUnique(input.checksum, id);
-      const uploaded = await uploadToCloudinary(input);
+      const uploaded = await uploadToCloudinary(file);
       let replacement: PersistedMedia;
       try {
         replacement = await dependencies.repository.update(
           id,
-          persistenceInput(input, uploaded),
+          persistenceInput(input, file, uploaded),
         );
       } catch (error) {
         try {
@@ -223,29 +233,6 @@ export function createMediaOperations(dependencies: MediaOperationsDependencies)
         );
       }
       return replacement;
-    },
-
-    async remove(id: string): Promise<void> {
-      const existing = await dependencies.repository.getById(id);
-      if (!existing) {
-        throw new MediaManagementError("NOT_FOUND", "The image could not be found.");
-      }
-      if (await dependencies.repository.countStoryReferences(id)) {
-        throw new MediaManagementError(
-          "IN_USE",
-          "Remove this image from every story before deleting it.",
-        );
-      }
-      await dependencies.repository.delete(id);
-      try {
-        await dependencies.cloudinary.destroy(existing.publicId);
-      } catch (error) {
-        throw new MediaManagementError(
-          "REMOTE_CLEANUP_FAILED",
-          "The library entry was removed, but the remote asset still needs cleanup.",
-          { cause: error },
-        );
-      }
     },
   } as const;
 }
