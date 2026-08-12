@@ -164,4 +164,3 @@ export function validateSchedule(
 
   return { state, startsAt, endsAt };
 }
-

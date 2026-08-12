@@ -166,4 +166,3 @@ test("write mapper converts validated camelCase input to database columns", () =
     social_image_url: null,
   });
 });
-

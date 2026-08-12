@@ -46,4 +46,3 @@ export type LiveStreamScheduleWrite = Readonly<{
   starts_at?: string | null;
   ends_at?: string | null;
 }>;
-

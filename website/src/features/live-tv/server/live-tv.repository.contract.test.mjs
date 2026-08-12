@@ -34,4 +34,3 @@ test("minimal service remains server-only and delegates without player or UI con
   assert.match(source, /live-tv\.repository/u);
   assert.doesNotMatch(source, /player|React|metadata|advertisement|next\/navigation/iu);
 });
-

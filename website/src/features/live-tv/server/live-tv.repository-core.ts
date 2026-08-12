@@ -39,4 +39,3 @@ export function createLiveTvRepositoryCore(adapter: LiveTvRepositoryAdapter) {
     ) => adapter.update(id, { ...value, starts_at: null, ends_at: null }),
   } as const;
 }
-

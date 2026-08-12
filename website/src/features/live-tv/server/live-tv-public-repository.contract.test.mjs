@@ -8,4 +8,3 @@ test("public localized stream lookup explicitly excludes private lifecycle state
   assert.match(source, /\.in\("status", \["live", "scheduled", "offline"\]\)/u);
   assert.match(source, /language\.code/u);
 });
-

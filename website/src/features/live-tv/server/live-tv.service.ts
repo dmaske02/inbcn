@@ -20,4 +20,3 @@ export async function getLocalizedLiveStreamData(languageCode: string) {
 export async function getLiveStreamSchedule(id: string) {
   return getLiveSchedule(id);
 }
-

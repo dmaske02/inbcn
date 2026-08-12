@@ -16,4 +16,3 @@ export async function getPublicBreakingAlerts(locale: string) {
     return [];
   }
 }
-

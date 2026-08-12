@@ -69,4 +69,3 @@ export function toSafeProviderError(error: unknown): SafeProviderError {
     retryable: true,
   };
 }
-

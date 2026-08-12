@@ -50,7 +50,7 @@ export type LiveTvProgramme = Readonly<{
   seoTitle: string | null;
   seoDescription: string | null;
   socialImageUrl: string | null;
-}>; 
+}>;
 
 export type LiveTvPageViewModel = Readonly<{
   locale: string;
@@ -63,7 +63,7 @@ export type LiveTvPageViewModel = Readonly<{
   latest: readonly HomepageStory[];
   related: readonly HomepageStory[];
   schedule: readonly (LiveTvProgramme & Readonly<{ state: "archive" | "completed" | "current" | "upcoming" | "offline"; isCurrent: boolean; timeLabel: string }>)[];
-}>; 
+}>;
 
 const FALLBACK_POSTER = "/images/news/story-fallback.svg";
 

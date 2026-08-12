@@ -153,4 +153,3 @@ export function mapLiveStreamRow(row: LiveStreamRow) {
   const dto = toLiveStreamDto(row);
   return { dto, view: toLiveStreamViewModel(dto) } as const;
 }
-

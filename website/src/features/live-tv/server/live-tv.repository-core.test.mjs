@@ -74,4 +74,3 @@ test("repository deletes a channel only through the explicit remove method", asy
   await repository.deleteLiveChannel("stream-1");
   assert.deepEqual(fake.calls, [["remove", "stream-1"]]);
 });
-
