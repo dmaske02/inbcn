@@ -39,7 +39,7 @@ export function MediaUploadForm({
   const submitLabel = mediaId ? "Replace image" : "Upload image";
 
   return (
-    <form action={formAction} className="grid gap-4" encType="multipart/form-data">
+    <form action={formAction} className="grid gap-4">
       <label className="grid gap-2">
         <span className="text-sm font-medium">Image file *</span>
         <input

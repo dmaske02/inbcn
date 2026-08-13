@@ -65,12 +65,13 @@ export function AdminMobileNavigation({
   };
 
   return (
-    <div className="lg:hidden">
+    <div className="relative z-50 shrink-0 lg:hidden">
       <Button
         ref={triggerRef}
         aria-controls={drawerId}
         aria-expanded={open}
         aria-label="Open editorial navigation"
+        className="size-11 shrink-0"
         onClick={() => setOpen(true)}
         size="icon"
         variant="outline"

@@ -52,3 +52,13 @@ test("mobile navigation exposes every permitted destination in an accessible vie
   assert.match(source, /onClick=\{closeNavigation\}/u);
   assert.match(source, /\{children\}/u);
 });
+
+test("mobile trigger is a non-collapsing elevated control below 1024px while desktop navigation starts at 1024px", async () => {
+  assert.match(layout, /className="hidden items-center gap-1 lg:flex"/u);
+
+  const source = await readFile(mobileNavigationUrl, "utf8");
+  assert.match(source, /className="relative z-50 shrink-0 lg:hidden"/u);
+  assert.match(source, /className="size-11 shrink-0"/u);
+  assert.match(source, /aria-label="Open editorial navigation"/u);
+  assert.match(source, /size="icon"/u);
+});
