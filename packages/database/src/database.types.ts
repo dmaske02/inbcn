@@ -164,9 +164,14 @@ export type Database = {
           currency: string
           payment_status: string
           refund_status: string
-          razorpay_order_id: string
+          razorpay_order_id: string | null
           razorpay_payment_id: string | null
           razorpay_refund_id: string | null
+          order_creation_token: string | null
+          order_creation_reserved_at: string | null
+          refund_request_token: string | null
+          refund_request_reserved_at: string | null
+          refund_attempt_count: number
           captured_at: string | null
           refund_eligible_at: string | null
           refund_requested_at: string | null
@@ -186,9 +191,14 @@ export type Database = {
           currency?: string
           payment_status?: string
           refund_status?: string
-          razorpay_order_id: string
+          razorpay_order_id?: string | null
           razorpay_payment_id?: string | null
           razorpay_refund_id?: string | null
+          order_creation_token?: string | null
+          order_creation_reserved_at?: string | null
+          refund_request_token?: string | null
+          refund_request_reserved_at?: string | null
+          refund_attempt_count?: number
           captured_at?: string | null
           refund_eligible_at?: string | null
           refund_requested_at?: string | null
@@ -208,9 +218,14 @@ export type Database = {
           currency?: string
           payment_status?: string
           refund_status?: string
-          razorpay_order_id?: string
+          razorpay_order_id?: string | null
           razorpay_payment_id?: string | null
           razorpay_refund_id?: string | null
+          order_creation_token?: string | null
+          order_creation_reserved_at?: string | null
+          refund_request_token?: string | null
+          refund_request_reserved_at?: string | null
+          refund_attempt_count?: number
           captured_at?: string | null
           refund_eligible_at?: string | null
           refund_requested_at?: string | null
@@ -1108,6 +1123,10 @@ export type Database = {
         Returns: string
       }
       approve_reporter_application: { Args: { p_application_id: string }; Returns: string }
+      claim_razorpay_webhook_event: {
+        Args: { p_event_id: string; p_event_type: string }
+        Returns: Json
+      }
       claim_kyc_webhook_event: { Args: { p_event_id: string; p_event_type: string }; Returns: Json }
       claim_auto_import_batch: {
         Args: { p_started_at: string; p_lock_expires_at: string; p_queue_size: number; p_force?: boolean }
@@ -1120,14 +1139,54 @@ export type Database = {
         Args: { p_event_id: string; p_processing_token: string; p_provider: string; p_reference: string; p_verified: boolean; p_legal_name: string | null; p_adult: boolean | null; p_verified_at: string }
         Returns: boolean
       }
+      complete_razorpay_payment_webhook: {
+        Args: { p_event_id: string; p_processing_token: string; p_razorpay_order_id: string; p_razorpay_payment_id: string; p_amount_paise: number; p_currency: string }
+        Returns: boolean
+      }
+      complete_razorpay_refund_failure_webhook: {
+        Args: { p_event_id: string; p_processing_token: string; p_razorpay_refund_id: string; p_razorpay_payment_id: string; p_amount_paise: number; p_currency: string }
+        Returns: boolean
+      }
+      complete_razorpay_refund_webhook: {
+        Args: { p_event_id: string; p_processing_token: string; p_razorpay_refund_id: string; p_razorpay_payment_id: string; p_amount_paise: number; p_currency: string }
+        Returns: boolean
+      }
+      complete_reporter_order: {
+        Args: { p_payment_id: string; p_order_creation_token: string; p_razorpay_order_id: string }
+        Returns: boolean
+      }
       complete_reporter_kyc_start: { Args: { p_application_id: string; p_profile_id: string; p_reservation_token: string; p_provider: string; p_reference: string }; Returns: boolean }
+      fail_razorpay_webhook_event: {
+        Args: { p_event_id: string; p_processing_token: string; p_failure_detail: string }
+        Returns: boolean
+      }
       fail_kyc_webhook_event: { Args: { p_event_id: string; p_processing_token: string; p_failure_detail: string }; Returns: boolean }
+      fail_reporter_order: {
+        Args: { p_payment_id: string; p_order_creation_token: string }
+        Returns: boolean
+      }
+      fail_reporter_refund_request: {
+        Args: { p_payment_id: string; p_refund_request_token: string }
+        Returns: boolean
+      }
       mark_overdue_reporter_application: { Args: { p_application_id: string }; Returns: string }
       move_homepage_section: { Args: { section_id: string; direction: string }; Returns: undefined }
       move_homepage_section_to: { Args: { section_id: string; target_position: number }; Returns: undefined }
       retire_media_asset: { Args: { media_id: string; expected_updated_at: string }; Returns: string }
       restore_media_asset: { Args: { media_id: string; expected_updated_at: string }; Returns: string }
       reject_reporter_application: { Args: { p_application_id: string; p_decision_reason: string }; Returns: string }
+      record_reporter_refund_request: {
+        Args: { p_payment_id: string; p_refund_request_token: string; p_razorpay_refund_id: string; p_razorpay_payment_id: string; p_amount_paise: number; p_currency: string }
+        Returns: boolean
+      }
+      reserve_reporter_order: {
+        Args: { p_profile_id: string; p_application_id: string | null; p_purpose: string; p_required_consents: Json }
+        Returns: Json
+      }
+      reserve_reporter_refund: {
+        Args: { p_payment_id: string; p_actor_id: string }
+        Returns: Json
+      }
       release_reporter_kyc_start: { Args: { p_application_id: string; p_profile_id: string; p_reservation_token: string }; Returns: boolean }
       reserve_reporter_kyc_start: { Args: { p_application_id: string; p_profile_id: string }; Returns: string | null }
     }

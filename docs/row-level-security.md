@@ -60,7 +60,11 @@ an exact repeat of an already captured identifier.
 
 The functions never call Razorpay. Rejection changes the captured payment to
 `refund_pending`, allowing the server-side refund worker to call Razorpay and
-record the eventual provider result separately.
+record the eventual provider result separately. The follow-up Razorpay lifecycle
+functions are also `service_role`-only, use row locks and compare-and-set lease
+tokens, and validate exact provider identifiers, fixed money fields, and expected
+states before capture or refund completion. Refund reservation additionally
+rechecks that the supplied actor is an active database `admin` profile.
 
 ## Security notes
 

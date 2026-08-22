@@ -57,8 +57,18 @@ PostgreSQL's clock, so the service caller cannot choose the eligibility time.
 First approval starts membership at approval, expires it one year later, and
 adds seven days of grace. Rejection and overdue processing queue refund
 eligibility in PostgreSQL; external Razorpay calls remain outside the database.
-Renewal extends from the prior expiry through grace, or starts from capture
-after grace.
+`supabase/migrations/20260822100000_razorpay_payment_lifecycle.sql` adds leased,
+atomic order creation and Razorpay webhook/refund transitions. Order creation
+temporarily uses `order_creating`, enforces the six current persisted consent
+versions, and prevents concurrent active orders. Webhook receipts are claimed
+before business processing and may be reclaimed after a five-minute failed or
+abandoned lease. Refund requests keep `refund_pending` until an exact signed
+Razorpay `refund.processed` event confirms the payment ID, refund ID, `10000`
+paise amount, and `INR` currency.
+
+Renewal credit starts from the later of current expiry and captured server time,
+then adds one calendar year. The capture function remains the single atomic
+owner of payment, application/membership, deadline, and audit changes.
 
 `public_reporter_profiles` exposes only public slug, verified legal display
 name, approved avatar, public status, district, bio, beats, and published-story

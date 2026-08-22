@@ -53,6 +53,9 @@ const environmentSchema = z
     LIVEKIT_API_KEY: optionalString,
     LIVEKIT_API_SECRET: optionalString,
 
+    RAZORPAY_KEY_ID: optionalString,
+    RAZORPAY_KEY_SECRET: optionalString,
+
     HOMEPAGE_BUILDER_ENABLED: z.enum(["true", "false"]).default("false"),
 
   })
@@ -77,6 +80,22 @@ const environmentSchema = z
             code: "custom",
             path: [name],
             message: `${name} is required when LiveKit is configured.`,
+          });
+        }
+      }
+    }
+
+    const razorpayEntries = [
+      ["RAZORPAY_KEY_ID", values.RAZORPAY_KEY_ID],
+      ["RAZORPAY_KEY_SECRET", values.RAZORPAY_KEY_SECRET],
+    ] as const;
+    if (razorpayEntries.some(([, value]) => value)) {
+      for (const [name, value] of razorpayEntries) {
+        if (!value) {
+          context.addIssue({
+            code: "custom",
+            path: [name],
+            message: `${name} is required when Razorpay is configured.`,
           });
         }
       }
@@ -112,6 +131,9 @@ const parsedEnvironment = environmentSchema.safeParse({
   LIVEKIT_URL: process.env.LIVEKIT_URL,
   LIVEKIT_API_KEY: process.env.LIVEKIT_API_KEY,
   LIVEKIT_API_SECRET: process.env.LIVEKIT_API_SECRET,
+
+  RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID,
+  RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET,
 
   HOMEPAGE_BUILDER_ENABLED: process.env.HOMEPAGE_BUILDER_ENABLED,
 
@@ -150,6 +172,10 @@ export const env = Object.freeze({
       url: values.LIVEKIT_URL,
       apiKey: values.LIVEKIT_API_KEY,
       apiSecret: values.LIVEKIT_API_SECRET,
+    }),
+    razorpay: Object.freeze({
+      keyId: values.RAZORPAY_KEY_ID,
+      keySecret: values.RAZORPAY_KEY_SECRET,
     }),
     homepageBuilder: Object.freeze({
       enabled: values.HOMEPAGE_BUILDER_ENABLED === "true",

@@ -2,6 +2,7 @@ import {
   KycServiceError,
   processKycWebhook,
 } from "../../../../features/application/application.service.ts";
+import { readBoundedRawBody } from "../../../../features/webhooks/raw-body.ts";
 
 export const MAX_KYC_WEBHOOK_SIZE = 1024 * 1024;
 const KYC_WEBHOOK_RETRY_AFTER_SECONDS = 60;
@@ -10,10 +11,6 @@ type Dependencies = Readonly<{
   process(input: Readonly<{ rawBody: string; signature: string }>): Promise<unknown>;
 }>;
 
-type BodyReadResult =
-  | Readonly<{ ok: true; rawBody: string }>
-  | Readonly<{ ok: false; status: 400 | 413 }>;
-
 function hasActiveProcessingLease(result: unknown): boolean {
   return typeof result === "object"
     && result !== null
@@ -21,44 +18,8 @@ function hasActiveProcessingLease(result: unknown): boolean {
     && result.status === "processing";
 }
 
-export async function readKycWebhookBody(request: Request): Promise<BodyReadResult> {
-  const declaredLength = request.headers.get("content-length");
-  if (declaredLength !== null) {
-    if (!/^\d+$/u.test(declaredLength)) return { ok: false, status: 400 };
-    if (Number(declaredLength) > MAX_KYC_WEBHOOK_SIZE) return { ok: false, status: 413 };
-  }
-  if (!request.body) return { ok: false, status: 400 };
-
-  const reader = request.body.getReader();
-  const decoder = new TextDecoder("utf-8", { fatal: true });
-  let byteLength = 0;
-  let rawBody = "";
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      byteLength += value.byteLength;
-      if (byteLength > MAX_KYC_WEBHOOK_SIZE) {
-        try {
-          await reader.cancel();
-        } catch {
-          // The size rejection is authoritative even if transport cancellation fails.
-        }
-        return { ok: false, status: 413 };
-      }
-      rawBody += decoder.decode(value, { stream: true });
-    }
-    rawBody += decoder.decode();
-  } catch {
-    try {
-      await reader.cancel();
-    } catch {
-      // The request is already unusable; no diagnostic body is retained.
-    }
-    return { ok: false, status: 400 };
-  }
-  return rawBody ? { ok: true, rawBody } : { ok: false, status: 400 };
-}
+export const readKycWebhookBody = (request: Request) =>
+  readBoundedRawBody(request, MAX_KYC_WEBHOOK_SIZE);
 
 export function createKycCallbackHandler(dependencies: Dependencies) {
   return async function POST(request: Request): Promise<Response> {
