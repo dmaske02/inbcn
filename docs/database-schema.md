@@ -52,11 +52,13 @@ and support admin, expiry, incomplete-application, refund, and webhook queues.
 `apply_reporter_payment` own the row-locked decision and capture transitions.
 `mark_overdue_reporter_application` atomically cancels a still-incomplete paid
 application at or after its 30-day deadline and queues its captured payment for
-refund. First approval starts membership at approval, expires it one year later,
-and adds seven days of grace. Rejection and overdue processing queue refund
+refund. It accepts only the application ID and derives the transition time from
+PostgreSQL's clock, so the service caller cannot choose the eligibility time.
+First approval starts membership at approval, expires it one year later, and
+adds seven days of grace. Rejection and overdue processing queue refund
 eligibility in PostgreSQL; external Razorpay calls remain outside the database.
-Renewal extends from the prior expiry through grace, or starts from capture after
-grace.
+Renewal extends from the prior expiry through grace, or starts from capture
+after grace.
 
 `public_reporter_profiles` exposes only public slug, verified legal display
 name, approved avatar, public status, district, bio, beats, and published-story

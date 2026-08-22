@@ -77,34 +77,55 @@ test("reporter payments enforce the fixed fee and generated reporter role", () =
 
 test("paid incomplete applications become refund pending atomically after deadline", () => {
   const overdue = sqlFunction("mark_overdue_reporter_application");
+  const signature = overdue.slice(0, overdue.indexOf("returns uuid"));
 
+  assert.match(signature, /\(\s*p_application_id uuid\s*\)/u);
+  assert.doesNotMatch(signature, /timestamp/iu);
   assert.match(overdue, /security definer set search_path = ''/u);
   assert.match(overdue, /auth\.jwt\(\) ->> 'role'.*'service_role'/u);
+  assert.match(
+    overdue,
+    /transition_time timestamptz := clock_timestamp\(\)/u,
+  );
   assert.match(overdue, /from public\.reporter_applications .* for update/u);
   assert.match(overdue, /from public\.reporter_payments .* for update/u);
   assert.match(overdue, /status <> 'kyc_pending'/u);
-  assert.match(overdue, /completion_deadline > p_checked_at/u);
+  assert.match(overdue, /completion_deadline > transition_time/u);
   assert.match(overdue, /payment_status <> 'captured'/u);
   assert.match(overdue, /refund_status <> 'not_eligible'/u);
   assert.match(overdue, /status = 'cancelled'/u);
   assert.match(overdue, /refund_status = 'refund_pending'/u);
-  assert.match(overdue, /refund_eligible_at = p_checked_at/u);
+  assert.match(overdue, /refund_eligible_at = transition_time/u);
   assert.match(overdue, /insert into public\.audit_events/u);
   assert.match(
     compact(migration),
-    /revoke all on function public\.mark_overdue_reporter_application\(uuid, timestamptz\) from public, anon, authenticated, service_role;/u,
+    /revoke all on function public\.mark_overdue_reporter_application\(uuid\) from public, anon, authenticated, service_role;/u,
   );
   assert.match(
     compact(migration),
-    /grant execute on function public\.mark_overdue_reporter_application\(uuid, timestamptz\) to service_role;/u,
+    /grant execute on function public\.mark_overdue_reporter_application\(uuid\) to service_role;/u,
   );
   assert.doesNotMatch(
     compact(migration),
-    /grant execute on function public\.mark_overdue_reporter_application\(uuid, timestamptz\) to (?:public|anon|authenticated)/u,
+    /grant execute on function public\.mark_overdue_reporter_application\(uuid\) to (?:public|anon|authenticated)/u,
   );
   assert.match(
     compact(databaseTypes),
-    /mark_overdue_reporter_application: \{ Args: \{ p_application_id: string; p_checked_at: string \}; Returns: string \}/u,
+    /mark_overdue_reporter_application: \{ Args: \{ p_application_id: string \}; Returns: string \}/u,
+  );
+});
+
+test("first approval starts a one-year membership with seven days of grace", () => {
+  const approval = sqlFunction("approve_reporter_application");
+
+  assert.match(approval, /approval_time timestamptz := clock_timestamp\(\)/u);
+  assert.match(
+    approval,
+    /expiry_time timestamptz := approval_time \+ interval '1 year'/u,
+  );
+  assert.match(
+    approval,
+    /insert into public\.reporter_profiles \(.*membership_started_at, membership_expires_at, membership_grace_ends_at.*\) values \(.*approval_time, expiry_time, expiry_time \+ interval '7 days'/u,
   );
 });
 

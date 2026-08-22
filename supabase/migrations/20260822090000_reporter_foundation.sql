@@ -700,10 +700,7 @@ begin
 end;
 $$;
 
-create or replace function public.mark_overdue_reporter_application(
-  p_application_id uuid,
-  p_checked_at timestamptz
-)
+create or replace function public.mark_overdue_reporter_application(p_application_id uuid)
 returns uuid
 language plpgsql
 security definer
@@ -712,12 +709,10 @@ as $$
 declare
   current_application public.reporter_applications%rowtype;
   current_payment public.reporter_payments%rowtype;
+  transition_time timestamptz := clock_timestamp();
 begin
   if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
     raise exception using errcode = '42501', message = 'REPORTER_OVERDUE_FORBIDDEN';
-  end if;
-  if p_checked_at is null then
-    raise exception using errcode = '22023', message = 'REPORTER_OVERDUE_CHECK_TIME_REQUIRED';
   end if;
 
   select * into current_application
@@ -730,7 +725,7 @@ begin
   end if;
   if current_application.status <> 'kyc_pending'
     or current_application.completion_deadline is null
-    or current_application.completion_deadline > p_checked_at then
+    or current_application.completion_deadline > transition_time then
     raise exception using errcode = 'P0001', message = 'REPORTER_APPLICATION_NOT_OVERDUE';
   end if;
 
@@ -748,14 +743,14 @@ begin
 
   update public.reporter_applications
   set status = 'cancelled',
-      refund_eligible_at = p_checked_at,
-      updated_at = p_checked_at
+      refund_eligible_at = transition_time,
+      updated_at = transition_time
   where id = current_application.id;
 
   update public.reporter_payments
   set refund_status = 'refund_pending',
-      refund_eligible_at = p_checked_at,
-      updated_at = p_checked_at
+      refund_eligible_at = transition_time,
+      updated_at = transition_time
   where id = current_payment.id;
 
   insert into public.audit_events (actor_id, action, subject_type, subject_id, metadata)
@@ -968,7 +963,7 @@ $$;
 
 revoke all on function public.apply_reporter_payment(text, text, integer, text, timestamptz)
 from public, anon, authenticated;
-revoke all on function public.mark_overdue_reporter_application(uuid, timestamptz)
+revoke all on function public.mark_overdue_reporter_application(uuid)
 from public, anon, authenticated, service_role;
 revoke all on function public.approve_reporter_application(uuid)
 from public, anon, authenticated;
@@ -977,7 +972,7 @@ from public, anon, authenticated;
 
 grant execute on function public.apply_reporter_payment(text, text, integer, text, timestamptz)
 to service_role;
-grant execute on function public.mark_overdue_reporter_application(uuid, timestamptz)
+grant execute on function public.mark_overdue_reporter_application(uuid)
 to service_role;
 grant execute on function public.approve_reporter_application(uuid)
 to authenticated;

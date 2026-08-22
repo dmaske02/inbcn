@@ -1109,7 +1109,7 @@ export type Database = {
       delete_homepage_section: { Args: { section_id: string }; Returns: undefined }
       delete_homepage_section_if_current: { Args: { section_id: string; expected_updated_at: string; expected_order: string[] }; Returns: boolean }
       duplicate_homepage_section_after: { Args: { source_section_id: string; expected_updated_at: string; expected_order: string[]; new_block_id: string; new_title: string }; Returns: string | null }
-      mark_overdue_reporter_application: { Args: { p_application_id: string; p_checked_at: string }; Returns: string }
+      mark_overdue_reporter_application: { Args: { p_application_id: string }; Returns: string }
       move_homepage_section: { Args: { section_id: string; direction: string }; Returns: undefined }
       move_homepage_section_to: { Args: { section_id: string; target_position: number }; Returns: undefined }
       retire_media_asset: { Args: { media_id: string; expected_updated_at: string }; Returns: string }

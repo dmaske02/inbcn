@@ -53,8 +53,10 @@ role/state checks, and an audit insert in the same transaction. Approval and
 rejection require the signed `app_metadata.role = admin` claim. Payment capture
 and 30-day incomplete-application cancellation are executable only by
 `service_role`. The overdue transition requires `kyc_pending`, a reached
-completion deadline, and a captured, not-yet-refund-eligible payment. Payment
-capture is idempotent for an exact repeat of an already captured identifier.
+completion deadline, and a captured, not-yet-refund-eligible payment. It accepts
+only the application ID and uses PostgreSQL's clock for both the eligibility
+decision and persisted transition timestamps. Payment capture is idempotent for
+an exact repeat of an already captured identifier.
 
 The functions never call Razorpay. Rejection changes the captured payment to
 `refund_pending`, allowing the server-side refund worker to call Razorpay and
