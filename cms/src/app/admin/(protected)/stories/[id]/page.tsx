@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { requireAdminUser } from "@/features/admin/auth/server";
 import { StoryEditor } from "@/features/admin/stories/story-editor";
@@ -13,6 +13,7 @@ export default async function EditStoryPage({ params, searchParams }: { params: 
     view = await getStoryEditorView(admin, id);
   } catch (error) {
     if (error instanceof StoryManagementError && error.code === "NOT_FOUND") notFound();
+    if (error instanceof StoryManagementError && error.code === "FORBIDDEN") redirect("/admin/forbidden");
     throw error;
   }
   return <StoryEditor adminRole={admin.role} view={view} notices={notices} />;

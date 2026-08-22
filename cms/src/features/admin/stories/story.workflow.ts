@@ -14,7 +14,7 @@ export function normalizeScheduledAt(value: string): string | null | undefined {
 }
 
 export function buildTransitionPatch(
-  command: Exclude<StoryCommand, "save" | "delete">,
+  command: Exclude<StoryCommand, "save" | "delete" | "request_changes">,
   currentStatus: StoryStatus,
   actorId: string,
   now: string,

@@ -10,7 +10,7 @@ import { canManageAlerts } from "@/features/alerts/breaking-alerts.model";
 import { canManageLiveTv } from "@/features/admin/live-tv/live-tv.model";
 import { AdminMobileNavigation } from "@/features/admin/navigation/admin-mobile-navigation";
 import { BroadcastNavigationLink } from "@/features/admin/navigation/broadcast-navigation-link";
-import { canReviewReporter } from "@/features/admin/reporters/reporter.model";
+import { canSetReporterTrust } from "@/features/admin/reporters/reporter.model";
 import { canAccessBroadcastStudio } from "@/features/broadcast-studio/models/broadcast-session.model";
 
 export default async function ProtectedAdminLayout({
@@ -25,7 +25,7 @@ export default async function ProtectedAdminLayout({
       {canManageLiveTv(admin.role) ? <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/live-tv">Live TV</Link> : null}
       {canAccessBroadcastStudio(admin.role) ? <BroadcastNavigationLink /> : null}
       {canManageAlerts(admin.role) ? <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/alerts">Alerts</Link> : null}
-      {canReviewReporter(admin.role) ? <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/reporters/applications">Reporters</Link> : null}
+      {canSetReporterTrust(admin.role) ? <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/reporters">Reporters</Link> : null}
       {canManageMedia(admin.role) ? <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/media">Media</Link> : null}
       {canManageNewsData(admin.role) ? <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/sources">Sources</Link> : null}
       {canManageNewsData(admin.role) ? <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/imports">Imports</Link> : null}

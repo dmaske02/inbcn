@@ -3,10 +3,11 @@ import "server-only";
 import { z } from "zod";
 
 import type { AdminIdentity } from "../auth/authorization.model.ts";
-import { canReviewReporter } from "./reporter.model.ts";
+import { canReviewReporter, canSetReporterTrust } from "./reporter.model.ts";
 import type {
   ReporterApplicationDetail,
   ReporterApplicationListItem,
+  ReporterDirectoryItem,
 } from "./reporter.repository.ts";
 
 type AccessSyncOperation = "approval" | "reconciliation" | "suspension" | "reinstatement";
@@ -29,6 +30,8 @@ type AccessSyncCompletion = Readonly<{
 type ReporterRepository = Readonly<{
   list(): Promise<readonly ReporterApplicationListItem[]>;
   get(applicationId: string): Promise<ReporterApplicationDetail | null>;
+  listReporters(): Promise<readonly ReporterDirectoryItem[]>;
+  findApprovedApplicationId(profileId: string): Promise<string | null>;
   approve(applicationId: string, publicPhotoIdentityMatch: boolean): Promise<Readonly<{ profileId: string }>>;
   reject(applicationId: string, reason: string): Promise<Readonly<{
     profileId: string;
@@ -36,6 +39,7 @@ type ReporterRepository = Readonly<{
   }>>;
   suspend(profileId: string, reason: string): Promise<Readonly<{ profileId: string }>>;
   reinstate(profileId: string): Promise<Readonly<{ profileId: string }>>;
+  setTrust(profileId: string, capability: "direct_publish" | "live_broadcast", enabled: boolean, reason: string): Promise<void>;
   claimAccessSync(profileId: string): Promise<AccessSyncClaimResult>;
   completeAccessSync(input: Omit<AccessSyncClaim, "state"> & Readonly<{
     succeeded: boolean;
@@ -82,6 +86,14 @@ function requiredReason(value: string): string {
   const reason = value.trim();
   if (!reason) {
     throw new ReporterManagementError("VALIDATION", "Enter a reason before continuing.");
+  }
+  return reason;
+}
+
+function requiredBoundedReason(value: string): string {
+  const reason = requiredReason(value);
+  if (reason.length > 2000) {
+    throw new ReporterManagementError("VALIDATION", "Keep the reason within 2000 characters.");
   }
   return reason;
 }
@@ -165,6 +177,17 @@ export function createReporterService(dependencies: ReporterServiceDependencies)
       return dependencies.repository.get(validId(applicationId));
     },
 
+    async listReporters(admin: AdminIdentity) {
+      requireReviewer(admin);
+      return dependencies.repository.listReporters();
+    },
+
+    async getReporter(admin: AdminIdentity, profileId: string) {
+      requireReviewer(admin);
+      const applicationId = await dependencies.repository.findApprovedApplicationId(validId(profileId));
+      return applicationId ? dependencies.repository.get(applicationId) : null;
+    },
+
     async approve(
       admin: AdminIdentity,
       applicationId: string,
@@ -218,6 +241,28 @@ export function createReporterService(dependencies: ReporterServiceDependencies)
     async retryAccessSync(admin: AdminIdentity, profileId: string) {
       requireReviewer(admin);
       await syncAccess(validId(profileId));
+    },
+
+    async setTrust(
+      admin: AdminIdentity,
+      profileId: string,
+      capability: string,
+      enabled: boolean,
+      reason: string,
+    ) {
+      if (!canSetReporterTrust(admin.role)) {
+        throw new ReporterManagementError("FORBIDDEN", "Only an administrator can change reporter trust.");
+      }
+      const parsedCapability = z.enum(["direct_publish", "live_broadcast"]).safeParse(capability);
+      if (!parsedCapability.success) {
+        throw new ReporterManagementError("VALIDATION", "Select a valid reporter capability.");
+      }
+      await dependencies.repository.setTrust(
+        validId(profileId),
+        parsedCapability.data,
+        enabled,
+        requiredBoundedReason(reason),
+      );
     },
   } as const;
 }

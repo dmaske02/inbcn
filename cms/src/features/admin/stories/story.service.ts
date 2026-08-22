@@ -1,5 +1,6 @@
 import "server-only";
 
+import { z } from "zod";
 import type { AdminIdentity, AdminRole } from "@/features/admin/auth/authorization.model";
 import {
   cmsStorySlugExists,
@@ -13,10 +14,14 @@ import {
   type CmsStoryListQuery,
 } from "@/features/news/server";
 import type { DatabaseEnum } from "@/lib/supabase/types";
+import { createClient } from "@/lib/supabase/server";
 import {
+  canReviewReporterStory,
   canCreateStory,
   getAllowedStoryCommands,
+  parseReporterReviewReason,
   parseStoryUpdateForm,
+  reporterStoryReviewSchema,
   resolveEditableStoryType,
   storyFormSchema,
   type StoryCommand,
@@ -31,6 +36,7 @@ import { validateFeaturedMediaChange } from "./story-featured-media-policy";
 
 const PAGE_SIZE = 20;
 const STORY_STATUSES: readonly StoryStatus[] = ["draft", "pending_review", "approved", "scheduled", "published", "rejected", "archived"];
+const reporterReviewIdSchema = z.uuid();
 
 export class StoryManagementError extends Error {
   constructor(readonly code: "NOT_FOUND" | "FORBIDDEN" | "DUPLICATE_SLUG" | "INVALID_TRANSITION" | "VALIDATION", message: string) {
@@ -128,17 +134,24 @@ export async function getStoryEditorView(admin: AdminIdentity, id?: string) {
   const referencesPromise = getCmsStoryReferences();
   if (!id) {
     if (!canCreateStory(admin.role)) throw new StoryManagementError("FORBIDDEN", "You cannot create stories.");
-    return { story: null, references: await referencesPromise, featuredMedia: null, commands: ["save"] as const, readTime: 0 };
+    return { story: null, references: await referencesPromise, featuredMedia: null, reporterReview: null, commands: ["save"] as const, readTime: 0 };
   }
   const [references, story] = await Promise.all([referencesPromise, getCmsStoryById(id)]);
   if (!story) throw new StoryManagementError("NOT_FOUND", "Story not found.");
-  const featuredMedia = story.featuredMediaId
-    ? await getMediaReferenceView(story.featuredMediaId)
-    : null;
+  if (story.isReporterStory && !canReviewReporterStory(admin.role, story.status)) {
+    throw new StoryManagementError("FORBIDDEN", "You cannot review reporter submissions.");
+  }
+  const [featuredMedia, reporterReview] = await Promise.all([
+    !story.isReporterStory && story.featuredMediaId
+      ? getMediaReferenceView(story.featuredMediaId)
+      : Promise.resolve(null),
+    story.isReporterStory ? getReporterStoryReview(id) : Promise.resolve(null),
+  ]);
   return {
     story,
     references,
     featuredMedia,
+    reporterReview,
     commands: getAllowedStoryCommands(
       admin.role,
       story.status,
@@ -148,6 +161,17 @@ export async function getStoryEditorView(admin: AdminIdentity, id?: string) {
     ),
     readTime: calculateReadTime(story.content),
   };
+}
+
+async function getReporterStoryReview(storyId: string) {
+  const { data, error } = await (await createClient()).rpc("get_reporter_story_review", {
+    p_story_id: storyId,
+  });
+  const parsed = reporterStoryReviewSchema.safeParse(data);
+  if (error || !parsed.success) {
+    throw new StoryManagementError("FORBIDDEN", "Reporter review evidence is unavailable.");
+  }
+  return parsed.data;
 }
 
 function normalizeForm(
@@ -263,7 +287,7 @@ export async function saveStory(admin: AdminIdentity, id: string, input: StoryFo
 export async function runStoryCommand(
   admin: AdminIdentity,
   id: string,
-  command: Exclude<StoryCommand, "save">,
+  command: Exclude<StoryCommand, "save" | "request_changes">,
   scheduledAt?: string,
   rejectionReason?: string,
 ): Promise<void> {
@@ -290,6 +314,73 @@ export async function runStoryCommand(
     }
     throw error;
   }
+}
+
+export async function requestReporterChanges(
+  admin: AdminIdentity,
+  storyId: string,
+  latestRevisionId: string,
+  value: string,
+): Promise<void> {
+  if (!reporterReviewIdSchema.safeParse(storyId).success
+    || !reporterReviewIdSchema.safeParse(latestRevisionId).success) {
+    throw new StoryManagementError("VALIDATION", "The reporter review request is invalid.");
+  }
+  const story = await getCmsStoryById(storyId);
+  if (!story) throw new StoryManagementError("NOT_FOUND", "Story not found.");
+  if (!story.isReporterStory
+    || !canReviewReporterStory(admin.role, story.status)
+    || !getAllowedStoryCommands(
+      admin.role,
+      story.status,
+      false,
+      false,
+      true,
+    ).includes("request_changes")) {
+    throw new StoryManagementError("INVALID_TRANSITION", "Changes cannot be requested for this story.");
+  }
+  const parsedReason = parseReporterReviewReason(value);
+  if (!parsedReason.success) {
+    throw new StoryManagementError("VALIDATION", "Enter a reason between 1 and 2000 characters.");
+  }
+  const reason = parsedReason.reason;
+  const { error } = await (await createClient()).rpc("request_reporter_changes", {
+    p_story_id: storyId,
+    p_revision_id: latestRevisionId,
+    p_reason: reason,
+  });
+  if (error) {
+    throw new StoryManagementError(
+      "INVALID_TRANSITION",
+      "This submission changed before the request completed. Refresh and try again.",
+    );
+  }
+}
+
+export async function runReporterStoryReviewCommand(
+  admin: AdminIdentity,
+  storyId: string,
+  command: "approve" | "reject" | "publish" | "schedule" | "archive",
+  scheduledAt?: string,
+  value?: string,
+): Promise<void> {
+  if (!reporterReviewIdSchema.safeParse(storyId).success) {
+    throw new StoryManagementError("VALIDATION", "The reporter review request is invalid.");
+  }
+  const story = await getCmsStoryById(storyId);
+  if (!story) throw new StoryManagementError("NOT_FOUND", "Story not found.");
+  if (!story.isReporterStory || !canReviewReporterStory(admin.role, story.status)) {
+    throw new StoryManagementError("FORBIDDEN", "You cannot review reporter submissions.");
+  }
+  let reason = value;
+  if (command === "reject") {
+    const parsedReason = parseReporterReviewReason(value ?? "");
+    if (!parsedReason.success) {
+      throw new StoryManagementError("VALIDATION", "Enter a reason between 1 and 2000 characters.");
+    }
+    reason = parsedReason.reason;
+  }
+  await runStoryCommand(admin, storyId, command, scheduledAt, reason);
 }
 
 export async function runBulkStoryCommand(

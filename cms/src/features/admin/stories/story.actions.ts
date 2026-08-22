@@ -8,6 +8,8 @@ import { revalidatePublicNews } from "@/features/admin/public-revalidation";
 import { storyFormSchema, storyUpdateSubmissionSchema, type StoryFormValues } from "./story.model";
 import {
   createStory,
+  requestReporterChanges,
+  runReporterStoryReviewCommand,
   runBulkStoryCommand,
   runStoryCommand,
   saveStory,
@@ -19,6 +21,11 @@ export type StoryActionState = Readonly<{
   status: "idle" | "error";
   message?: string;
   fieldErrors?: Readonly<Record<string, string[] | undefined>>;
+}>;
+
+export type ReporterReviewActionState = Readonly<{
+  status: "idle" | "error" | "success";
+  message?: string;
 }>;
 
 function formValues(formData: FormData) {
@@ -63,9 +70,18 @@ function safeError(error: unknown): StoryActionState {
   return { status: "error", message: "The story could not be saved. Please try again." };
 }
 
-async function revalidateStories() {
+async function revalidateStories(
+  storyId?: string,
+  publicAffecting = false,
+  reporterAffecting = false,
+) {
   revalidatePath("/admin/stories");
-  await revalidatePublicNews();
+  if (storyId) revalidatePath(`/admin/stories/${storyId}`);
+  if (reporterAffecting) {
+    revalidatePath("/admin/reporters");
+    revalidatePath("/admin/reporters/[id]", "page");
+  }
+  if (publicAffecting) await revalidatePublicNews();
 }
 
 export async function createStoryAction(
@@ -82,7 +98,7 @@ export async function createStoryAction(
   } catch (error) {
     return safeError(error);
   }
-  await revalidateStories();
+  await revalidateStories(id);
   redirect(`/admin/stories/${id}?saved=created`);
 }
 
@@ -95,11 +111,11 @@ export async function saveStoryAction(
   const validated = validateForm(formData, storyUpdateSubmissionSchema);
   if (!validated.ok) return validated.state;
   try {
-    await saveStory(admin, id, validated.values);
+    const story = await saveStory(admin, id, validated.values);
+    await revalidateStories(id, story.status === "published");
   } catch (error) {
     return safeError(error);
   }
-  await revalidateStories();
   redirect(`/admin/stories/${id}?saved=updated`);
 }
 
@@ -123,7 +139,7 @@ export async function storyCommandAction(formData: FormData): Promise<void> {
   } catch {
     redirect(`/admin/stories/${id}?error=action-failed`);
   }
-  await revalidateStories();
+  await revalidateStories(id, command === "publish" || command === "archive");
   if (command === "delete") redirect("/admin/stories?changed=deleted");
   redirect(`/admin/stories/${id}?changed=${command}`);
 }
@@ -140,6 +156,48 @@ export async function bulkStoryAction(formData: FormData): Promise<void> {
   } catch {
     redirect("/admin/stories?error=bulk-action-failed");
   }
-  await revalidateStories();
+  await revalidateStories(undefined, command === "publish" || command === "archive", true);
   redirect(`/admin/stories?changed=${command}`);
+}
+
+export async function reviewReporterStoryAction(
+  storyId: string,
+  latestRevisionId: string,
+  command: string,
+  _previous: ReporterReviewActionState,
+  formData: FormData,
+): Promise<ReporterReviewActionState> {
+  const admin = await requireAdminUser();
+  const reason = String(formData.get("reason") ?? "");
+  const scheduledAt = normalizeScheduledAt(String(formData.get("scheduledAt") ?? ""));
+  if (scheduledAt === null) {
+    return { status: "error", message: "Enter a valid future publication time." };
+  }
+
+  try {
+    if (command === "request_changes") {
+      await requestReporterChanges(admin, storyId, latestRevisionId, reason);
+    } else if (["approve", "reject", "publish", "schedule", "archive"].includes(command)) {
+      await runReporterStoryReviewCommand(
+        admin,
+        storyId,
+        command as "approve" | "reject" | "publish" | "schedule" | "archive",
+        scheduledAt,
+        reason,
+      );
+    } else {
+      return { status: "error", message: "That reporter review action is not available." };
+    }
+  } catch (error) {
+    return {
+      status: "error",
+      message: error instanceof StoryManagementError
+        ? error.message
+        : "The reporter review action could not be completed. Refresh and try again.",
+    };
+  }
+
+  const publicAffecting = command === "publish" || command === "archive";
+  await revalidateStories(storyId, publicAffecting, true);
+  return { status: "success", message: "Reporter review updated." };
 }

@@ -7,6 +7,7 @@ export type StoryStatus = DatabaseEnum<"story_status">;
 export type StoryCommand =
   | "save"
   | "submit"
+  | "request_changes"
   | "approve"
   | "reject"
   | "publish"
@@ -45,6 +46,99 @@ export const storyUpdateSubmissionSchema = storyFormSchema.extend({
 
 export type StoryFormValues = z.infer<typeof storyFormSchema>;
 
+const nullableTimestamp = z.string().nullable();
+
+export const reporterStoryReviewSchema = z.object({
+  latest_revision: z.object({
+    id: z.uuid(),
+    number: z.number().int().positive(),
+    submitted_at: z.string(),
+    outcome: z.string(),
+    reason: z.string().nullable(),
+    snapshot: z.object({
+      language_id: z.string(),
+      category_id: z.string(),
+      slug: z.string(),
+      title: z.string(),
+      summary: z.string(),
+      content: z.string(),
+      event_occurred_at: z.string().nullable(),
+      featured_media_id: z.string().nullable(),
+      media_ids: z.array(z.string()),
+    }).strict(),
+  }).strict(),
+  canonical_story: z.object({
+    id: z.uuid(),
+    status: z.string(),
+    language_id: z.string(),
+    category_id: z.string(),
+    slug: z.string(),
+    title: z.string(),
+    summary: z.string(),
+    content: z.string(),
+    event_occurred_at: nullableTimestamp,
+    featured_media_id: z.string().nullable(),
+    submitted_at: nullableTimestamp,
+    approved_at: nullableTimestamp,
+    scheduled_at: nullableTimestamp,
+    published_at: nullableTimestamp,
+    rejected_at: nullableTimestamp,
+    rejection_reason: z.string().nullable(),
+  }).strict(),
+  reporter: z.object({
+    profile_id: z.uuid(),
+    legal_name: z.string(),
+    portrait_url: z.url(),
+    public_slug: z.string(),
+    home_city: z.string(),
+    home_district: z.string(),
+    home_state: z.string(),
+    bio: z.string().nullable(),
+    beats: z.array(z.string()),
+    public_status: z.string(),
+    membership_started_at: z.string(),
+    membership_expires_at: z.string(),
+    membership_grace_ends_at: z.string(),
+    is_active: z.boolean(),
+    is_suspended: z.boolean(),
+    direct_publish_raw: z.boolean(),
+    live_broadcast_raw: z.boolean(),
+    direct_publish_effective: z.boolean(),
+    live_broadcast_effective: z.boolean(),
+  }).strict(),
+  submitted_media: z.array(z.object({
+    id: z.uuid(),
+    type: z.string(),
+    secure_url: z.url(),
+    title: z.string(),
+    original_filename: z.string(),
+    alt_text: z.string().nullable(),
+    caption: z.string().nullable(),
+    width: z.number().nullable(),
+    height: z.number().nullable(),
+    duration_seconds: z.number().nullable(),
+    bytes: z.number().nullable(),
+    created_at: z.string(),
+  }).strict()),
+  private_location: z.object({
+    latitude: z.number(),
+    longitude: z.number(),
+    accuracy_meters: z.number(),
+    captured_at: z.string(),
+    received_at: z.string(),
+    locality: z.string(),
+  }).strict().nullable(),
+  story_audit: z.array(z.object({
+    action: z.string(),
+    actor_id: z.uuid().nullable(),
+    actor_name: z.string().nullable(),
+    created_at: z.string(),
+    metadata: z.unknown(),
+  }).strict()),
+}).strict();
+
+export type ReporterStoryReview = z.infer<typeof reporterStoryReviewSchema>;
+
 function normalizeTextareaLineEndings(value: string): string {
   return value.replace(/\r\n?/gu, "\n");
 }
@@ -79,6 +173,20 @@ export function canCreateStory(role: AdminRole): boolean {
   return role === "writer" || role === "admin";
 }
 
+export function canReviewReporterStory(role: AdminRole, status: StoryStatus): boolean {
+  void status;
+  return role === "editor" || role === "admin";
+}
+
+export function parseReporterReviewReason(value: string):
+  | Readonly<{ success: true; reason: string }>
+  | Readonly<{ success: false }> {
+  const reason = value.trim();
+  return reason.length >= 1 && reason.length <= 2000
+    ? { success: true, reason }
+    : { success: false };
+}
+
 export function resolveEditableStoryType(
   currentType: DatabaseEnum<"story_type"> | null,
 ): "staff_article" | "external_article" | "citizen_report" {
@@ -95,6 +203,17 @@ export function getAllowedStoryCommands(
   isExternalArticle = false,
   isReporterStory = false,
 ): StoryCommand[] {
+  if (isReporterStory) {
+    if (!canReviewReporterStory(role, status)) return [];
+    if (status === "pending_review") {
+      return ["request_changes", "approve", "reject", "publish", "schedule"];
+    }
+    if (status === "approved") return ["publish", "schedule", "archive"];
+    if (status === "scheduled") return ["publish", "archive"];
+    if (status === "published" || status === "rejected") return ["archive"];
+    return [];
+  }
+
   let commands: StoryCommand[];
 
   if (role === "writer") {
@@ -129,10 +248,5 @@ export function getAllowedStoryCommands(
     commands = ["save", "approve", "reject", "publish", "schedule", "archive", "delete"];
   }
 
-  if (!isReporterStory) return commands;
-  if (status === "draft" || status === "archived") return [];
-  if (status === "rejected") {
-    return commands.includes("archive") ? ["archive"] : [];
-  }
-  return commands.filter((command) => command !== "save" && command !== "delete");
+  return commands;
 }

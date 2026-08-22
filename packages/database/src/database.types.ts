@@ -1449,6 +1449,10 @@ export type Database = {
         Args: { p_story_id: string; p_revision_id: string; p_reason: string }
         Returns: Json
       }
+      get_reporter_story_review: {
+        Args: { p_story_id: string }
+        Returns: Json
+      }
       save_reporter_story_draft: {
         Args: {
           p_story_id: string | null
@@ -1477,6 +1481,10 @@ export type Database = {
         Returns: Json
       }
       suspend_reporter: { Args: { p_profile_id: string; p_reason: string }; Returns: string }
+      set_reporter_trust: {
+        Args: { p_capability: string; p_enabled: boolean; p_profile_id: string; p_reason: string }
+        Returns: Json
+      }
       withdraw_reporter_story: { Args: { p_story_id: string }; Returns: Json }
     }
     Enums: {

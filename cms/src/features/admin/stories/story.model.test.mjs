@@ -87,11 +87,11 @@ test("legacy citizen reports retain ordinary CMS edit and archive commands", () 
 test("explicit reporter submissions retain review transitions but cannot be silently saved", async () => {
   assert.deepEqual(
     getAllowedStoryCommands("editor", "pending_review", false, false, true),
-    ["approve"],
+    ["request_changes", "approve", "reject", "publish", "schedule"],
   );
   assert.deepEqual(
     getAllowedStoryCommands("admin", "pending_review", false, false, true),
-    ["approve", "reject", "publish", "schedule", "archive"],
+    ["request_changes", "approve", "reject", "publish", "schedule"],
   );
   assert.deepEqual(
     getAllowedStoryCommands("admin", "approved", false, false, true),

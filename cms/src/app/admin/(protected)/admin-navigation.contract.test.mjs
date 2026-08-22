@@ -21,11 +21,11 @@ test("permitted editors see Broadcast immediately after Live TV", () => {
 });
 
 test("reporter administration is linked only for administrators", () => {
-  assert.match(layout, /canReviewReporter\(admin\.role\)/u);
-  assert.match(layout, /href="\/admin\/reporters\/applications"/u);
+  assert.match(layout, /canSetReporterTrust\(admin\.role\)/u);
+  assert.match(layout, /href="\/admin\/reporters"/u);
   assert.match(
     layout,
-    /canReviewReporter\(admin\.role\)[\s\S]*href="\/admin\/reporters\/applications"/u,
+    /canSetReporterTrust\(admin\.role\)[\s\S]*href="\/admin\/reporters"/u,
   );
 });
 

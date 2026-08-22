@@ -14,6 +14,25 @@ export type ReporterApplicationListItem = Readonly<{
   createdAt: string;
 }>;
 
+export type ReporterDirectoryItem = Readonly<{
+  profileId: string;
+  applicationId: string | null;
+  legalName: string;
+  publicSlug: string;
+  homeCity: string;
+  homeDistrict: string;
+  homeState: string;
+  publicStatus: string;
+  membershipStartedAt: string;
+  membershipExpiresAt: string;
+  membershipGraceEndsAt: string;
+  canPublishDirectly: boolean;
+  canBroadcastLive: boolean;
+  accessSyncStatus: string;
+  accessSyncDesiredRole: string;
+  isActive: boolean;
+}>;
+
 export type ReporterApplicationDetail = Readonly<{
   id: string;
   profileId: string;
@@ -53,6 +72,7 @@ export type ReporterApplicationDetail = Readonly<{
   }> | null;
   reporter: Readonly<{
     publicStatus: string;
+    membershipStartedAt: string;
     membershipExpiresAt: string;
     membershipGraceEndsAt: string;
     canPublishDirectly: boolean;
@@ -120,7 +140,7 @@ async function get(applicationId: string): Promise<ReporterApplicationDetail | n
     supabase.from("profiles").select("display_name, username, is_active").eq("id", application.profile_id).single(),
     supabase.from("reporter_consents").select("notice_key, notice_version, locale, consented_at, withdrawn_at").eq("application_id", application.id).order("created_at"),
     supabase.from("reporter_payments").select("id, amount_paise, currency, payment_status, captured_at, refund_status, refund_failure_detail").eq("application_id", application.id).maybeSingle(),
-    supabase.from("reporter_profiles").select("public_status, membership_expires_at, membership_grace_ends_at, can_publish_directly, can_broadcast_live, suspension_reason, access_sync_status, access_sync_operation, access_sync_failure_detail, access_sync_generation, access_sync_desired_role, access_sync_claimed_at").eq("profile_id", application.profile_id).maybeSingle(),
+    supabase.from("reporter_profiles").select("public_status, membership_started_at, membership_expires_at, membership_grace_ends_at, can_publish_directly, can_broadcast_live, suspension_reason, access_sync_status, access_sync_operation, access_sync_failure_detail, access_sync_generation, access_sync_desired_role, access_sync_claimed_at").eq("profile_id", application.profile_id).maybeSingle(),
     supabase.from("audit_events").select("action, created_at, metadata").eq("subject_type", "reporter_application").eq("subject_id", application.id).order("created_at", { ascending: false }),
     supabase.from("audit_events").select("action, created_at, metadata").eq("subject_type", "reporter_profile").eq("subject_id", application.profile_id).order("created_at", { ascending: false }),
   ]);
@@ -183,6 +203,7 @@ async function get(applicationId: string): Promise<ReporterApplicationDetail | n
     } : null,
     reporter: reporter ? {
       publicStatus: reporter.public_status,
+      membershipStartedAt: reporter.membership_started_at,
       membershipExpiresAt: reporter.membership_expires_at,
       membershipGraceEndsAt: reporter.membership_grace_ends_at,
       canPublishDirectly: reporter.can_publish_directly,
@@ -207,6 +228,54 @@ async function get(applicationId: string): Promise<ReporterApplicationDetail | n
         metadata: event.metadata,
       })),
   };
+}
+
+async function listReporters(): Promise<readonly ReporterDirectoryItem[]> {
+  const supabase = await createClient();
+  const { data: reporters, error } = await supabase
+    .from("reporter_profiles")
+    .select("profile_id, public_slug, legal_display_name, home_city, home_district, home_state, public_status, membership_started_at, membership_expires_at, membership_grace_ends_at, can_publish_directly, can_broadcast_live, access_sync_status, access_sync_desired_role")
+    .order("legal_display_name");
+  if (error) throw new ReporterRepositoryError();
+  const profileIds = reporters.map((reporter) => reporter.profile_id);
+  const [profilesResult, applicationsResult] = profileIds.length
+    ? await Promise.all([
+      supabase.from("profiles").select("id, is_active").in("id", profileIds),
+      supabase.from("reporter_applications").select("id, profile_id").eq("status", "approved").in("profile_id", profileIds),
+    ])
+    : [{ data: [], error: null }, { data: [], error: null }];
+  if (profilesResult.error || applicationsResult.error) throw new ReporterRepositoryError();
+  const activeById = new Map(profilesResult.data.map((profile) => [profile.id, profile.is_active]));
+  const applicationById = new Map(applicationsResult.data.map((application) => [application.profile_id, application.id]));
+  return reporters.map((reporter) => ({
+    profileId: reporter.profile_id,
+    applicationId: applicationById.get(reporter.profile_id) ?? null,
+    legalName: reporter.legal_display_name,
+    publicSlug: reporter.public_slug,
+    homeCity: reporter.home_city,
+    homeDistrict: reporter.home_district,
+    homeState: reporter.home_state,
+    publicStatus: reporter.public_status,
+    membershipStartedAt: reporter.membership_started_at,
+    membershipExpiresAt: reporter.membership_expires_at,
+    membershipGraceEndsAt: reporter.membership_grace_ends_at,
+    canPublishDirectly: reporter.can_publish_directly,
+    canBroadcastLive: reporter.can_broadcast_live,
+    accessSyncStatus: reporter.access_sync_status,
+    accessSyncDesiredRole: reporter.access_sync_desired_role,
+    isActive: activeById.get(reporter.profile_id) ?? false,
+  }));
+}
+
+async function findApprovedApplicationId(profileId: string): Promise<string | null> {
+  const { data, error } = await (await createClient())
+    .from("reporter_applications")
+    .select("id")
+    .eq("profile_id", profileId)
+    .eq("status", "approved")
+    .maybeSingle();
+  if (error) throw new ReporterRepositoryError();
+  return data?.id ?? null;
 }
 
 async function approve(applicationId: string, publicPhotoIdentityMatch: boolean) {
@@ -250,6 +319,21 @@ async function reinstate(profileId: string) {
   });
   if (error || !data) throw new ReporterRepositoryError("The reporter could not be reinstated.");
   return { profileId: data };
+}
+
+async function setTrust(
+  profileId: string,
+  capability: "direct_publish" | "live_broadcast",
+  enabled: boolean,
+  reason: string,
+) {
+  const { data, error } = await (await createClient()).rpc("set_reporter_trust", {
+    p_profile_id: profileId,
+    p_capability: capability,
+    p_enabled: enabled,
+    p_reason: reason,
+  });
+  if (error || !data) throw new ReporterRepositoryError("Reporter trust could not be changed.");
 }
 
 function jsonRecord(value: Json): Readonly<Record<string, Json | undefined>> | null {
@@ -318,10 +402,13 @@ async function completeAccessSync(input: Readonly<{
 export const reporterRepository = {
   list,
   get,
+  listReporters,
+  findApprovedApplicationId,
   approve,
   reject,
   suspend,
   reinstate,
+  setTrust,
   claimAccessSync,
   completeAccessSync,
 } as const;

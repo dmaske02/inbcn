@@ -16,7 +16,7 @@ import { StoryFeaturedMediaField } from "./story-featured-media-field";
 type StoryEditorView = Awaited<ReturnType<typeof getStoryEditorView>>;
 const initialState: StoryActionState = { status: "idle" };
 const control = "min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
-const commandLabels: Record<StoryCommand, string> = { save: "Save", submit: "Submit for review", approve: "Approve", reject: "Reject", publish: "Publish", schedule: "Schedule", archive: "Archive", delete: "Delete" };
+const commandLabels: Record<StoryCommand, string> = { save: "Save", submit: "Submit for review", request_changes: "Request changes", approve: "Approve", reject: "Reject", publish: "Publish", schedule: "Schedule", archive: "Archive", delete: "Delete" };
 
 export function StoryForm({ adminRole, view }: { adminRole: AdminRole; view: StoryEditorView }) {
   const story = view.story;

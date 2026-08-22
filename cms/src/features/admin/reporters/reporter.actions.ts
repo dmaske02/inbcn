@@ -20,8 +20,38 @@ function safeError(error: unknown): ReporterActionState {
 }
 
 function refresh(applicationId?: string): void {
+  revalidatePath("/admin/reporters");
+  revalidatePath("/admin/reporters/[id]", "page");
   revalidatePath("/admin/reporters/applications");
   if (applicationId) revalidatePath(`/admin/reporters/applications/${applicationId}`);
+  revalidatePath("/admin/stories");
+  revalidatePath("/admin/stories/[id]", "page");
+}
+
+export async function setReporterTrustAction(
+  profileId: string,
+  _previous: ReporterActionState,
+  formData: FormData,
+): Promise<ReporterActionState> {
+  const admin = await requireAdminUser();
+  const enabledValue = String(formData.get("enabled") ?? "");
+  if (enabledValue !== "true" && enabledValue !== "false") {
+    return { status: "error", message: "Choose whether to enable or disable the capability." };
+  }
+  try {
+    await (await reporterService()).setTrust(
+      admin,
+      profileId,
+      String(formData.get("capability") ?? ""),
+      enabledValue === "true",
+      String(formData.get("reason") ?? ""),
+    );
+    refresh();
+    return { status: "success", message: "Reporter trust updated." };
+  } catch (error) {
+    refresh();
+    return safeError(error);
+  }
 }
 
 export async function approveReporterAction(
