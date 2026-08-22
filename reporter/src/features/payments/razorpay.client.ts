@@ -84,10 +84,9 @@ export function createRazorpayClient(options: RazorpayClientOptions) {
       throw new RazorpayClientError("provider-request-failed");
     }
     if (!response.ok) {
-      throw new RazorpayClientError(
-        "provider-request-failed",
-        response.status >= 400 && response.status < 500,
-      );
+      // Razorpay may have accepted the request even when the response is lost,
+      // concurrent, throttled, or otherwise non-successful. Reconcile by receipt.
+      throw new RazorpayClientError("provider-request-failed");
     }
     try {
       return await response.json();
@@ -108,9 +107,17 @@ export function createRazorpayClient(options: RazorpayClientOptions) {
     return parsed.data;
   }
 
+  function exactInternalId(value: string): string {
+    const parsed = internalId.safeParse(value);
+    if (!parsed.success) {
+      throw new RazorpayClientError("provider-request-failed", true);
+    }
+    return parsed.data;
+  }
+
   return {
     async createOrder(paymentId: string): Promise<RazorpayOrder> {
-      const receipt = internalId.parse(paymentId);
+      const receipt = exactInternalId(paymentId);
       return exactOrder(await request("/orders", {
         method: "POST",
         body: JSON.stringify({
@@ -124,7 +131,7 @@ export function createRazorpayClient(options: RazorpayClientOptions) {
     },
 
     async findOrderByReceipt(paymentId: string): Promise<RazorpayOrder | null> {
-      const receipt = internalId.parse(paymentId);
+      const receipt = exactInternalId(paymentId);
       const params = new URLSearchParams({ receipt, count: "2" });
       const parsed = orderCollectionSchema.safeParse(await request(`/orders?${params}`));
       if (!parsed.success || parsed.data.items.length > 1) {

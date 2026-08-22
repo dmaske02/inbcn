@@ -989,6 +989,8 @@ revoke all on function public.record_reporter_refund_request(uuid, uuid, text, t
 from public, anon, authenticated, service_role;
 revoke all on function public.fail_reporter_refund_request(uuid, uuid)
 from public, anon, authenticated, service_role;
+revoke all on function public.apply_reporter_payment(text, text, integer, text, timestamptz)
+from public, anon, authenticated, service_role;
 
 grant execute on function public.reserve_reporter_order(uuid, uuid, text, jsonb)
 to service_role;
@@ -1011,4 +1013,6 @@ to service_role;
 grant execute on function public.record_reporter_refund_request(uuid, uuid, text, text, integer, text)
 to service_role;
 grant execute on function public.fail_reporter_refund_request(uuid, uuid)
+to service_role;
+grant execute on function public.apply_reporter_payment(text, text, integer, text, timestamptz)
 to service_role;

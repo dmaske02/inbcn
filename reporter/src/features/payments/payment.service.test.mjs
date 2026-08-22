@@ -6,6 +6,7 @@ import {
   PaymentServiceError,
   createPaymentService,
 } from "./payment.service.ts";
+import { RazorpayClientError } from "./razorpay.client.ts";
 
 const profileId = "11111111-1111-4111-8111-111111111111";
 const applicationId = "22222222-2222-4222-8222-222222222222";
@@ -200,6 +201,49 @@ test("returns an existing active order without creating a duplicate", async () =
     { orderId, amount: 10_000, currency: "INR" },
   );
   assert.equal(providerCalls, 0);
+});
+
+test("ambiguous order retries reconcile with the same internal receipt before creation", async () => {
+  const providerCalls = [];
+  let recovered = false;
+  const { service, calls } = dependencies({
+    client: {
+      findOrderByReceipt: async (paymentId) => {
+        providerCalls.push(["find", paymentId]);
+        return recovered ? {
+          id: orderId,
+          amount: 10_000,
+          currency: "INR",
+          receipt: internalPaymentId,
+          status: "created",
+          notes: { payment_id: internalPaymentId },
+        } : null;
+      },
+      createOrder: async (paymentId) => {
+        providerCalls.push(["create", paymentId]);
+        recovered = true;
+        throw new RazorpayClientError("provider-request-failed", false);
+      },
+    },
+  });
+  const input = {
+    actor: { userId: profileId, state: "applicant" },
+    applicationId,
+    purpose: "application",
+  };
+
+  await assert.rejects(service.createReporterOrder(input));
+  assert.deepEqual(await service.createReporterOrder(input), {
+    orderId,
+    amount: 10_000,
+    currency: "INR",
+  });
+  assert.deepEqual(providerCalls, [
+    ["find", internalPaymentId],
+    ["create", internalPaymentId],
+    ["find", internalPaymentId],
+  ]);
+  assert.equal(calls.some(([name]) => name === "failOrder"), false);
 });
 
 test("enforces applicant/application and reporter/renewal purpose ownership", async () => {

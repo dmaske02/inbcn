@@ -7,6 +7,7 @@ const REFUND_AMOUNT_PAISE = 10_000;
 const REFUND_CURRENCY = "INR";
 const uuid = z.uuid();
 const providerId = z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/u);
+const refundIdempotencyKey = z.string().min(10).regex(/^[A-Za-z0-9_-]+$/u);
 const refundSchema = z.object({
   id: providerId,
   entity: z.literal("refund").optional(),
@@ -84,6 +85,7 @@ type RefundProvider = Readonly<{
     amountPaise: number;
     currency: string;
     receipt: string;
+    idempotencyKey: string;
     notes: Readonly<{ payment_id: string }>;
   }>): Promise<Refund>;
 }>;
@@ -145,6 +147,7 @@ export function createReporterRefundService(dependencies: Readonly<{
       }
 
       const receipt = `${paymentId.data}:${reservation.attempt}`;
+      const idempotencyKey = `${paymentId.data}_${reservation.attempt}`;
       try {
         const refund = await dependencies.provider.findRefundByReceipt(
           reservation.providerPaymentId,
@@ -154,6 +157,7 @@ export function createReporterRefundService(dependencies: Readonly<{
           amountPaise: REFUND_AMOUNT_PAISE,
           currency: REFUND_CURRENCY,
           receipt,
+          idempotencyKey,
           notes: { payment_id: paymentId.data },
         });
         assertExactRefund(refund, {
@@ -269,15 +273,16 @@ export function createRazorpayRefundProvider(options: Readonly<{
           authorization,
           accept: "application/json",
           ...(init?.body ? { "content-type": "application/json" } : {}),
+          ...(init?.headers as Readonly<Record<string, string>> | undefined),
         },
       });
     } catch {
       throw new ReporterRefundProviderError(false);
     }
     if (!response.ok) {
-      throw new ReporterRefundProviderError(
-        response.status >= 400 && response.status < 500,
-      );
+      // Any provider response can follow an accepted request. Keep the same
+      // database attempt and reconcile with its receipt/idempotency key.
+      throw new ReporterRefundProviderError(false);
     }
     try {
       return await response.json();
@@ -303,11 +308,16 @@ export function createRazorpayRefundProvider(options: Readonly<{
         || input.currency !== REFUND_CURRENCY) {
         throw new ReporterRefundProviderError(true);
       }
+      const parsedIdempotencyKey = refundIdempotencyKey.safeParse(input.idempotencyKey);
+      if (!parsedIdempotencyKey.success) {
+        throw new ReporterRefundProviderError(true);
+      }
       const paymentId = providerId.parse(input.paymentId);
       const parsed = refundSchema.safeParse(await request(
         `/payments/${encodeURIComponent(paymentId)}/refund`,
         {
           method: "POST",
+          headers: { "X-Refund-Idempotency": parsedIdempotencyKey.data },
           body: JSON.stringify({
             amount: input.amountPaise,
             receipt: input.receipt,

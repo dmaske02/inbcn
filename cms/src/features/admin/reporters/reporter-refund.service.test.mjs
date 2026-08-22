@@ -78,6 +78,7 @@ test("requests exactly the full INR payment and remains pending after a synchron
     amountPaise: 10_000,
     currency: "INR",
     receipt: `${paymentId}:1`,
+    idempotencyKey: `${paymentId}_1`,
     notes: { payment_id: paymentId },
   }]);
   assert.deepEqual(calls[2], ["recordRefundRequest", {
@@ -135,7 +136,7 @@ test("retry recovers a previously accepted refund by idempotent receipt", async 
   assert.equal(calls.at(-1)[0], "recordRefundRequest");
 });
 
-test("only a definite provider rejection marks the request retryable", async () => {
+test("only a definite local pre-provider rejection marks the request retryable", async () => {
   const definite = dependencies({
     provider: { createFullRefund: async () => {
       throw new ReporterRefundProviderError(true);
@@ -151,6 +152,53 @@ test("only a definite provider rejection marks the request retryable", async () 
   assert.equal(definite.calls.some(([name]) => name === "failRefundRequest"), true);
   await assert.rejects(ambiguous.service.requestFullRefund(actor, paymentId));
   assert.equal(ambiguous.calls.some(([name]) => name === "failRefundRequest"), false);
+});
+
+test("ambiguous retries preserve the logical refund idempotency key", async () => {
+  const keys = [];
+  const { service, calls } = dependencies({
+    provider: { createFullRefund: async (input) => {
+      keys.push(input.idempotencyKey);
+      throw new ReporterRefundProviderError(false);
+    } },
+  });
+
+  await assert.rejects(service.requestFullRefund(actor, paymentId));
+  await assert.rejects(service.requestFullRefund(actor, paymentId));
+
+  assert.deepEqual(keys, [`${paymentId}_1`, `${paymentId}_1`]);
+  assert.equal(calls.some(([name]) => name === "failRefundRequest"), false);
+});
+
+test("a new database logical attempt receives a new idempotency key", async () => {
+  let createdInput;
+  const { service } = dependencies({
+    repository: { reserveRefund: async () => ({
+      state: "claimed",
+      token,
+      attempt: 2,
+      providerPaymentId,
+      amountPaise: 10_000,
+      currency: "INR",
+    }) },
+    provider: {
+      findRefundByReceipt: async () => null,
+      createFullRefund: async (input) => {
+        createdInput = input;
+        return {
+          id: refundId,
+          payment_id: providerPaymentId,
+          amount: 10_000,
+          currency: "INR",
+          receipt: `${paymentId}:2`,
+          status: "pending",
+        };
+      },
+    },
+  });
+
+  await service.requestFullRefund(actor, paymentId);
+  assert.equal(createdInput.idempotencyKey, `${paymentId}_2`);
 });
 
 test("Razorpay refund client keeps Basic Auth server-side and sends only exact full-refund fields", async () => {
@@ -177,12 +225,14 @@ test("Razorpay refund client keeps Basic Auth server-side and sends only exact f
     amountPaise: 10_000,
     currency: "INR",
     receipt: `${paymentId}:1`,
+    idempotencyKey: `${paymentId}_1`,
     notes: { payment_id: paymentId },
   });
 
   assert.equal(request.url, `https://api.razorpay.com/v1/payments/${providerPaymentId}/refund`);
   assert.equal(request.init.headers.authorization,
     `Basic ${Buffer.from("rzp_test_key:provider-secret").toString("base64")}`);
+  assert.equal(request.init.headers["X-Refund-Idempotency"], `${paymentId}_1`);
   assert.deepEqual(JSON.parse(request.init.body), {
     amount: 10_000,
     receipt: `${paymentId}:1`,
@@ -203,10 +253,149 @@ test("Razorpay refund client does not expose provider response bodies in errors"
       amountPaise: 10_000,
       currency: "INR",
       receipt: `${paymentId}:1`,
+      idempotencyKey: `${paymentId}_1`,
       notes: { payment_id: paymentId },
     }),
     (error) => error instanceof ReporterRefundProviderError
-      && error.definite === true
+      && error.definite === false
       && !error.message.includes("sensitive-provider-detail"),
+  );
+});
+
+test("refund idempotency keys meet the official format and remain stable per logical request", async () => {
+  const headers = [];
+  const provider = createRazorpayRefundProvider({
+    keyId: "rzp_test_key",
+    keySecret: "provider-secret",
+    fetchImpl: async (_url, init) => {
+      headers.push(init.headers["X-Refund-Idempotency"]);
+      return Response.json({
+        id: refundId,
+        entity: "refund",
+        payment_id: providerPaymentId,
+        amount: 10_000,
+        currency: "INR",
+        receipt: init.headers["X-Refund-Idempotency"].endsWith("_1")
+          ? `${paymentId}:1`
+          : `${paymentId}:2`,
+        status: "pending",
+      });
+    },
+  });
+  const base = {
+    paymentId: providerPaymentId,
+    amountPaise: 10_000,
+    currency: "INR",
+    notes: { payment_id: paymentId },
+  };
+
+  await provider.createFullRefund({
+    ...base,
+    receipt: `${paymentId}:1`,
+    idempotencyKey: `${paymentId}_1`,
+  });
+  await provider.createFullRefund({
+    ...base,
+    receipt: `${paymentId}:1`,
+    idempotencyKey: `${paymentId}_1`,
+  });
+  await provider.createFullRefund({
+    ...base,
+    receipt: `${paymentId}:2`,
+    idempotencyKey: `${paymentId}_2`,
+  });
+
+  assert.deepEqual(headers, [
+    `${paymentId}_1`,
+    `${paymentId}_1`,
+    `${paymentId}_2`,
+  ]);
+  for (const value of headers) {
+    assert.equal(value.length >= 10, true);
+    assert.match(value, /^[A-Za-z0-9_-]+$/u);
+  }
+});
+
+test("all provider HTTP failures and response loss remain ambiguous", async () => {
+  for (const status of [400, 408, 409, 429]) {
+    const provider = createRazorpayRefundProvider({
+      keyId: "key",
+      keySecret: "secret",
+      fetchImpl: async () => new Response("provider detail", { status }),
+    });
+    await assert.rejects(
+      provider.createFullRefund({
+        paymentId: providerPaymentId,
+        amountPaise: 10_000,
+        currency: "INR",
+        receipt: `${paymentId}:1`,
+        idempotencyKey: `${paymentId}_1`,
+        notes: { payment_id: paymentId },
+      }),
+      (error) => error instanceof ReporterRefundProviderError
+        && error.definite === false,
+    );
+  }
+
+  const responseLost = createRazorpayRefundProvider({
+    keyId: "key",
+    keySecret: "secret",
+    fetchImpl: async () => { throw new TypeError("response lost"); },
+  });
+  await assert.rejects(
+    responseLost.createFullRefund({
+      paymentId: providerPaymentId,
+      amountPaise: 10_000,
+      currency: "INR",
+      receipt: `${paymentId}:1`,
+      idempotencyKey: `${paymentId}_1`,
+      notes: { payment_id: paymentId },
+    }),
+    (error) => error instanceof ReporterRefundProviderError
+      && error.definite === false,
+  );
+});
+
+test("invalid refund idempotency keys fail locally before provider I/O", async () => {
+  let fetched = false;
+  const provider = createRazorpayRefundProvider({
+    keyId: "key",
+    keySecret: "secret",
+    fetchImpl: async () => { fetched = true; return Response.json({}); },
+  });
+
+  await assert.rejects(
+    provider.createFullRefund({
+      paymentId: providerPaymentId,
+      amountPaise: 10_000,
+      currency: "INR",
+      receipt: `${paymentId}:1`,
+      idempotencyKey: "short!",
+      notes: { payment_id: paymentId },
+    }),
+    (error) => error instanceof ReporterRefundProviderError
+      && error.definite === true,
+  );
+  assert.equal(fetched, false);
+});
+
+test("a malformed success response remains ambiguous", async () => {
+  const provider = createRazorpayRefundProvider({
+    keyId: "key",
+    keySecret: "secret",
+    fetchImpl: async () => Response.json({ status: "accepted-without-identifiers" }),
+  });
+
+  await assert.rejects(
+    provider.createFullRefund({
+      paymentId: providerPaymentId,
+      amountPaise: 10_000,
+      currency: "INR",
+      receipt: `${paymentId}:1`,
+      idempotencyKey: `${paymentId}_1`,
+      notes: { payment_id: paymentId },
+    }),
+    (error) => error instanceof ReporterRefundProviderError
+      && error.definite === false,
   );
 });

@@ -73,24 +73,58 @@ test("rejects a provider order that changes the fixed money fields", async () =>
 
   await assert.rejects(
     client.createOrder(paymentId),
-    (error) => error instanceof RazorpayClientError && error.code === "provider-response-invalid",
+    (error) => error instanceof RazorpayClientError
+      && error.code === "provider-response-invalid"
+      && error.definite === false,
   );
 });
 
-test("provider errors are generic and distinguish only definite rejections", async () => {
+test("provider HTTP failures are generic and always ambiguous", async () => {
+  for (const status of [400, 408, 409, 429]) {
+    const client = createRazorpayClient({
+      keyId: "key",
+      keySecret: "secret",
+      fetchImpl: async () => Response.json(
+        { error: { description: "secret provider detail" } },
+        { status },
+      ),
+    });
+
+    await assert.rejects(
+      client.createOrder(paymentId),
+      (error) => error instanceof RazorpayClientError
+        && error.definite === false
+        && !error.message.includes("secret provider detail"),
+    );
+  }
+});
+
+test("order response loss remains ambiguous so the receipt can be reconciled", async () => {
   const client = createRazorpayClient({
     keyId: "key",
     keySecret: "secret",
-    fetchImpl: async () => Response.json(
-      { error: { description: "secret provider detail" } },
-      { status: 400 },
-    ),
+    fetchImpl: async () => { throw new TypeError("response lost"); },
   });
 
   await assert.rejects(
     client.createOrder(paymentId),
     (error) => error instanceof RazorpayClientError
-      && error.definite === true
-      && !error.message.includes("secret provider detail"),
+      && error.definite === false,
   );
+});
+
+test("invalid internal order identity fails definitely before provider I/O", async () => {
+  let fetched = false;
+  const client = createRazorpayClient({
+    keyId: "key",
+    keySecret: "secret",
+    fetchImpl: async () => { fetched = true; return Response.json(order); },
+  });
+
+  await assert.rejects(
+    client.createOrder("not-a-payment-uuid"),
+    (error) => error instanceof RazorpayClientError
+      && error.definite === true,
+  );
+  assert.equal(fetched, false);
 });
