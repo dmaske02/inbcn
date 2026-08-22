@@ -70,7 +70,7 @@ export function AdminMobileNavigation({
         ref={triggerRef}
         aria-controls={drawerId}
         aria-expanded={open}
-        aria-label="Open editorial navigation"
+        aria-label="Open CMS administration navigation"
         className="size-11 shrink-0"
         onClick={() => setOpen(true)}
         size="icon"
@@ -89,7 +89,7 @@ export function AdminMobileNavigation({
             type="button"
           />
           <aside
-            aria-label="Editorial navigation"
+            aria-label="CMS administration navigation"
             aria-modal="true"
             className="absolute inset-y-0 end-0 flex h-dvh max-h-dvh w-[min(22rem,calc(100vw-1rem))] max-w-full flex-col overflow-y-auto overscroll-contain border-s border-border bg-background ps-[max(1rem,env(safe-area-inset-left))] pe-[max(1rem,env(safe-area-inset-right))] pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] shadow-xl"
             id={drawerId}
@@ -97,10 +97,10 @@ export function AdminMobileNavigation({
             role="dialog"
           >
             <div className="flex items-center justify-between gap-4 border-b border-border pb-4">
-              <p className="text-sm font-semibold">Editorial navigation</p>
+              <p className="text-sm font-semibold">CMS administration</p>
               <Button
                 ref={closeRef}
-                aria-label="Close editorial navigation"
+                aria-label="Close CMS administration navigation"
                 onClick={closeNavigation}
                 size="icon"
                 variant="ghost"
@@ -109,7 +109,7 @@ export function AdminMobileNavigation({
               </Button>
             </div>
             <nav
-              aria-label="Mobile editorial navigation"
+              aria-label="Mobile CMS administration navigation"
               className="flex min-w-0 flex-1 flex-col py-4 [&_a]:flex [&_a]:min-h-11 [&_a]:w-full [&_a]:items-center"
               onClick={closeNavigation}
             >

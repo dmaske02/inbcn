@@ -5,7 +5,11 @@ export {
   canTransitionApplication,
   getApplicationDeadline,
   isAtLeast18,
+  membershipAccess,
+  membershipStatusAt,
   reporterApplicationStatuses,
+  type ReporterMembershipAccess,
+  type ReporterMembershipStatus,
   type ReporterApplicationStatus,
 } from "./reporter.ts";
 

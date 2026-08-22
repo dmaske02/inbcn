@@ -10,6 +10,20 @@ export const reporterApplicationStatuses = [
 
 export type ReporterApplicationStatus = (typeof reporterApplicationStatuses)[number];
 
+export type ReporterMembershipStatus =
+  | "approved"
+  | "active"
+  | "grace_period"
+  | "expired"
+  | "suspended";
+
+export type ReporterMembershipAccess =
+  | "read-only"
+  | "reviewed-submissions-only"
+  | "direct-publish"
+  | "reviewed-submissions-and-live"
+  | "direct-publish-and-live";
+
 const transitions: Readonly<Record<ReporterApplicationStatus, readonly ReporterApplicationStatus[]>> = {
   draft: ["payment_pending"],
   payment_pending: ["kyc_pending"],
@@ -59,4 +73,36 @@ export function isAtLeast18(dateOfBirth: string, today: string): boolean {
     || (years === 18
       && (currentMonth > birthMonth
         || (currentMonth === birthMonth && currentDay >= birthDay)));
+}
+
+export function membershipStatusAt(
+  input: Readonly<{
+    publicStatus: string;
+    expiresAt: string;
+    graceEndsAt: string;
+  }>,
+  now: string,
+): ReporterMembershipStatus {
+  if (input.publicStatus === "suspended") return "suspended";
+  const current = Date.parse(now);
+  const expires = Date.parse(input.expiresAt);
+  const graceEnds = Date.parse(input.graceEndsAt);
+  if (![current, expires, graceEnds].every(Number.isFinite)) return "expired";
+  if (current <= expires) return "active";
+  return current <= graceEnds ? "grace_period" : "expired";
+}
+
+export function membershipAccess(input: Readonly<{
+  status: ReporterMembershipStatus;
+  direct: boolean;
+  live: boolean;
+}>): ReporterMembershipAccess {
+  if (input.status === "expired" || input.status === "suspended") {
+    return "read-only";
+  }
+  if (input.status === "grace_period") return "reviewed-submissions-only";
+  if (input.direct && input.live) return "direct-publish-and-live";
+  if (input.direct) return "direct-publish";
+  if (input.live) return "reviewed-submissions-and-live";
+  return "reviewed-submissions-only";
 }

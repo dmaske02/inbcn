@@ -20,6 +20,15 @@ test("permitted editors see Broadcast immediately after Live TV", () => {
   );
 });
 
+test("reporter administration is linked only for administrators", () => {
+  assert.match(layout, /canReviewReporter\(admin\.role\)/u);
+  assert.match(layout, /href="\/admin\/reporters\/applications"/u);
+  assert.match(
+    layout,
+    /canReviewReporter\(admin\.role\)[\s\S]*href="\/admin\/reporters\/applications"/u,
+  );
+});
+
 test("Broadcast navigation links to the existing route and marks nested paths active", async () => {
   const source = await readFile(broadcastLinkUrl, "utf8");
   assert.match(source, /^"use client"/u);
@@ -41,7 +50,7 @@ test("mobile navigation exposes every permitted destination in an accessible vie
   assert.match(source, /^"use client"/u);
   assert.match(source, /aria-expanded=\{open\}/u);
   assert.match(source, /aria-controls=\{drawerId\}/u);
-  assert.match(source, /aria-label="Close editorial navigation"/u);
+  assert.match(source, /aria-label="Close CMS administration navigation"/u);
   assert.match(source, /event\.key === "Escape"/u);
   assert.match(source, /fixed inset-0 z-\[100\]/u);
   assert.match(source, /overflow-y-auto/u);
@@ -59,6 +68,6 @@ test("mobile trigger is a non-collapsing elevated control below 1024px while des
   const source = await readFile(mobileNavigationUrl, "utf8");
   assert.match(source, /className="relative z-50 shrink-0 lg:hidden"/u);
   assert.match(source, /className="size-11 shrink-0"/u);
-  assert.match(source, /aria-label="Open editorial navigation"/u);
+  assert.match(source, /aria-label="Open CMS administration navigation"/u);
   assert.match(source, /size="icon"/u);
 });

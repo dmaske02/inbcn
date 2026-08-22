@@ -19,7 +19,7 @@ test("authorizes an active reporter with matching signed and persisted roles", (
   assert.deepEqual(
     authorizeReporterIdentity(
       { id: "u1", role: "reporter" },
-      { id: "u1", role: "reporter", isActive: true },
+      { id: "u1", role: "reporter", isActive: true, accessSyncStatus: "succeeded" },
     ),
     { ok: true, state: "reporter", userId: "u1" },
   );
@@ -33,9 +33,26 @@ test("denies staff roles and inactive reporters", () => {
   assert.deepEqual(
     authorizeReporterIdentity(
       { id: "u1", role: "reporter" },
-      { id: "u1", role: "reporter", isActive: false },
+      { id: "u1", role: "reporter", isActive: false, accessSyncStatus: "failed" },
     ),
     { ok: false, reason: "profile-inactive" },
+  );
+});
+
+test("denies old or newly signed reporter claims until database access sync succeeds", () => {
+  assert.deepEqual(
+    authorizeReporterIdentity(
+      { id: "u1", role: "reporter" },
+      { id: "u1", role: "reporter", isActive: true, accessSyncStatus: "pending" },
+    ),
+    { ok: false, reason: "access-sync-pending" },
+  );
+  assert.deepEqual(
+    authorizeReporterIdentity(
+      { id: "u1", role: null },
+      { id: "u1", role: "reporter", isActive: true, accessSyncStatus: "failed" },
+    ),
+    { ok: false, reason: "access-sync-pending" },
   );
 });
 

@@ -1,4 +1,5 @@
 export type ReporterAuthorizationFailure =
+  | "access-sync-pending"
   | "forbidden"
   | "profile-inactive"
   | "profile-mismatch"
@@ -13,6 +14,7 @@ type ReporterProfile = Readonly<{
   id: string;
   role: string;
   isActive: boolean;
+  accessSyncStatus: string | null;
 }>;
 
 export type ReporterAuthorizationResult =
@@ -34,6 +36,21 @@ export function authorizeReporterIdentity(
   jwt: ReporterJwtIdentity,
   profile: ReporterProfile | null,
 ): ReporterAuthorizationResult {
+  if (profile && profile.id !== jwt.id) {
+    return { ok: false, reason: "profile-mismatch" };
+  }
+  if (profile && !profile.isActive) {
+    return { ok: false, reason: "profile-inactive" };
+  }
+  if (profile?.role === "reporter") {
+    if (profile.accessSyncStatus !== "succeeded") {
+      return { ok: false, reason: "access-sync-pending" };
+    }
+    if (jwt.role !== "reporter") {
+      return { ok: false, reason: "profile-mismatch" };
+    }
+    return { ok: true, state: "reporter", userId: jwt.id };
+  }
   if (jwt.role === null) {
     return { ok: true, state: "applicant", userId: jwt.id };
   }
@@ -43,12 +60,8 @@ export function authorizeReporterIdentity(
   if (!profile) {
     return { ok: false, reason: "profile-missing" };
   }
-  if (profile.id !== jwt.id || profile.role !== jwt.role) {
+  if (profile.role !== jwt.role) {
     return { ok: false, reason: "profile-mismatch" };
   }
-  if (!profile.isActive) {
-    return { ok: false, reason: "profile-inactive" };
-  }
-
-  return { ok: true, state: "reporter", userId: jwt.id };
+  return { ok: false, reason: "access-sync-pending" };
 }

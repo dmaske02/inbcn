@@ -271,6 +271,10 @@ export type Database = {
           suspended_by: string | null
           suspended_at: string | null
           suspension_reason: string | null
+          access_sync_status: string
+          access_sync_operation: string | null
+          access_sync_failure_detail: string | null
+          access_sync_updated_at: string
           created_at: string
           updated_at: string
         }
@@ -303,6 +307,10 @@ export type Database = {
           suspended_by?: string | null
           suspended_at?: string | null
           suspension_reason?: string | null
+          access_sync_status?: string
+          access_sync_operation?: string | null
+          access_sync_failure_detail?: string | null
+          access_sync_updated_at?: string
           created_at?: string
           updated_at?: string
         }
@@ -335,6 +343,10 @@ export type Database = {
           suspended_by?: string | null
           suspended_at?: string | null
           suspension_reason?: string | null
+          access_sync_status?: string
+          access_sync_operation?: string | null
+          access_sync_failure_detail?: string | null
+          access_sync_updated_at?: string
           created_at?: string
           updated_at?: string
         }
@@ -1122,7 +1134,7 @@ export type Database = {
         Args: { p_razorpay_order_id: string; p_razorpay_payment_id: string; p_amount_paise: number; p_currency: string; p_captured_at: string }
         Returns: string
       }
-      approve_reporter_application: { Args: { p_application_id: string }; Returns: string }
+      approve_reporter_application: { Args: { p_application_id: string; p_public_photo_identity_match: boolean }; Returns: string }
       claim_razorpay_webhook_event: {
         Args: { p_event_id: string; p_event_type: string }
         Returns: Json
@@ -1156,6 +1168,7 @@ export type Database = {
         Returns: boolean
       }
       complete_reporter_kyc_start: { Args: { p_application_id: string; p_profile_id: string; p_reservation_token: string; p_provider: string; p_reference: string }; Returns: boolean }
+      complete_reporter_access_sync: { Args: { p_profile_id: string; p_operation: string; p_succeeded: boolean; p_failure_detail: string | null }; Returns: boolean }
       fail_razorpay_webhook_event: {
         Args: { p_event_id: string; p_processing_token: string; p_failure_detail: string }
         Returns: boolean
@@ -1175,6 +1188,7 @@ export type Database = {
       retire_media_asset: { Args: { media_id: string; expected_updated_at: string }; Returns: string }
       restore_media_asset: { Args: { media_id: string; expected_updated_at: string }; Returns: string }
       reject_reporter_application: { Args: { p_application_id: string; p_decision_reason: string }; Returns: string }
+      reinstate_reporter: { Args: { p_profile_id: string }; Returns: string }
       record_reporter_refund_request: {
         Args: { p_payment_id: string; p_refund_request_token: string; p_razorpay_refund_id: string; p_razorpay_payment_id: string; p_amount_paise: number; p_currency: string }
         Returns: boolean
@@ -1189,6 +1203,7 @@ export type Database = {
       }
       release_reporter_kyc_start: { Args: { p_application_id: string; p_profile_id: string; p_reservation_token: string }; Returns: boolean }
       reserve_reporter_kyc_start: { Args: { p_application_id: string; p_profile_id: string }; Returns: string | null }
+      suspend_reporter: { Args: { p_profile_id: string; p_reason: string }; Returns: string }
     }
     Enums: {
       media_type: "image" | "video" | "audio" | "document"

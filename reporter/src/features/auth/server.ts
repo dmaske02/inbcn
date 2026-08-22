@@ -15,7 +15,7 @@ type CurrentReporterResult =
       ok: false;
       reason: Extract<
         ReporterAuthorizationFailure,
-        "forbidden" | "profile-inactive" | "profile-mismatch" | "profile-missing"
+        "access-sync-pending" | "forbidden" | "profile-inactive" | "profile-mismatch" | "profile-missing"
       > | "profile-unavailable" | "session-expired" | "unauthenticated";
     }>;
 
@@ -39,10 +39,6 @@ export async function authorizeCurrentReporter(): Promise<CurrentReporterResult>
     ? claims.app_metadata.role
     : null;
 
-  if (role !== "reporter") {
-    return authorizeReporterIdentity({ id: claims.sub, role }, null);
-  }
-
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("id, role, is_active")
@@ -53,10 +49,26 @@ export async function authorizeCurrentReporter(): Promise<CurrentReporterResult>
     return { ok: false, reason: "profile-unavailable" };
   }
 
+  let accessSyncStatus: string | null = null;
+  if (profile?.role === "reporter" || role === "reporter") {
+    const { data: reporter, error: reporterError } = await supabase
+      .from("reporter_profiles")
+      .select("access_sync_status")
+      .eq("profile_id", claims.sub)
+      .maybeSingle();
+    if (reporterError) return { ok: false, reason: "profile-unavailable" };
+    accessSyncStatus = reporter?.access_sync_status ?? null;
+  }
+
   return authorizeReporterIdentity(
     { id: claims.sub, role },
     profile
-      ? { id: profile.id, role: profile.role, isActive: profile.is_active }
+      ? {
+          id: profile.id,
+          role: profile.role,
+          isActive: profile.is_active,
+          accessSyncStatus,
+        }
       : null,
   );
 }
