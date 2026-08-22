@@ -1144,6 +1144,7 @@ export type Database = {
           external_image_height: number | null
           external_published_at: string | null
           external_url: string | null
+          event_occurred_at: string | null
           featured_media_id: string | null
           id: string
           is_breaking: boolean
@@ -1184,6 +1185,7 @@ export type Database = {
           external_image_height?: number | null
           external_published_at?: string | null
           external_url?: string | null
+          event_occurred_at?: string | null
           featured_media_id?: string | null
           id?: string
           is_breaking?: boolean
@@ -1223,6 +1225,7 @@ export type Database = {
           external_image_height?: number | null
           external_published_at?: string | null
           external_url?: string | null
+          event_occurred_at?: string | null
           featured_media_id?: string | null
           id?: string
           is_breaking?: boolean
@@ -1351,7 +1354,6 @@ export type Database = {
       direct_publish_reporter_story: {
         Args: {
           p_story_id: string
-          p_event_occurred_at: string
           p_latitude: number
           p_longitude: number
           p_accuracy_meters: number
@@ -1425,12 +1427,25 @@ export type Database = {
         Args: { p_story_id: string; p_revision_id: string; p_reason: string }
         Returns: Json
       }
+      save_reporter_story_draft: {
+        Args: {
+          p_story_id: string | null
+          p_language_id: string
+          p_category_id: string
+          p_title: string
+          p_summary: string
+          p_content: string
+          p_event_occurred_at: string
+          p_media_ids: string[]
+          p_featured_media_id: string | null
+        }
+        Returns: Json
+      }
       release_reporter_kyc_start: { Args: { p_application_id: string; p_profile_id: string; p_reservation_token: string }; Returns: boolean }
       reserve_reporter_kyc_start: { Args: { p_application_id: string; p_profile_id: string }; Returns: string | null }
       submit_reporter_story: {
         Args: {
           p_story_id: string
-          p_event_occurred_at: string
           p_latitude: number
           p_longitude: number
           p_accuracy_meters: number

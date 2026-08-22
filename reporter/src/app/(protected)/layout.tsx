@@ -13,7 +13,10 @@ export default async function ProtectedLayout({
           <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/dashboard">Dashboard</Link>
           <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/application">Application</Link>
           {actor.state === "reporter" ? (
-            <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/membership">Membership</Link>
+            <>
+              <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/stories">Stories</Link>
+              <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/membership">Membership</Link>
+            </>
           ) : null}
         </nav>
       </header>

@@ -78,6 +78,18 @@ snapshot and its private `story_locations` evidence. The functions return the
 canonical story status plus the revision ID, number, and outcome so portal and
 CMS clients do not have to infer reporter workflow semantics from story status.
 
+Draft creation and editing use the authenticated
+`save_reporter_story_draft` function. It persists the canonical event time,
+content, active English/Hindi/Marathi classification, featured selection, and
+ordered `media.story_id` associations in one transaction; it never creates a
+revision, location, or status transition. Canonical media row existence is the
+verified upload-completion fact. The function locks every selected/existing row
+in ID order and rechecks ownership, retirement state, HTTPS provider URL, and
+provider public ID before association. Submission RPCs source event time from
+the locked canonical draft and recheck the same media set before snapshotting.
+Reporter event time may be edited only while the story remains a draft and may
+be no more than five minutes ahead of the database clock.
+
 The canonical status enum is unchanged. A changes request moves the story from
 `pending_review` back to `draft`; the latest revision remains distinguishable by
 its immutable `changes_requested` outcome and reason, and the reporter receives
