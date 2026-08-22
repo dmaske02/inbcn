@@ -1382,6 +1382,28 @@ export type Database = {
         Args: { p_payment_id: string; p_order_creation_token: string; p_razorpay_order_id: string }
         Returns: boolean
       }
+      complete_reporter_media_upload: {
+        Args: {
+          p_profile_id: string
+          p_access_generation: number
+          p_story_id: string
+          p_asset_id: string
+          p_media_type: Database["public"]["Enums"]["media_type"]
+          p_public_id: string
+          p_secure_url: string
+          p_resource_format: string
+          p_mime_type: string
+          p_title: string
+          p_original_filename: string
+          p_alt_text: string | null
+          p_width: number | null
+          p_height: number | null
+          p_duration_seconds: number | null
+          p_bytes: number
+          p_provider_created_at: string
+        }
+        Returns: string
+      }
       complete_reporter_kyc_start: { Args: { p_application_id: string; p_profile_id: string; p_reservation_token: string; p_provider: string; p_reference: string }; Returns: boolean }
       complete_reporter_access_sync: {
         Args: { p_profile_id: string; p_generation: number; p_claim_token: string; p_succeeded: boolean; p_failure_detail: string | null }
