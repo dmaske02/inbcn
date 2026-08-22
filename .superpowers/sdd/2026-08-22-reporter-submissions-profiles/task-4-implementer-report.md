@@ -119,6 +119,20 @@ is 27/27. Full root tests passed (website 213, CMS 587, reporter 201), as did
 root and reporter typecheck/lint and `git diff --check`. The fresh reviewer
 bundled-Node production build remains the recorded passing build verification.
 
+## UUID canonicalization follow-up
+
+Valid `draft` query UUIDs are now canonicalized to lowercase before binding the
+server action. An uppercase valid UUID redirects once to the lowercase opaque
+URL, so PostgreSQL's canonical lowercase return value matches the preallocated
+action target. Malformed or multi-value inputs still receive a replacement
+validated UUID.
+
+RED exercised an alphabetic uppercase UUID through the stable target resolver
+and page redirect contract; GREEN focused coverage remains 28/28. Full root
+tests passed (website 213, CMS 587, reporter 202), as did root and reporter
+typecheck/lint and `git diff --check`. The fresh reviewer bundled-Node
+production build remains the recorded passing build verification.
+
 ## Stable new-story target follow-up
 
 The new-story server page now establishes its preallocated target once in an

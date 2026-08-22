@@ -47,6 +47,7 @@ test("new-story save migrates a stale local snapshot, clears its alias, and alwa
   assert.match(source, /router\.replace\(`\/stories\/\$\{saveState\.storyId\}`\)/u);
   assert.match(newPage, /resolveNewReporterDraftTarget\(\(await searchParams\)\.draft, randomUUID\)/u);
   assert.match(newPage, /createNewReporterDraftTarget\(\(\) => resolved\.storyId\)/u);
+  assert.match(newPage, /resolved\.needsCanonicalRedirect/u);
   assert.match(newPage, /resolveNewReporterDraftTarget/u);
   assert.match(newPage, /redirect\(`\/stories\/new\?draft=\$\{draftTarget\.storyId\}`\)/u);
   assert.match(newPage, /searchParams: Promise/u);

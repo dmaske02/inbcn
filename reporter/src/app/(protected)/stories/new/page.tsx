@@ -16,7 +16,7 @@ export default async function NewReporterStoryPage({
   }
   const resolved = resolveNewReporterDraftTarget((await searchParams).draft, randomUUID);
   const draftTarget = createNewReporterDraftTarget(() => resolved.storyId);
-  if (!resolved.fromSearchParam) redirect(`/stories/new?draft=${draftTarget.storyId}`);
+  if (!resolved.fromSearchParam || resolved.needsCanonicalRedirect) redirect(`/stories/new?draft=${draftTarget.storyId}`);
   const references = await getReporterStoryReferences();
   return (
     <div className="space-y-6">

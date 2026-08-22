@@ -112,21 +112,25 @@ test("creates one validated story identity that every new-draft retry reuses", (
 
 test("keeps a validated new-story target stable across revalidation retries and replaces malformed input", () => {
   assert.equal(typeof submissionModel.resolveNewReporterDraftTarget, "function");
-  const created = "55555555-5555-4555-8555-555555555555";
+  const created = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const replacement = "66666666-6666-4666-8666-666666666666";
   const initial = submissionModel.resolveNewReporterDraftTarget(created, () => replacement);
-  assert.deepEqual(initial, { storyId: created, fromSearchParam: true });
+  assert.deepEqual(initial, { storyId: created, fromSearchParam: true, needsCanonicalRedirect: false });
   assert.deepEqual(
     submissionModel.resolveNewReporterDraftTarget(initial.storyId, () => replacement),
-    { storyId: created, fromSearchParam: true },
+    { storyId: created, fromSearchParam: true, needsCanonicalRedirect: false },
   );
   assert.deepEqual(
     submissionModel.resolveNewReporterDraftTarget([created], () => replacement),
-    { storyId: replacement, fromSearchParam: false },
+    { storyId: replacement, fromSearchParam: false, needsCanonicalRedirect: false },
   );
   assert.deepEqual(
     submissionModel.resolveNewReporterDraftTarget("not-a-uuid", () => replacement),
-    { storyId: replacement, fromSearchParam: false },
+    { storyId: replacement, fromSearchParam: false, needsCanonicalRedirect: false },
+  );
+  assert.deepEqual(
+    submissionModel.resolveNewReporterDraftTarget(created.toUpperCase(), () => replacement),
+    { storyId: created, fromSearchParam: true, needsCanonicalRedirect: true },
   );
 });
 
