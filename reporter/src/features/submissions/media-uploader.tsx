@@ -44,7 +44,7 @@ function authorization(value: unknown, mediaType: UploadMediaType): BrowserUploa
 export function MediaUploader({
   storyId,
   onUploaded,
-}: Readonly<{ storyId: string; onUploaded?: (mediaId: string) => void }>) {
+}: Readonly<{ storyId: string; onUploaded?: (media: Readonly<{ id: string; title: string; type: UploadMediaType }>) => void }>) {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [altText, setAltText] = useState("");
@@ -138,7 +138,7 @@ export function MediaUploader({
       setProgress(100);
       setPhase("complete");
       setMessage("Upload complete.");
-      onUploaded?.(mediaId);
+      onUploaded?.({ id: mediaId, title: metadata.data.title, type: mediaType });
     } catch (error) {
       activeTransfer.current = null;
       setPhase("error");
