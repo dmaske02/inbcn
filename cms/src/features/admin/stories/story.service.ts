@@ -97,7 +97,13 @@ export async function getStoryListView(admin: AdminIdentity, params: StoryListPa
       languageName: languageNames.get(story.languageId) ?? "Unknown",
       categoryName: categoryNames.get(story.categoryId) ?? "Unknown",
       authorName: story.createdBy ? (authorNames.get(story.createdBy) ?? "Former user") : "System",
-      commands: getAllowedStoryCommands(admin.role, story.status, story.createdBy === admin.id, story.type === "external_article"),
+      commands: getAllowedStoryCommands(
+        admin.role,
+        story.status,
+        story.createdBy === admin.id,
+        story.type === "external_article",
+        story.type === "citizen_report",
+      ),
     })),
     references,
     page,
@@ -133,7 +139,13 @@ export async function getStoryEditorView(admin: AdminIdentity, id?: string) {
     story,
     references,
     featuredMedia,
-    commands: getAllowedStoryCommands(admin.role, story.status, story.createdBy === admin.id, story.type === "external_article"),
+    commands: getAllowedStoryCommands(
+      admin.role,
+      story.status,
+      story.createdBy === admin.id,
+      story.type === "external_article",
+      story.type === "citizen_report",
+    ),
     readTime: calculateReadTime(story.content),
   };
 }
@@ -222,7 +234,13 @@ export async function createStory(admin: AdminIdentity, input: StoryFormValues):
 export async function saveStory(admin: AdminIdentity, id: string, input: StoryFormValues): Promise<CmsStoryDto> {
   const story = await getCmsStoryById(id);
   if (!story) throw new StoryManagementError("NOT_FOUND", "Story not found.");
-  if (!getAllowedStoryCommands(admin.role, story.status, story.createdBy === admin.id, story.type === "external_article").includes("save")) {
+  if (!getAllowedStoryCommands(
+    admin.role,
+    story.status,
+    story.createdBy === admin.id,
+    story.type === "external_article",
+    story.type === "citizen_report",
+  ).includes("save")) {
     throw new StoryManagementError("FORBIDDEN", "This story cannot be edited in its current state.");
   }
   const values = parseUpdateValues(input, story.summary);
@@ -251,7 +269,13 @@ export async function runStoryCommand(
 ): Promise<void> {
   const story = await getCmsStoryById(id);
   if (!story) throw new StoryManagementError("NOT_FOUND", "Story not found.");
-  const allowed = getAllowedStoryCommands(admin.role, story.status, story.createdBy === admin.id, story.type === "external_article");
+  const allowed = getAllowedStoryCommands(
+    admin.role,
+    story.status,
+    story.createdBy === admin.id,
+    story.type === "external_article",
+    story.type === "citizen_report",
+  );
   if (!allowed.includes(command)) throw new StoryManagementError("INVALID_TRANSITION", "That action is not allowed for this story.");
   if (command === "delete") {
     await deleteCmsStory(id);

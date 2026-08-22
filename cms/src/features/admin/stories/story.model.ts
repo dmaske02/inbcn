@@ -81,8 +81,11 @@ export function canCreateStory(role: AdminRole): boolean {
 
 export function resolveEditableStoryType(
   currentType: DatabaseEnum<"story_type"> | null,
-): "staff_article" | "external_article" {
-  return currentType === "external_article" ? "external_article" : "staff_article";
+): "staff_article" | "external_article" | "citizen_report" {
+  if (currentType === "external_article" || currentType === "citizen_report") {
+    return currentType;
+  }
+  return "staff_article";
 }
 
 export function getAllowedStoryCommands(
@@ -90,31 +93,46 @@ export function getAllowedStoryCommands(
   status: StoryStatus,
   isOwner: boolean,
   isExternalArticle = false,
+  isReporterStory = false,
 ): StoryCommand[] {
+  let commands: StoryCommand[];
+
   if (role === "writer") {
-    return status === "draft" && isOwner ? ["save", "submit"] : [];
-  }
-
-  if (role === "editor") {
+    commands = status === "draft" && isOwner ? ["save", "submit"] : [];
+  } else if (role === "editor") {
     if (isExternalArticle && status === "draft") {
-      return ["save", "approve", "reject"];
+      commands = ["save", "approve", "reject"];
+    } else if (status === "pending_review") {
+      commands = ["save", "approve"];
+    } else if (status === "approved") {
+      commands = ["publish", "schedule", "archive"];
+    } else if (status === "scheduled") {
+      commands = ["publish", "archive"];
+    } else if (status === "published") {
+      commands = ["archive"];
+    } else {
+      commands = [];
     }
-    if (status === "pending_review") return ["save", "approve"];
-    if (status === "approved") return ["publish", "schedule", "archive"];
-    if (status === "scheduled") return ["publish", "archive"];
-    if (status === "published") return ["archive"];
-    return [];
+  } else if (status === "archived") {
+    commands = ["delete"];
+  } else if (status === "draft") {
+    commands = ["save", "submit", "approve", "reject", "publish", "schedule", "archive", "delete"];
+  } else if (status === "pending_review") {
+    commands = ["save", "approve", "reject", "publish", "schedule", "archive", "delete"];
+  } else if (status === "approved") {
+    commands = ["save", "publish", "schedule", "archive", "delete"];
+  } else if (status === "scheduled") {
+    commands = ["save", "publish", "archive", "delete"];
+  } else if (status === "published") {
+    commands = ["save", "archive", "delete"];
+  } else {
+    commands = ["save", "approve", "reject", "publish", "schedule", "archive", "delete"];
   }
 
-  if (status === "archived") return ["delete"];
-  if (status === "draft") {
-    return ["save", "submit", "approve", "reject", "publish", "schedule", "archive", "delete"];
+  if (!isReporterStory) return commands;
+  if (status === "draft" || status === "archived") return [];
+  if (status === "rejected") {
+    return commands.includes("archive") ? ["archive"] : [];
   }
-  if (status === "pending_review") {
-    return ["save", "approve", "reject", "publish", "schedule", "archive", "delete"];
-  }
-  if (status === "approved") return ["save", "publish", "schedule", "archive", "delete"];
-  if (status === "scheduled") return ["save", "publish", "archive", "delete"];
-  if (status === "published") return ["save", "archive", "delete"];
-  return ["save", "approve", "reject", "publish", "schedule", "archive", "delete"];
+  return commands.filter((command) => command !== "save" && command !== "delete");
 }

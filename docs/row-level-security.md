@@ -57,6 +57,10 @@ updates and receive no editorial privileges.
   policy or grant. Security-definer transitions own inserts; service operations
   may update only retention/legal-hold fields. A later guarded retention worker
   owns deletion after the one-year due date.
+- `media`: active or grace reporters with a synchronized signed generation may
+  select only canonical media rows they own. This addition is read-only;
+  reporters receive no direct media insert, update, or delete policy. A later
+  server-only upload completion flow owns canonical media writes.
 - `public_reporter_profiles`: anonymous and authenticated users can select the
   deliberately narrow public projection; neither role can select its base table.
 
@@ -86,10 +90,13 @@ free audit metadata.
 Direct story DML is limited to owned `citizen_report` drafts. A trigger protects
 server-owned identity, lifecycle, publication, origin, promotion, sponsorship,
 and timestamp fields, while RLS prevents draft creation/update after membership
-or access synchronization becomes invalid. A separate database guard makes
-published reporter content and publication provenance immutable while retaining
-the archive lifecycle. Reporters cannot create revisions or locations directly
-and cannot transition a story status outside the RPCs.
+or access synchronization becomes invalid. A separate database guard freezes
+submitted reporter content and provenance from `pending_review` onward while
+allowing only canonical lifecycle state and timestamp changes. Approval and
+scheduling advance the latest immutable revision; publication, rejection, and
+prepublication archive finalize it through an explicit monotonic outcome graph,
+with every CMS transition audited. Reporters cannot create revisions or
+locations directly and cannot transition a story status outside the RPCs.
 
 The functions never call Razorpay. Rejection changes the captured payment to
 `refund_pending`, allowing the server-side refund worker to call Razorpay and

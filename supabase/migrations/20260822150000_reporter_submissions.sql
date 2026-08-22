@@ -27,6 +27,8 @@ create table public.story_revisions (
     review_outcome in (
       'pending_review',
       'changes_requested',
+      'approved',
+      'scheduled',
       'direct_published',
       'published',
       'rejected',
@@ -44,10 +46,10 @@ create table public.story_revisions (
       and review_reason is null
     )
     or (
-      review_outcome <> 'pending_review'
+      review_outcome is distinct from 'pending_review'
       and reviewed_at is not null
       and (
-        review_outcome not in ('changes_requested', 'rejected')
+        review_outcome not in ('changes_requested', 'rejected', 'withdrawn')
         or review_reason is not null
       )
     )
@@ -119,9 +121,22 @@ begin
     raise exception using errcode = '55000', message = 'STORY_REVISION_IMMUTABLE';
   end if;
 
-  if old.review_outcome <> 'pending_review'
-    or new.review_outcome not in (
-      'changes_requested', 'published', 'rejected', 'withdrawn'
+  if not (
+      (
+        old.review_outcome = 'pending_review'
+        and new.review_outcome in (
+          'changes_requested', 'approved', 'scheduled', 'published',
+          'rejected', 'withdrawn'
+        )
+      )
+      or (
+        old.review_outcome = 'approved'
+        and new.review_outcome in ('scheduled', 'published', 'rejected')
+      )
+      or (
+        old.review_outcome = 'scheduled'
+        and new.review_outcome in ('published', 'rejected')
+      )
     )
     or new.reviewed_at is null
     or new.id is distinct from old.id
@@ -152,8 +167,8 @@ as $$
 declare
   actor_id uuid := auth.uid();
 begin
-  if current_user <> 'authenticated'
-    or coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') <> 'reporter' then
+  if current_user is distinct from 'authenticated'
+    or auth.jwt() -> 'app_metadata' ->> 'role' is distinct from 'reporter' then
     return new;
   end if;
 
@@ -179,8 +194,8 @@ begin
 
   if tg_op = 'INSERT' then
     if new.created_by is distinct from actor_id
-      or new.story_type <> 'citizen_report'
-      or new.status <> 'draft'
+      or new.story_type is distinct from 'citizen_report'
+      or new.status is distinct from 'draft'
       or new.source_id is not null
       or new.approved_by is not null
       or new.submitted_at is not null
@@ -205,8 +220,8 @@ begin
     new.created_at := clock_timestamp();
   else
     if old.created_by is distinct from actor_id
-      or old.story_type <> 'citizen_report'
-      or old.status <> 'draft'
+      or old.story_type is distinct from 'citizen_report'
+      or old.status is distinct from 'draft'
       or new.id is distinct from old.id
       or new.translation_group_id is distinct from old.translation_group_id
       or new.created_by is distinct from old.created_by
@@ -245,16 +260,19 @@ create trigger guard_reporter_story_draft_write
 before insert or update on public.stories
 for each row execute function public.guard_reporter_story_draft_write();
 
--- Once reporter content has been published, lifecycle transitions may archive
--- it but neither Data API role may silently rewrite the published record.
-create or replace function public.guard_published_reporter_story_content()
+-- Submitted reporter content and provenance stay byte-for-byte aligned with the
+-- latest immutable snapshot through review and every terminal canonical state.
+-- Lifecycle state and its timestamps may still advance through the CMS/RPC
+-- workflows. A changes request first returns the story to draft, where the
+-- reporter may edit before creating a new immutable revision.
+create or replace function public.guard_reporter_story_provenance()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
 begin
   if old.story_type = 'citizen_report'
-    and old.published_at is not null
+    and old.status is distinct from 'draft'
     and (
       new.id is distinct from old.id
       or new.translation_group_id is distinct from old.translation_group_id
@@ -262,7 +280,6 @@ begin
       or new.category_id is distinct from old.category_id
       or new.source_id is distinct from old.source_id
       or new.created_by is distinct from old.created_by
-      or new.approved_by is distinct from old.approved_by
       or new.story_type is distinct from old.story_type
       or new.slug is distinct from old.slug
       or new.title is distinct from old.title
@@ -283,80 +300,128 @@ begin
       or new.is_featured is distinct from old.is_featured
       or new.is_breaking is distinct from old.is_breaking
       or new.is_sponsored is distinct from old.is_sponsored
-      or new.submitted_at is distinct from old.submitted_at
-      or new.approved_at is distinct from old.approved_at
-      or new.rejected_at is distinct from old.rejected_at
-      or new.rejection_reason is distinct from old.rejection_reason
-      or new.scheduled_at is distinct from old.scheduled_at
-      or new.published_at is distinct from old.published_at
       or new.created_at is distinct from old.created_at
     ) then
     raise exception using
       errcode = '55000',
-      message = 'REPORTER_STORY_PUBLISHED_EDIT_FORBIDDEN';
+      message = 'REPORTER_STORY_PROVENANCE_IMMUTABLE';
   end if;
 
   return new;
 end;
 $$;
 
-create trigger guard_published_reporter_story_content
+create trigger guard_reporter_story_provenance
 before update on public.stories
-for each row execute function public.guard_published_reporter_story_content();
+for each row execute function public.guard_reporter_story_provenance();
 
--- Existing CMS publish/reject operations must finish the same evidence chain as
--- the reporter RPCs. The latest still-pending revision is finalized once.
-create or replace function public.finalize_reporter_story_evidence()
+-- Existing CMS review transitions advance the latest reporter revision through
+-- an explicit monotonic outcome graph. Pre-publication archive is an editorial
+-- rejection; post-terminal archive preserves the exact semantic outcome.
+create or replace function public.synchronize_reporter_story_evidence()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  final_time timestamptz;
+  current_revision public.story_revisions%rowtype;
+  transition_time timestamptz;
+  target_outcome text;
+  target_reason text;
 begin
-  if new.story_type <> 'citizen_report'
-    or new.status not in ('published', 'rejected')
+  if new.story_type is distinct from 'citizen_report'
+    or new.status not in ('approved', 'scheduled', 'published', 'rejected', 'archived')
     or new.status = old.status then
     return new;
   end if;
 
-  final_time := case
-    when new.status = 'published' then coalesce(new.published_at, clock_timestamp())
-    else coalesce(new.rejected_at, clock_timestamp())
+  select * into current_revision
+  from public.story_revisions
+  where story_id = new.id
+  order by revision_number desc
+  limit 1
+  for update;
+  if not found then
+    return new;
+  end if;
+
+  -- Reporter-owned terminal RPCs already set their precise outcome, retention,
+  -- and audit record before changing the canonical story.
+  if (new.status = 'published' and current_revision.review_outcome = 'direct_published')
+    or (new.status = 'rejected' and current_revision.review_outcome = 'withdrawn') then
+    return new;
+  end if;
+
+  transition_time := case
+    when new.status = 'published' then coalesce(new.published_at, new.updated_at)
+    when new.status = 'rejected' then coalesce(new.rejected_at, new.updated_at)
+    else new.updated_at
+  end;
+  target_outcome := case
+    when new.status = 'approved' then 'approved'
+    when new.status = 'scheduled' then 'scheduled'
+    when new.status = 'published' then 'published'
+    when new.status = 'rejected' then 'rejected'
+    when current_revision.review_outcome in (
+      'direct_published', 'published', 'rejected', 'withdrawn'
+    ) then current_revision.review_outcome
+    else 'rejected'
+  end;
+  target_reason := case
+    when new.status = 'rejected' then new.rejection_reason
+    when new.status = 'archived'
+      and current_revision.review_outcome in (
+        'pending_review', 'approved', 'scheduled'
+      ) then 'Archived before publication'
+    else current_revision.review_reason
   end;
 
-  update public.story_revisions
-  set review_outcome = new.status::text,
-      reviewed_by = coalesce(new.approved_by, auth.uid()),
-      reviewed_at = final_time,
-      review_reason = case
-        when new.status = 'rejected' then new.rejection_reason
-        else null
-      end
-  where id = (
-    select story_revisions.id
-    from public.story_revisions
-    where story_revisions.story_id = new.id
-      and story_revisions.review_outcome = 'pending_review'
-    order by story_revisions.revision_number desc
-    limit 1
-  );
+  if target_outcome is distinct from current_revision.review_outcome then
+    update public.story_revisions
+    set review_outcome = target_outcome,
+        reviewed_by = coalesce(auth.uid(), new.approved_by, current_revision.reviewed_by),
+        reviewed_at = transition_time,
+        review_reason = target_reason
+    where id = current_revision.id;
+  end if;
 
-  update public.story_locations
-  set retention_due_at = greatest(
-    coalesce(retention_due_at, final_time + interval '1 year'),
-    final_time + interval '1 year'
-  )
-  where story_id = new.id;
+  if new.status in ('published', 'rejected')
+    or (
+      new.status = 'archived'
+      and current_revision.review_outcome in (
+        'pending_review', 'approved', 'scheduled'
+      )
+    ) then
+    update public.story_locations
+    set retention_due_at = greatest(
+      coalesce(retention_due_at, transition_time + interval '1 year'),
+      transition_time + interval '1 year'
+    )
+    where story_id = new.id;
+  end if;
+
+  insert into public.audit_events (actor_id, action, subject_type, subject_id, metadata)
+  values (
+    auth.uid(),
+    'story.reporter_revision_transition',
+    'story',
+    new.id,
+    jsonb_build_object(
+      'revision_id', current_revision.id,
+      'from_outcome', current_revision.review_outcome,
+      'to_outcome', target_outcome,
+      'story_status', new.status
+    )
+  );
 
   return new;
 end;
 $$;
 
-create trigger finalize_reporter_story_evidence
+create trigger synchronize_reporter_story_evidence
 after update of status on public.stories
-for each row execute function public.finalize_reporter_story_evidence();
+for each row execute function public.synchronize_reporter_story_evidence();
 
 create or replace function public.submit_reporter_story(
   p_story_id uuid,
@@ -383,7 +448,7 @@ declare
   next_revision integer;
   revision_id uuid;
 begin
-  if actor_id is null or actor_role <> 'reporter' then
+  if actor_id is null or actor_role is distinct from 'reporter' then
     raise exception using errcode = '42501', message = 'REPORTER_STORY_FORBIDDEN';
   end if;
 
@@ -397,10 +462,10 @@ begin
   for update;
   if current_reporter.profile_id is null
     or current_profile.id is null
-    or current_profile.role <> 'reporter'
+    or current_profile.role is distinct from 'reporter'
     or not current_profile.is_active
-    or current_reporter.access_sync_status <> 'succeeded'
-    or current_reporter.access_sync_desired_role <> 'reporter'
+    or current_reporter.access_sync_status is distinct from 'succeeded'
+    or current_reporter.access_sync_desired_role is distinct from 'reporter'
     or auth.jwt() -> 'app_metadata' -> 'reporter_access_generation'
       is distinct from to_jsonb(current_reporter.access_sync_generation)
     or current_reporter.public_status not in ('active', 'grace')
@@ -416,11 +481,11 @@ begin
   if not found then
     raise exception using errcode = 'P0002', message = 'REPORTER_STORY_NOT_FOUND';
   end if;
-  if current_story.created_by <> actor_id
-    or current_story.story_type <> 'citizen_report' then
+  if current_story.created_by is distinct from actor_id
+    or current_story.story_type is distinct from 'citizen_report' then
     raise exception using errcode = '42501', message = 'REPORTER_STORY_FORBIDDEN';
   end if;
-  if current_story.status <> 'draft' then
+  if current_story.status is distinct from 'draft' then
     raise exception using errcode = 'P0001', message = 'REPORTER_STORY_INVALID_STATE';
   end if;
   if current_story.source_id is not null
@@ -461,7 +526,7 @@ begin
   from public.media
   where media.story_id = current_story.id
   order by media.id
-  for key share;
+  for share;
   if exists (
     select 1
     from public.media
@@ -590,7 +655,7 @@ declare
   next_revision integer;
   revision_id uuid;
 begin
-  if actor_id is null or actor_role <> 'reporter' then
+  if actor_id is null or actor_role is distinct from 'reporter' then
     raise exception using errcode = '42501', message = 'REPORTER_DIRECT_PUBLISH_FORBIDDEN';
   end if;
 
@@ -604,13 +669,13 @@ begin
   for update;
   if current_reporter.profile_id is null
     or current_profile.id is null
-    or current_profile.role <> 'reporter'
+    or current_profile.role is distinct from 'reporter'
     or not current_profile.is_active
-    or current_reporter.access_sync_status <> 'succeeded'
-    or current_reporter.access_sync_desired_role <> 'reporter'
+    or current_reporter.access_sync_status is distinct from 'succeeded'
+    or current_reporter.access_sync_desired_role is distinct from 'reporter'
     or auth.jwt() -> 'app_metadata' -> 'reporter_access_generation'
       is distinct from to_jsonb(current_reporter.access_sync_generation)
-    or current_reporter.public_status <> 'active'
+    or current_reporter.public_status is distinct from 'active'
     or current_reporter.membership_started_at > publication_time
     or current_reporter.membership_expires_at < publication_time
     or not current_reporter.can_publish_directly then
@@ -624,11 +689,11 @@ begin
   if not found then
     raise exception using errcode = 'P0002', message = 'REPORTER_STORY_NOT_FOUND';
   end if;
-  if current_story.created_by <> actor_id
-    or current_story.story_type <> 'citizen_report' then
+  if current_story.created_by is distinct from actor_id
+    or current_story.story_type is distinct from 'citizen_report' then
     raise exception using errcode = '42501', message = 'REPORTER_DIRECT_PUBLISH_FORBIDDEN';
   end if;
-  if current_story.status <> 'draft'
+  if current_story.status is distinct from 'draft'
     or current_story.source_id is not null
     or current_story.approved_by is not null
     or current_story.approved_at is not null
@@ -667,7 +732,7 @@ begin
   from public.media
   where media.story_id = current_story.id
   order by media.id
-  for key share;
+  for share;
   if exists (
     select 1
     from public.media
@@ -798,7 +863,7 @@ declare
   next_revision integer;
   revision_id uuid;
 begin
-  if actor_id is null or actor_role <> 'reporter' then
+  if actor_id is null or actor_role is distinct from 'reporter' then
     raise exception using errcode = '42501', message = 'REPORTER_STORY_FORBIDDEN';
   end if;
   select * into current_reporter
@@ -811,10 +876,10 @@ begin
   for update;
   if current_reporter.profile_id is null
     or current_profile.id is null
-    or current_profile.role <> 'reporter'
+    or current_profile.role is distinct from 'reporter'
     or not current_profile.is_active
-    or current_reporter.access_sync_status <> 'succeeded'
-    or current_reporter.access_sync_desired_role <> 'reporter'
+    or current_reporter.access_sync_status is distinct from 'succeeded'
+    or current_reporter.access_sync_desired_role is distinct from 'reporter'
     or auth.jwt() -> 'app_metadata' -> 'reporter_access_generation'
       is distinct from to_jsonb(current_reporter.access_sync_generation)
     or current_reporter.public_status not in ('active', 'grace')
@@ -830,8 +895,8 @@ begin
   if not found then
     raise exception using errcode = 'P0002', message = 'REPORTER_STORY_NOT_FOUND';
   end if;
-  if current_story.created_by <> actor_id
-    or current_story.story_type <> 'citizen_report' then
+  if current_story.created_by is distinct from actor_id
+    or current_story.story_type is distinct from 'citizen_report' then
     raise exception using errcode = '42501', message = 'REPORTER_STORY_FORBIDDEN';
   end if;
   if current_story.status not in ('draft', 'pending_review') then
@@ -845,7 +910,7 @@ begin
     order by revision_number desc
     limit 1
     for update;
-    if not found or current_revision.review_outcome <> 'pending_review' then
+    if not found or current_revision.review_outcome is distinct from 'pending_review' then
       raise exception using errcode = 'P0001', message = 'REPORTER_STORY_REVISION_CONFLICT';
     end if;
     update public.story_revisions
@@ -861,7 +926,7 @@ begin
     from public.media
     where media.story_id = current_story.id
     order by media.id
-    for key share;
+    for share;
     if exists (
       select 1
       from public.media
@@ -925,9 +990,11 @@ begin
   end if;
 
   update public.story_locations
-  set retention_due_at = withdrawal_time + interval '1 year'
-  where story_id = current_story.id
-    and retention_due_at is null;
+  set retention_due_at = greatest(
+    coalesce(retention_due_at, withdrawal_time + interval '1 year'),
+    withdrawal_time + interval '1 year'
+  )
+  where story_id = current_story.id;
   update public.stories
   set status = 'rejected',
       rejected_at = withdrawal_time,
@@ -997,9 +1064,9 @@ begin
   if not found then
     raise exception using errcode = 'P0002', message = 'REPORTER_STORY_NOT_FOUND';
   end if;
-  if current_story.story_type <> 'citizen_report'
+  if current_story.story_type is distinct from 'citizen_report'
     or current_story.created_by is null
-    or current_story.status <> 'pending_review' then
+    or current_story.status is distinct from 'pending_review' then
     raise exception using errcode = 'P0001', message = 'REPORTER_STORY_INVALID_STATE';
   end if;
   select * into current_revision
@@ -1008,8 +1075,8 @@ begin
     and story_id = current_story.id
   for update;
   if not found
-    or current_revision.submitted_by <> current_story.created_by
-    or current_revision.review_outcome <> 'pending_review'
+    or current_revision.submitted_by is distinct from current_story.created_by
+    or current_revision.review_outcome is distinct from 'pending_review'
     or exists (
       select 1
       from public.story_revisions
@@ -1073,6 +1140,7 @@ from public, anon, authenticated, service_role;
 
 grant select on table public.story_revisions to authenticated;
 grant select on table public.story_locations to authenticated;
+grant select on table public.media to authenticated;
 grant select on table public.story_revisions to service_role;
 grant select on table public.story_locations to service_role;
 grant update (retention_due_at, legal_hold)
@@ -1219,6 +1287,32 @@ with check (
   )
 );
 
+create policy "Reporters can read their own canonical media"
+on public.media
+for select
+to authenticated
+using (
+  (select auth.uid()) is not null
+  and media.created_by = (select auth.uid())
+  and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'reporter'
+  and exists (
+    select 1
+    from public.profiles
+    join public.reporter_profiles
+      on reporter_profiles.profile_id = profiles.id
+    where profiles.id = (select auth.uid())
+      and profiles.role = 'reporter'
+      and profiles.is_active
+      and reporter_profiles.public_status in ('active', 'grace')
+      and reporter_profiles.membership_started_at <= clock_timestamp()
+      and reporter_profiles.membership_grace_ends_at >= clock_timestamp()
+      and reporter_profiles.access_sync_status = 'succeeded'
+      and reporter_profiles.access_sync_desired_role = 'reporter'
+      and (select auth.jwt() -> 'app_metadata' -> 'reporter_access_generation')
+        = to_jsonb(reporter_profiles.access_sync_generation)
+  )
+);
+
 create policy "Reporters can read their own story revisions"
 on public.story_revisions
 for select
@@ -1311,9 +1405,9 @@ revoke all on function public.protect_story_revision_immutability()
 from public, anon, authenticated, service_role;
 revoke all on function public.guard_reporter_story_draft_write()
 from public, anon, authenticated, service_role;
-revoke all on function public.guard_published_reporter_story_content()
+revoke all on function public.guard_reporter_story_provenance()
 from public, anon, authenticated, service_role;
-revoke all on function public.finalize_reporter_story_evidence()
+revoke all on function public.synchronize_reporter_story_evidence()
 from public, anon, authenticated, service_role;
 revoke all on function public.submit_reporter_story(uuid, timestamptz, numeric, numeric, numeric, timestamptz, text)
 from public, anon, authenticated, service_role;

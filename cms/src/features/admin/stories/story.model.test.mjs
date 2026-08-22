@@ -65,6 +65,37 @@ test("exposes only commands allowed by role, ownership, and status", () => {
   assert.deepEqual(getAllowedStoryCommands("admin", "draft", true), ["save", "submit", "approve", "reject", "publish", "schedule", "archive", "delete"]);
 });
 
+test("reporter stories retain review transitions but cannot be silently saved in CMS", async () => {
+  assert.deepEqual(
+    getAllowedStoryCommands("editor", "pending_review", false, false, true),
+    ["approve"],
+  );
+  assert.deepEqual(
+    getAllowedStoryCommands("admin", "pending_review", false, false, true),
+    ["approve", "reject", "publish", "schedule", "archive"],
+  );
+  assert.deepEqual(
+    getAllowedStoryCommands("admin", "approved", false, false, true),
+    ["publish", "schedule", "archive"],
+  );
+  assert.deepEqual(getAllowedStoryCommands("admin", "draft", false, false, true), []);
+  assert.deepEqual(
+    getAllowedStoryCommands("admin", "rejected", false, false, true),
+    ["archive"],
+  );
+  assert.deepEqual(getAllowedStoryCommands("admin", "archived", false, false, true), []);
+
+  const service = await readFile(new URL("./story.service.ts", import.meta.url), "utf8");
+  assert.match(
+    service,
+    /export async function saveStory[\s\S]*?story\.type === "citizen_report"[\s\S]*?\.includes\("save"\)/u,
+  );
+  assert.match(
+    service,
+    /export async function runStoryCommand[\s\S]*?story\.type === "citizen_report"/u,
+  );
+});
+
 const validStoryForm = {
   title: "A production headline",
   slug: "a-production-headline",
@@ -180,4 +211,5 @@ test("preserves imported story provenance during editorial edits", () => {
   assert.equal(resolveEditableStoryType(null), "staff_article");
   assert.equal(resolveEditableStoryType("staff_article"), "staff_article");
   assert.equal(resolveEditableStoryType("external_article"), "external_article");
+  assert.equal(resolveEditableStoryType("citizen_report"), "citizen_report");
 });

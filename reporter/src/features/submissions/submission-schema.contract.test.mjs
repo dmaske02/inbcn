@@ -55,6 +55,7 @@ test("revision and location rows enforce immutable snapshots and bounded private
   assert.match(source, /unique \(story_id, revision_number\)/u);
   assert.match(source, /revision_number > 0/u);
   assert.match(source, /associated_media_ids uuid\[\] not null/u);
+  assert.match(source, /'approved'.*'scheduled'.*'direct_published'/u);
   assert.match(source, /before update or delete on public\.story_revisions/u);
   assert.match(source, /story_locations_latitude_check check \(latitude between -90 and 90\)/u);
   assert.match(source, /story_locations_longitude_check check \(longitude between -180 and 180\)/u);
@@ -66,40 +67,75 @@ test("revision and location rows enforce immutable snapshots and bounded private
   assert.match(source, /interval '1 year'/u);
 });
 
-test("revision and draft guards preserve submitted and server-owned fields", () => {
+test("revision and story guards preserve submitted and canonical provenance", () => {
   const immutable = sqlFunction("protect_story_revision_immutability");
   const draftGuard = sqlFunction("guard_reporter_story_draft_write");
-  const publishedGuard = sqlFunction("guard_published_reporter_story_content");
+  const provenanceGuard = sqlFunction("guard_reporter_story_provenance");
 
   assert.match(immutable, /tg_op = 'DELETE'/u);
-  assert.match(immutable, /old\.review_outcome <> 'pending_review'/u);
+  assert.match(immutable, /old\.review_outcome = 'pending_review'.*new\.review_outcome in \( 'changes_requested', 'approved', 'scheduled', 'published', 'rejected', 'withdrawn' \)/u);
+  assert.match(immutable, /old\.review_outcome = 'approved'.*new\.review_outcome in \('scheduled', 'published', 'rejected'\)/u);
+  assert.match(immutable, /old\.review_outcome = 'scheduled'.*new\.review_outcome in \('published', 'rejected'\)/u);
+  assert.doesNotMatch(immutable, /old\.review_outcome = 'changes_requested'/u);
   assert.match(immutable, /new\.snapshot is distinct from old\.snapshot/u);
   assert.match(immutable, /new\.associated_media_ids is distinct from old\.associated_media_ids/u);
   assert.match(immutable, /new\.submitted_at is distinct from old\.submitted_at/u);
-  assert.match(draftGuard, /current_user <> 'authenticated'/u);
-  assert.match(draftGuard, /new\.status <> 'draft'/u);
-  assert.match(draftGuard, /old\.status <> 'draft'/u);
+  assert.match(draftGuard, /current_user is distinct from 'authenticated'/u);
+  assert.match(draftGuard, /new\.status is distinct from 'draft'/u);
+  assert.match(draftGuard, /old\.status is distinct from 'draft'/u);
   assert.match(draftGuard, /new\.status is distinct from old\.status/u);
   assert.match(draftGuard, /new\.published_at is distinct from old\.published_at/u);
   assert.match(draftGuard, /new\.updated_at := clock_timestamp\(\)/u);
-  assert.match(publishedGuard, /old\.story_type = 'citizen_report'/u);
-  assert.match(publishedGuard, /old\.published_at is not null/u);
-  assert.match(publishedGuard, /new\.content is distinct from old\.content/u);
-  assert.match(publishedGuard, /new\.featured_media_id is distinct from old\.featured_media_id/u);
-  assert.match(publishedGuard, /REPORTER_STORY_PUBLISHED_EDIT_FORBIDDEN/u);
+  assert.match(provenanceGuard, /old\.story_type = 'citizen_report'/u);
+  assert.match(provenanceGuard, /old\.status is distinct from 'draft'/u);
+  assert.match(provenanceGuard, /new\.story_type is distinct from old\.story_type/u);
+  assert.match(provenanceGuard, /new\.content is distinct from old\.content/u);
+  assert.match(provenanceGuard, /new\.featured_media_id is distinct from old\.featured_media_id/u);
+  assert.doesNotMatch(
+    provenanceGuard,
+    /new\.(?:status|submitted_at|approved_by|approved_at|rejected_at|rejection_reason|scheduled_at|published_at) is distinct from old\./u,
+  );
+  assert.match(provenanceGuard, /REPORTER_STORY_PROVENANCE_IMMUTABLE/u);
 });
 
-test("canonical CMS final states finalize pending reporter evidence and retention", () => {
-  const finalize = sqlFunction("finalize_reporter_story_evidence");
+test("canonical CMS review states advance reporter evidence monotonically and audit every transition", () => {
+  const synchronize = sqlFunction("synchronize_reporter_story_evidence");
 
-  assert.match(finalize, /security definer set search_path = ''/u);
-  assert.match(finalize, /new\.story_type <> 'citizen_report'/u);
-  assert.match(finalize, /new\.status not in \('published', 'rejected'\)/u);
-  assert.match(finalize, /story_revisions\.review_outcome = 'pending_review'/u);
-  assert.match(finalize, /order by story_revisions\.revision_number desc limit 1/u);
-  assert.match(finalize, /set review_outcome = new\.status::text/u);
-  assert.match(finalize, /set retention_due_at = greatest/u);
-  assert.match(finalize, /final_time \+ interval '1 year'/u);
+  assert.match(synchronize, /security definer set search_path = ''/u);
+  assert.match(synchronize, /new\.story_type is distinct from 'citizen_report'/u);
+  assert.match(synchronize, /new\.status not in \('approved', 'scheduled', 'published', 'rejected', 'archived'\)/u);
+  assert.match(synchronize, /select \* into current_revision from public\.story_revisions .* order by revision_number desc limit 1 for update/u);
+  assert.match(synchronize, /when new\.status = 'approved' then 'approved'/u);
+  assert.match(synchronize, /when new\.status = 'scheduled' then 'scheduled'/u);
+  assert.match(synchronize, /when new\.status = 'published' then 'published'/u);
+  assert.match(synchronize, /when new\.status = 'rejected' then 'rejected'/u);
+  assert.match(synchronize, /when current_revision\.review_outcome in \( 'direct_published', 'published', 'rejected', 'withdrawn' \) then current_revision\.review_outcome else 'rejected'/u);
+  assert.match(synchronize, /insert into public\.audit_events/u);
+  assert.match(synchronize, /'story\.reporter_revision_transition'/u);
+  assert.doesNotMatch(synchronize, /jsonb_build_object\([^;]*(?:latitude|longitude|accuracy_meters|captured_at)/iu);
+  assert.match(synchronize, /new\.status in \('published', 'rejected'\)/u);
+  assert.match(synchronize, /new\.status = 'archived'.*current_revision\.review_outcome in \(\s*'pending_review', 'approved', 'scheduled'/u);
+  assert.doesNotMatch(synchronize, /new\.status = 'archived'.*current_revision\.review_outcome in \([^)]*'changes_requested'/u);
+  assert.match(synchronize, /set retention_due_at = greatest/u);
+  assert.match(synchronize, /transition_time \+ interval '1 year'/u);
+});
+
+test("reporter RPC authorization rejects NULL roles and orphaned story ownership", () => {
+  for (const name of [
+    "submit_reporter_story",
+    "direct_publish_reporter_story",
+    "withdraw_reporter_story",
+  ]) {
+    const owner = sqlFunction(name);
+    assert.match(owner, /actor_role is distinct from 'reporter'/u);
+    assert.match(owner, /current_profile\.role is distinct from 'reporter'/u);
+    assert.match(owner, /current_reporter\.access_sync_desired_role is distinct from 'reporter'/u);
+    assert.match(owner, /current_story\.created_by is distinct from actor_id/u);
+    assert.doesNotMatch(
+      owner,
+      /(?:actor_role|current_profile\.role|current_reporter\.access_sync_desired_role|current_story\.created_by)\s*<>/u,
+    );
+  }
 });
 
 test("reviewed submission locks ownership and snapshots canonical story media atomically", () => {
@@ -110,16 +146,18 @@ test("reviewed submission locks ownership and snapshots canonical story media at
   assert.match(submit, /from public\.reporter_profiles .* for update/u);
   assert.match(submit, /from public\.profiles .* for update/u);
   assert.match(submit, /from public\.stories .* for update/u);
-  assert.match(submit, /access_sync_status <> 'succeeded'/u);
+  assert.match(submit, /access_sync_status is distinct from 'succeeded'/u);
   assert.match(submit, /reporter_access_generation.*access_sync_generation/u);
   assert.match(submit, /public_status not in \('active', 'grace'\)/u);
   assert.match(submit, /membership_grace_ends_at < submission_time/u);
-  assert.match(submit, /story_type <> 'citizen_report'/u);
-  assert.match(submit, /current_story\.created_by <> actor_id/u);
-  assert.match(submit, /current_story\.status <> 'draft'/u);
+  assert.match(submit, /story_type is distinct from 'citizen_report'/u);
+  assert.match(submit, /current_story\.created_by is distinct from actor_id/u);
+  assert.match(submit, /current_story\.status is distinct from 'draft'/u);
   assert.match(submit, /from public\.languages/u);
   assert.match(submit, /join public\.categories/u);
   assert.match(submit, /from public\.media/u);
+  assert.match(submit, /from public\.media .* order by media\.id for share/u);
+  assert.doesNotMatch(submit, /for key share/u);
   assert.match(submit, /media\.created_by is distinct from actor_id/u);
   assert.match(submit, /media\.story_id = current_story\.id/u);
   assert.match(submit, /media\.deleted_at is not null/u);
@@ -137,7 +175,9 @@ test("direct publication is active-membership only and supplies canonical review
   assert.match(publish, /from public\.reporter_profiles .* for update/u);
   assert.match(publish, /from public\.profiles .* for update/u);
   assert.match(publish, /from public\.stories .* for update/u);
-  assert.match(publish, /current_reporter\.public_status <> 'active'/u);
+  assert.match(publish, /from public\.media .* order by media\.id for share/u);
+  assert.doesNotMatch(publish, /for key share/u);
+  assert.match(publish, /current_reporter\.public_status is distinct from 'active'/u);
   assert.match(publish, /membership_expires_at < publication_time/u);
   assert.match(publish, /not current_reporter\.can_publish_directly/u);
   assert.doesNotMatch(publish, /public_status not in \('active', 'grace'\)/u);
@@ -156,10 +196,12 @@ test("withdrawal and staff changes requests preserve editorial authority", () =>
   assert.match(withdraw, /from public\.reporter_profiles .* for update/u);
   assert.match(withdraw, /from public\.profiles .* for update/u);
   assert.match(withdraw, /from public\.stories .* for update/u);
+  assert.match(withdraw, /from public\.media .* order by media\.id for share/u);
+  assert.doesNotMatch(withdraw, /for key share/u);
   assert.match(withdraw, /status not in \('draft', 'pending_review'\)/u);
   assert.match(withdraw, /status = 'rejected'/u);
   assert.match(withdraw, /review_outcome = 'withdrawn'/u);
-  assert.match(withdraw, /retention_due_at = withdrawal_time \+ interval '1 year'/u);
+  assert.match(withdraw, /set retention_due_at = greatest\( coalesce\(retention_due_at, withdrawal_time \+ interval '1 year'\), withdrawal_time \+ interval '1 year' \)/u);
 
   assert.match(changes, /actor_role not in \('editor', 'admin'\)/u);
   assert.match(changes, /profiles\.role = actor_role/u);
@@ -168,7 +210,7 @@ test("withdrawal and staff changes requests preserve editorial authority", () =>
   assert.match(changes, /p_reason is null or length\(btrim\(p_reason\)\) = 0/u);
   assert.match(changes, /from public\.stories .* for update/u);
   assert.match(changes, /from public\.story_revisions .* for update/u);
-  assert.match(changes, /current_story\.status <> 'pending_review'/u);
+  assert.match(changes, /current_story\.status is distinct from 'pending_review'/u);
   assert.match(changes, /review_outcome = 'changes_requested'/u);
   assert.match(changes, /status = 'draft'/u);
   assert.match(changes, /insert into public\.reporter_notifications/u);
@@ -193,6 +235,23 @@ test("RLS exposes only owned reporter evidence and never permits direct evidence
   assert.match(source, /create policy "Reporters can update their own story drafts"/u);
   assert.match(source, /with check \([^;]*status = 'draft'/u);
   assert.match(source, /reporter_access_generation/u);
+});
+
+test("active synchronized reporters can read only their own canonical media", () => {
+  const source = compact(sql);
+
+  assert.match(source, /grant select on table public\.media to authenticated/u);
+  assert.match(source, /create policy "Reporters can read their own canonical media" on public\.media for select to authenticated using/u);
+  assert.match(source, /media\.created_by = \(select auth\.uid\(\)\)/u);
+  assert.match(source, /auth\.jwt\(\) -> 'app_metadata' ->> 'role'\) = 'reporter'/u);
+  assert.match(source, /profiles\.role = 'reporter'/u);
+  assert.match(source, /profiles\.is_active/u);
+  assert.match(source, /reporter_profiles\.public_status in \('active', 'grace'\)/u);
+  assert.match(source, /reporter_profiles\.membership_started_at <= clock_timestamp\(\)/u);
+  assert.match(source, /reporter_profiles\.membership_grace_ends_at >= clock_timestamp\(\)/u);
+  assert.match(source, /reporter_profiles\.access_sync_status = 'succeeded'/u);
+  assert.match(source, /reporter_access_generation.*access_sync_generation/u);
+  assert.doesNotMatch(source, /grant (?:insert|update) on table public\.media to authenticated/u);
 });
 
 test("generated database contracts expose submission tables and RPCs", () => {

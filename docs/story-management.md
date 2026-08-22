@@ -92,11 +92,25 @@ Published, approved, and scheduled stories are under editorial control and
 cannot be withdrawn or edited by reporters. Direct publication is available
 only to an active, generation-synchronized reporter with an effective
 `can_publish_directly` grant; grace membership may submit for review but cannot
-publish directly. Once a reporter story has been published, database guards
-also prohibit silent content or publication-provenance rewrites; the canonical
-archive lifecycle remains available. Existing CMS publish/reject transitions
-finalize the latest pending revision and start the same one-year coordinate-
-retention clock.
+publish directly. From `pending_review` onward, database guards prohibit silent
+canonical content, type, authorship, media-selection, SEO, or origin changes,
+while allowing the CMS to advance lifecycle status and timestamps. The CMS
+preserves `citizen_report` and exposes no generic save command for reporter
+stories; reporter drafts likewise cannot bypass submission by entering a CMS
+review transition.
+
+CMS approval and scheduling advance the latest immutable revision to explicit
+`approved` and `scheduled` outcomes and append a coordinate-free audit event.
+Publication and editorial rejection produce terminal `published` and `rejected`
+outcomes and start the one-year coordinate-retention clock. Archiving a pending,
+approved, or scheduled revision is recorded as an editorial rejection with the
+reason `Archived before publication` and the same retention deadline; archiving
+after a terminal publication, rejection, or withdrawal preserves that exact
+revision outcome. A completed `changes_requested` outcome and its reason remain
+immutable while the story is a reporter-editable draft.
+This keeps the existing canonical story-status enum and CMS review workflow at
+the cost of consulting the latest revision when callers need the precise
+reporter outcome.
 
 ## Validation and errors
 
