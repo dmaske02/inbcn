@@ -61,6 +61,9 @@ export type ReporterApplicationDetail = Readonly<{
     accessSyncStatus: string;
     accessSyncOperation: string | null;
     accessSyncFailureDetail: string | null;
+    accessSyncGeneration: number;
+    accessSyncDesiredRole: string;
+    accessSyncClaimedAt: string | null;
   }> | null;
   audit: readonly Readonly<{ action: string; createdAt: string; metadata: Json }>[];
 }>;
@@ -117,7 +120,7 @@ async function get(applicationId: string): Promise<ReporterApplicationDetail | n
     supabase.from("profiles").select("display_name, username, is_active").eq("id", application.profile_id).single(),
     supabase.from("reporter_consents").select("notice_key, notice_version, locale, consented_at, withdrawn_at").eq("application_id", application.id).order("created_at"),
     supabase.from("reporter_payments").select("id, amount_paise, currency, payment_status, captured_at, refund_status, refund_failure_detail").eq("application_id", application.id).maybeSingle(),
-    supabase.from("reporter_profiles").select("public_status, membership_expires_at, membership_grace_ends_at, can_publish_directly, can_broadcast_live, suspension_reason, access_sync_status, access_sync_operation, access_sync_failure_detail").eq("profile_id", application.profile_id).maybeSingle(),
+    supabase.from("reporter_profiles").select("public_status, membership_expires_at, membership_grace_ends_at, can_publish_directly, can_broadcast_live, suspension_reason, access_sync_status, access_sync_operation, access_sync_failure_detail, access_sync_generation, access_sync_desired_role, access_sync_claimed_at").eq("profile_id", application.profile_id).maybeSingle(),
     supabase.from("audit_events").select("action, created_at, metadata").eq("subject_type", "reporter_application").eq("subject_id", application.id).order("created_at", { ascending: false }),
     supabase.from("audit_events").select("action, created_at, metadata").eq("subject_type", "reporter_profile").eq("subject_id", application.profile_id).order("created_at", { ascending: false }),
   ]);
@@ -188,6 +191,9 @@ async function get(applicationId: string): Promise<ReporterApplicationDetail | n
       accessSyncStatus: reporter.access_sync_status,
       accessSyncOperation: reporter.access_sync_operation,
       accessSyncFailureDetail: reporter.access_sync_failure_detail,
+      accessSyncGeneration: reporter.access_sync_generation,
+      accessSyncDesiredRole: reporter.access_sync_desired_role,
+      accessSyncClaimedAt: reporter.access_sync_claimed_at,
     } : null,
     audit: [
       ...applicationAuditResult.data,
@@ -210,7 +216,7 @@ async function approve(applicationId: string, publicPhotoIdentityMatch: boolean)
     p_public_photo_identity_match: publicPhotoIdentityMatch,
   });
   if (error || !data) throw new ReporterRepositoryError("The application could not be approved.");
-  return { profileId: data, operation: "approval" as const };
+  return { profileId: data };
 }
 
 async function reject(applicationId: string, reason: string) {
@@ -235,7 +241,7 @@ async function suspend(profileId: string, reason: string) {
     p_reason: reason,
   });
   if (error || !data) throw new ReporterRepositoryError("The reporter could not be suspended.");
-  return { profileId: data, operation: "suspension" as const };
+  return { profileId: data };
 }
 
 async function reinstate(profileId: string) {
@@ -243,38 +249,70 @@ async function reinstate(profileId: string) {
     p_profile_id: profileId,
   });
   if (error || !data) throw new ReporterRepositoryError("The reporter could not be reinstated.");
-  return { profileId: data, operation: "reinstatement" as const };
+  return { profileId: data };
 }
 
-async function retryTarget(profileId: string) {
-  const { data, error } = await (await createClient())
-    .from("reporter_profiles")
-    .select("access_sync_status, access_sync_operation")
-    .eq("profile_id", profileId)
-    .maybeSingle();
-  if (error || !data || data.access_sync_status === "succeeded"
-    || !["approval", "suspension", "reinstatement"].includes(data.access_sync_operation ?? "")) {
-    throw new ReporterRepositoryError("There is no failed reporter access synchronization to retry.");
+function jsonRecord(value: Json): Readonly<Record<string, Json | undefined>> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value
+    : null;
+}
+
+async function claimAccessSync(profileId: string) {
+  const { data, error } = await (await createClient()).rpc("claim_reporter_access_sync", {
+    p_profile_id: profileId,
+  });
+  const result = data === null ? null : jsonRecord(data);
+  if (error || !result || !Number.isSafeInteger(result.generation)) {
+    throw new ReporterRepositoryError("Reporter access synchronization could not be reserved.");
+  }
+  const generation = result.generation as number;
+  if (result.state === "busy" || result.state === "succeeded") {
+    return { state: result.state, generation } as const;
+  }
+  if (result.state !== "claimed"
+    || result.profile_id !== profileId
+    || !["approval", "suspension", "reinstatement"].includes(String(result.operation))
+    || !["none", "reporter"].includes(String(result.desired_role))
+    || typeof result.claim_token !== "string") {
+    throw new ReporterRepositoryError("Reporter access synchronization could not be reserved.");
   }
   return {
+    state: "claimed" as const,
     profileId,
-    operation: data.access_sync_operation as "approval" | "suspension" | "reinstatement",
+    operation: result.operation as "approval" | "suspension" | "reinstatement",
+    desiredRole: result.desired_role as "none" | "reporter",
+    generation,
+    claimToken: result.claim_token,
   };
 }
 
-async function finishAccessSync(input: Readonly<{
+async function completeAccessSync(input: Readonly<{
   profileId: string;
   operation: "approval" | "suspension" | "reinstatement";
+  desiredRole: "none" | "reporter";
+  generation: number;
+  claimToken: string;
   succeeded: boolean;
   failureDetail: "auth-claim-update-failed" | null;
-}>): Promise<void> {
+}>) {
   const { data, error } = await (await createClient()).rpc("complete_reporter_access_sync", {
     p_profile_id: input.profileId,
-    p_operation: input.operation,
+    p_generation: input.generation,
+    p_claim_token: input.claimToken,
     p_succeeded: input.succeeded,
     p_failure_detail: input.failureDetail,
   });
-  if (error || !data) throw new ReporterRepositoryError("Reporter access synchronization could not be recorded.");
+  const result = data === null ? null : jsonRecord(data);
+  if (error || !result
+    || !["expired", "failed", "stale", "succeeded"].includes(String(result.state))
+    || !Number.isSafeInteger(result.generation)) {
+    throw new ReporterRepositoryError("Reporter access synchronization could not be recorded.");
+  }
+  return {
+    state: result.state as "expired" | "failed" | "stale" | "succeeded",
+    generation: result.generation as number,
+  };
 }
 
 export const reporterRepository = {
@@ -284,6 +322,6 @@ export const reporterRepository = {
   reject,
   suspend,
   reinstate,
-  retryTarget,
-  finishAccessSync,
+  claimAccessSync,
+  completeAccessSync,
 } as const;

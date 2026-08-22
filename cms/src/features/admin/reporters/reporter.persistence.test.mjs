@@ -9,18 +9,25 @@ const migration = await readFile(
   ),
   "utf8",
 );
+const coordination = await readFile(
+  new URL(
+    "../../../../../supabase/migrations/20260822120000_reporter_access_sync_coordination.sql",
+    import.meta.url,
+  ),
+  "utf8",
+).catch(() => "");
 
 function compact(value) {
   return value.replace(/\s+/gu, " ").trim();
 }
 
-function rpc(name, signatureStart = "") {
+function rpc(name, signatureStart = "", source = migration) {
   const marker = `create or replace function public.${name}(${signatureStart}`;
-  const start = migration.indexOf(marker);
+  const start = source.indexOf(marker);
   assert.notEqual(start, -1, `missing ${name}`);
-  const end = migration.indexOf("\n$$;", start);
+  const end = source.indexOf("\n$$;", start);
   assert.notEqual(end, -1, `unterminated ${name}`);
-  return compact(migration.slice(start, end + 4));
+  return compact(source.slice(start, end + 4));
 }
 
 test("approval atomically owns public portrait confirmation and every eligibility check", () => {
@@ -129,4 +136,90 @@ test("reporter administration reads require both signed and active database admi
   }
   assert.match(migration, /auth\.jwt\(\) -> 'app_metadata' ->> 'role'\) = 'admin'/u);
   assert.match(migration, /where profiles\.id = \(select auth\.uid\(\)\)[\s\S]*profiles\.role = 'admin'[\s\S]*profiles\.is_active/u);
+});
+
+test("every desired signed-role transition advances state without admitting a second lease holder", () => {
+  const approval = rpc("approve_reporter_application", "\n  p_application_id uuid,", coordination);
+  const suspension = rpc("suspend_reporter", "\n  p_profile_id uuid,", coordination);
+  const reinstatement = rpc("reinstate_reporter", "p_profile_id uuid", coordination);
+  assert.match(approval, /access_sync_generation[\s\S]*access_sync_desired_role[\s\S]*access_sync_claim_token/u);
+  assert.match(approval, /1,[\s\S]*'reporter',[\s\S]*null,[\s\S]*null,[\s\S]*null/u);
+  for (const transition of [suspension, reinstatement]) {
+    assert.match(transition, /access_sync_generation = current_reporter\.access_sync_generation \+ 1/u);
+    assert.match(transition, /access_sync_status = 'pending'/u);
+    assert.doesNotMatch(transition, /access_sync_claim_token = null/u);
+    assert.doesNotMatch(transition, /access_sync_claimed_at = null/u);
+    assert.doesNotMatch(transition, /access_sync_claim_generation = null/u);
+  }
+  assert.match(suspension, /access_sync_desired_role = 'none'/u);
+  assert.match(reinstatement, /access_sync_desired_role = 'reporter'/u);
+});
+
+test("claim RPC serializes a current generation with a reclaimable single-holder lease", () => {
+  const claim = rpc("claim_reporter_access_sync", "p_profile_id uuid", coordination);
+  assert.match(coordination, /create table public\.reporter_access_sync_attempts/u);
+  assert.match(coordination, /alter table public\.reporter_access_sync_attempts enable row level security/u);
+  assert.match(compact(coordination), /revoke all on table public\.reporter_access_sync_attempts from public, anon, authenticated, service_role/u);
+  assert.match(claim, /where id = actor_id and role = 'admin' and is_active/u);
+  assert.match(claim, /from public\.reporter_profiles[\s\S]*for update/u);
+  assert.match(claim, /access_sync_claimed_at > claim_time - interval '5 minutes'/u);
+  assert.match(claim, /jsonb_build_object\(\s*'state', 'busy'/u);
+  assert.match(claim, /claim_token uuid := gen_random_uuid\(\)/u);
+  assert.match(claim, /access_sync_claim_token = claim_token/u);
+  assert.match(claim, /access_sync_claim_generation = current_reporter\.access_sync_generation/u);
+  assert.match(claim, /insert into public\.reporter_access_sync_attempts/u);
+  assert.match(claim, /current_reporter\.access_sync_desired_role/u);
+  assert.match(claim, /'generation', current_reporter\.access_sync_generation/u);
+  assert.match(claim, /'desired_role', current_reporter\.access_sync_desired_role/u);
+  const sql = compact(coordination);
+  assert.match(sql, /revoke all on function public\.claim_reporter_access_sync\(uuid\) from public, anon, authenticated, service_role/u);
+  assert.match(sql, /grant execute on function public\.claim_reporter_access_sync\(uuid\) to authenticated/u);
+});
+
+test("completion is generation-and-token CAS with monotonic terminal success", () => {
+  const completion = rpc("complete_reporter_access_sync", "\n  p_profile_id uuid,", coordination);
+  assert.match(coordination, /add column access_sync_completed_token uuid/u);
+  assert.match(completion, /p_generation bigint/u);
+  assert.match(completion, /p_claim_token uuid/u);
+  assert.match(completion, /from public\.reporter_access_sync_attempts[\s\S]*claim_token = p_claim_token[\s\S]*for update/u);
+  assert.match(completion, /current_attempt\.completion_status = 'succeeded'[\s\S]*'state', 'succeeded'/u);
+  assert.match(completion, /current_reporter\.access_sync_claim_token is not distinct from p_claim_token/u);
+  assert.match(completion, /current_reporter\.access_sync_claim_generation is not distinct from p_generation/u);
+  assert.match(completion, /current_reporter\.access_sync_generation \+ 1[\s\S]*access_sync_status = 'pending'/u);
+  assert.match(completion, /access_sync_claim_token = null/u);
+  assert.match(completion, /access_sync_claimed_at = null/u);
+  assert.match(completion, /access_sync_completed_token = case when p_succeeded then p_claim_token else null end/u);
+  assert.match(completion, /'reporter\.access_sync_succeeded'/u);
+  assert.match(completion, /'reporter\.access_sync_failed'/u);
+  assert.match(completion, /'reporter\.access_sync_stale_succeeded'/u);
+  assert.match(completion, /'reporter\.access_sync_stale_failed'/u);
+  const sql = compact(coordination);
+  assert.match(sql, /revoke all on function public\.complete_reporter_access_sync\(uuid, bigint, uuid, boolean, text\) from public, anon, authenticated, service_role/u);
+  assert.match(sql, /grant execute on function public\.complete_reporter_access_sync\(uuid, bigint, uuid, boolean, text\) to authenticated/u);
+});
+
+test("suspension audit is truthful and access-sync audit owns claim outcome", () => {
+  const suspension = rpc("suspend_reporter", "\n  p_profile_id uuid,", coordination);
+  const completion = rpc("complete_reporter_access_sync", "\n  p_profile_id uuid,", coordination);
+  assert.match(suspension, /'database_access', 'disabled'/u);
+  assert.match(suspension, /'trust_flags', 'disabled'/u);
+  assert.match(suspension, /'signed_claim_sync', 'pending'/u);
+  assert.doesNotMatch(suspension, /database-and-signed-claim|claim_revoked/u);
+  assert.match(completion, /'generation', p_generation/u);
+  assert.match(completion, /'desired_role', current_attempt\.desired_role/u);
+});
+
+test("suspension provenance prevents reactivating independently inactive profiles", () => {
+  const suspension = rpc("suspend_reporter", "\n  p_profile_id uuid,", coordination);
+  const reinstatement = rpc("reinstate_reporter", "p_profile_id uuid", coordination);
+  assert.match(coordination, /add column reporter_suspension_token uuid/u);
+  assert.match(coordination, /add column suspension_token uuid/u);
+  assert.match(suspension, /if not current_profile\.is_active then/u);
+  assert.match(suspension, /new_suspension_token uuid := gen_random_uuid\(\)/u);
+  assert.match(suspension, /reporter_suspension_token = new_suspension_token/u);
+  assert.match(reinstatement, /current_profile\.reporter_suspension_token is distinct from current_reporter\.suspension_token/u);
+  assert.match(reinstatement, /current_profile\.reporter_suspension_reason <> current_reporter\.suspension_reason/u);
+  assert.match(reinstatement, /reporter_suspension_token = null/u);
+  assert.match(reinstatement, /suspension_token = null/u);
+  assert.match(coordination, /revoke update on table public\.profiles from authenticated/u);
 });

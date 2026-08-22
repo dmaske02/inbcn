@@ -22,6 +22,44 @@ export type Database = {
           { foreignKeyName: "audit_events_actor_id_fkey"; columns: ["actor_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
         ]
       }
+      reporter_access_sync_attempts: {
+        Row: {
+          claim_token: string
+          profile_id: string
+          generation: number
+          desired_role: string
+          operation: string
+          claimed_at: string
+          completion_status: string
+          completed_at: string | null
+          failure_detail: string | null
+        }
+        Insert: {
+          claim_token: string
+          profile_id: string
+          generation: number
+          desired_role: string
+          operation: string
+          claimed_at: string
+          completion_status?: string
+          completed_at?: string | null
+          failure_detail?: string | null
+        }
+        Update: {
+          claim_token?: string
+          profile_id?: string
+          generation?: number
+          desired_role?: string
+          operation?: string
+          claimed_at?: string
+          completion_status?: string
+          completed_at?: string | null
+          failure_detail?: string | null
+        }
+        Relationships: [
+          { foreignKeyName: "reporter_access_sync_attempts_profile_id_fkey"; columns: ["profile_id"]; isOneToOne: false; referencedRelation: "reporter_profiles"; referencedColumns: ["profile_id"] },
+        ]
+      }
       reporter_applications: {
         Row: {
           id: string
@@ -274,7 +312,14 @@ export type Database = {
           access_sync_status: string
           access_sync_operation: string | null
           access_sync_failure_detail: string | null
+          access_sync_generation: number
+          access_sync_desired_role: string
+          access_sync_claim_token: string | null
+          access_sync_claimed_at: string | null
+          access_sync_claim_generation: number | null
+          access_sync_completed_token: string | null
           access_sync_updated_at: string
+          suspension_token: string | null
           created_at: string
           updated_at: string
         }
@@ -310,7 +355,14 @@ export type Database = {
           access_sync_status?: string
           access_sync_operation?: string | null
           access_sync_failure_detail?: string | null
+          access_sync_generation?: number
+          access_sync_desired_role?: string
+          access_sync_claim_token?: string | null
+          access_sync_claimed_at?: string | null
+          access_sync_claim_generation?: number | null
+          access_sync_completed_token?: string | null
           access_sync_updated_at?: string
+          suspension_token?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -346,7 +398,14 @@ export type Database = {
           access_sync_status?: string
           access_sync_operation?: string | null
           access_sync_failure_detail?: string | null
+          access_sync_generation?: number
+          access_sync_desired_role?: string
+          access_sync_claim_token?: string | null
+          access_sync_claimed_at?: string | null
+          access_sync_claim_generation?: number | null
+          access_sync_completed_token?: string | null
           access_sync_updated_at?: string
+          suspension_token?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -759,6 +818,10 @@ export type Database = {
           id: string
           is_active: boolean
           preferred_language_id: string | null
+          reporter_suspended_at: string | null
+          reporter_suspended_by: string | null
+          reporter_suspension_reason: string | null
+          reporter_suspension_token: string | null
           role: Database["public"]["Enums"]["profile_role"]
           updated_at: string
           username: string
@@ -771,6 +834,10 @@ export type Database = {
           id: string
           is_active?: boolean
           preferred_language_id?: string | null
+          reporter_suspended_at?: string | null
+          reporter_suspended_by?: string | null
+          reporter_suspension_reason?: string | null
+          reporter_suspension_token?: string | null
           role?: Database["public"]["Enums"]["profile_role"]
           updated_at?: string
           username: string
@@ -783,6 +850,10 @@ export type Database = {
           id?: string
           is_active?: boolean
           preferred_language_id?: string | null
+          reporter_suspended_at?: string | null
+          reporter_suspended_by?: string | null
+          reporter_suspension_reason?: string | null
+          reporter_suspension_token?: string | null
           role?: Database["public"]["Enums"]["profile_role"]
           updated_at?: string
           username?: string
@@ -793,6 +864,13 @@ export type Database = {
             columns: ["preferred_language_id"]
             isOneToOne: false
             referencedRelation: "languages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_reporter_suspended_by_fkey"
+            columns: ["reporter_suspended_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1139,6 +1217,7 @@ export type Database = {
         Args: { p_event_id: string; p_event_type: string }
         Returns: Json
       }
+      claim_reporter_access_sync: { Args: { p_profile_id: string }; Returns: Json }
       claim_kyc_webhook_event: { Args: { p_event_id: string; p_event_type: string }; Returns: Json }
       claim_auto_import_batch: {
         Args: { p_started_at: string; p_lock_expires_at: string; p_queue_size: number; p_force?: boolean }
@@ -1168,7 +1247,10 @@ export type Database = {
         Returns: boolean
       }
       complete_reporter_kyc_start: { Args: { p_application_id: string; p_profile_id: string; p_reservation_token: string; p_provider: string; p_reference: string }; Returns: boolean }
-      complete_reporter_access_sync: { Args: { p_profile_id: string; p_operation: string; p_succeeded: boolean; p_failure_detail: string | null }; Returns: boolean }
+      complete_reporter_access_sync: {
+        Args: { p_profile_id: string; p_generation: number; p_claim_token: string; p_succeeded: boolean; p_failure_detail: string | null }
+        Returns: Json
+      }
       fail_razorpay_webhook_event: {
         Args: { p_event_id: string; p_processing_token: string; p_failure_detail: string }
         Returns: boolean

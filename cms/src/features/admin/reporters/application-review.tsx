@@ -155,11 +155,15 @@ export function ApplicationReview({ application }: Readonly<{
               </p>
             </div>
             <Badge variant={application.reporter.accessSyncStatus === "succeeded" ? "verified" : "signal"}>
-              access sync {application.reporter.accessSyncStatus}
+              access sync {application.reporter.accessSyncStatus} · generation {application.reporter.accessSyncGeneration}
             </Badge>
           </div>
           <p className="text-sm">
             Direct publish: {application.reporter.canPublishDirectly ? "enabled" : "disabled"}. Live: {application.reporter.canBroadcastLive ? "enabled" : "disabled"}.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Current signed-role target: {application.reporter.accessSyncDesiredRole === "reporter" ? "reporter" : "no reporter role"}.
+            {application.reporter.accessSyncClaimedAt ? " A synchronization lease is currently recorded." : ""}
           </p>
           {application.reporter.accessSyncFailureDetail ? (
             <p className="text-sm text-destructive" role="alert">
@@ -187,7 +191,7 @@ export function ApplicationReview({ application }: Readonly<{
             </form>
           )}
           <p className="text-xs text-muted-foreground">
-            Supabase does not support refresh-token or session deletion by user ID. Suspension is immediate access revocation through inactive database state and signed app_metadata removal; existing JWTs remain until expiry but are denied by the database gate.
+            Supabase does not support refresh-token or session deletion by user ID. Suspension disables database access immediately; the current generation separately tracks signed app_metadata synchronization. Existing JWTs remain until expiry but are denied by the inactive database gate.
           </p>
         </section>
       ) : null}

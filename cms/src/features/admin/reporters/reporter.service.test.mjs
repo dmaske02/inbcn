@@ -10,6 +10,7 @@ import {
 const applicationId = "11111111-1111-4111-8111-111111111111";
 const profileId = "22222222-2222-4222-8222-222222222222";
 const paymentId = "33333333-3333-4333-8333-333333333333";
+const claimToken = "55555555-5555-4555-8555-555555555555";
 const admin = {
   id: "44444444-4444-4444-8444-444444444444",
   role: "admin",
@@ -23,7 +24,7 @@ function fixture(overrides = {}) {
     get: async () => null,
     approve: async () => {
       calls.push(["approve"]);
-      return { profileId, operation: "approval" };
+      return { profileId };
     },
     reject: async (_applicationId, reason) => {
       calls.push(["reject", reason]);
@@ -31,15 +32,26 @@ function fixture(overrides = {}) {
     },
     suspend: async (_profileId, reason) => {
       calls.push(["suspend", reason]);
-      return { profileId, operation: "suspension" };
+      return { profileId };
     },
     reinstate: async () => {
       calls.push(["reinstate"]);
-      return { profileId, operation: "reinstatement" };
+      return { profileId };
     },
-    retryTarget: async () => ({ profileId, operation: "approval" }),
-    finishAccessSync: async (input) => {
-      calls.push(["finish", input]);
+    claimAccessSync: async (id) => {
+      calls.push(["claim", id]);
+      return {
+        state: "claimed",
+        profileId,
+        operation: "approval",
+        desiredRole: "reporter",
+        generation: 1,
+        claimToken,
+      };
+    },
+    completeAccessSync: async (input) => {
+      calls.push(["complete", input]);
+      return { state: input.succeeded ? "succeeded" : "failed", generation: input.generation };
     },
     ...overrides.repository,
   };
@@ -80,10 +92,14 @@ test("approval commits the database decision before granting the signed reporter
 
   assert.deepEqual(calls, [
     ["approve"],
+    ["claim", profileId],
     ["role", profileId, "reporter"],
-    ["finish", {
+    ["complete", {
       profileId,
+      generation: 1,
+      claimToken,
       operation: "approval",
+      desiredRole: "reporter",
       succeeded: true,
       failureDetail: null,
     }],
@@ -106,10 +122,14 @@ test("claim-update failure is recorded and leaves the database gate failed close
   );
   assert.deepEqual(calls, [
     ["approve"],
+    ["claim", profileId],
     ["role-failed"],
-    ["finish", {
+    ["complete", {
       profileId,
+      generation: 1,
+      claimToken,
       operation: "approval",
+      desiredRole: "reporter",
       succeeded: false,
       failureDetail: "auth-claim-update-failed",
     }],
@@ -132,20 +152,182 @@ test("rejection requires a reason and starts the idempotent full refund after th
 });
 
 test("suspension removes signed access after the atomic DB lock and never refunds", async () => {
-  const { calls, service } = fixture();
+  const { calls, service } = fixture({
+    repository: {
+      claimAccessSync: async (id) => {
+        calls.push(["claim", id]);
+        return {
+          state: "claimed",
+          profileId,
+          operation: "suspension",
+          desiredRole: "none",
+          generation: 2,
+          claimToken,
+        };
+      },
+    },
+  });
 
   await service.suspend(admin, profileId, "  Editorial policy breach. ");
 
   assert.deepEqual(calls, [
     ["suspend", "Editorial policy breach."],
+    ["claim", profileId],
     ["role", profileId, null],
-    ["finish", {
+    ["complete", {
       profileId,
+      generation: 2,
+      claimToken,
       operation: "suspension",
+      desiredRole: "none",
       succeeded: true,
       failureDetail: null,
     }],
   ]);
+});
+
+test("stale approve and suspend writes reconcile through the newest reinstate generation", async () => {
+  const claims = [
+    {
+      state: "claimed",
+      profileId,
+      operation: "approval",
+      desiredRole: "reporter",
+      generation: 1,
+      claimToken: "55555555-5555-4555-8555-555555555551",
+    },
+    {
+      state: "claimed",
+      profileId,
+      operation: "suspension",
+      desiredRole: "none",
+      generation: 2,
+      claimToken: "55555555-5555-4555-8555-555555555552",
+    },
+    {
+      state: "claimed",
+      profileId,
+      operation: "reinstatement",
+      desiredRole: "reporter",
+      generation: 3,
+      claimToken: "55555555-5555-4555-8555-555555555553",
+    },
+  ];
+  const writes = [];
+  const completions = [];
+  const { service } = fixture({
+    repository: {
+      claimAccessSync: async () => claims.shift(),
+      completeAccessSync: async (input) => {
+        completions.push(input);
+        return input.generation < 3
+          ? { state: "stale", generation: 3 }
+          : { state: "succeeded", generation: 3 };
+      },
+    },
+    setSignedRole: async (_id, role) => writes.push(role),
+  });
+
+  await service.approve(admin, applicationId, true);
+
+  assert.deepEqual(writes, ["reporter", null, "reporter"]);
+  assert.deepEqual(completions.map(({ generation }) => generation), [1, 2, 3]);
+});
+
+test("retry repairs a newer desired generation after an external write then completion crash", async () => {
+  const writes = [];
+  let completionCrashed = false;
+  const first = fixture({
+    repository: {
+      claimAccessSync: async () => ({
+        state: "claimed",
+        profileId,
+        operation: "approval",
+        desiredRole: "reporter",
+        generation: 7,
+        claimToken,
+      }),
+      completeAccessSync: async () => {
+        completionCrashed = true;
+        throw new Error("database unavailable after external write");
+      },
+    },
+    setSignedRole: async (_id, role) => writes.push(role),
+  });
+
+  await assert.rejects(first.service.retryAccessSync(admin, profileId));
+  assert.equal(completionCrashed, true);
+  assert.deepEqual(writes, ["reporter"]);
+
+  const recovery = fixture({
+    repository: {
+      claimAccessSync: async () => ({
+        state: "claimed",
+        profileId,
+        operation: "suspension",
+        desiredRole: "none",
+        generation: 8,
+        claimToken: "55555555-5555-4555-8555-555555555558",
+      }),
+      completeAccessSync: async () => ({ state: "succeeded", generation: 8 }),
+    },
+    setSignedRole: async (_id, role) => writes.push(role),
+  });
+
+  await recovery.service.retryAccessSync(admin, profileId);
+  assert.deepEqual(writes, ["reporter", null]);
+});
+
+test("a late expired-holder write reconciles the repair generation after newer success", async () => {
+  const claims = [
+    {
+      state: "claimed",
+      profileId,
+      operation: "approval",
+      desiredRole: "reporter",
+      generation: 4,
+      claimToken: "55555555-5555-4555-8555-555555555554",
+    },
+    {
+      state: "claimed",
+      profileId,
+      operation: "suspension",
+      desiredRole: "none",
+      generation: 6,
+      claimToken: "55555555-5555-4555-8555-555555555556",
+    },
+  ];
+  const writes = [];
+  const { service } = fixture({
+    repository: {
+      claimAccessSync: async () => claims.shift(),
+      completeAccessSync: async (input) => input.generation === 4
+        ? { state: "stale", generation: 6 }
+        : { state: "succeeded", generation: 6 },
+    },
+    setSignedRole: async (_id, role) => writes.push(role),
+  });
+
+  await service.retryAccessSync(admin, profileId);
+
+  assert.deepEqual(writes, ["reporter", null]);
+});
+
+test("an active synchronization lease is not bypassed by a competing retry", async () => {
+  let wrote = false;
+  const { service } = fixture({
+    repository: {
+      claimAccessSync: async () => ({ state: "busy", generation: 4 }),
+    },
+    setSignedRole: async () => { wrote = true; },
+  });
+
+  await assert.rejects(
+    service.retryAccessSync(admin, profileId),
+    (error) => error instanceof ReporterManagementError
+      && error.code === "ACCESS_SYNC_FAILED",
+  );
+  assert.equal(wrote, false);
 });
 
 test("signed role updates preserve unrelated app_metadata and never use user_metadata", () => {
