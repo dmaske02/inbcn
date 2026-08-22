@@ -1148,6 +1148,7 @@ export type Database = {
           id: string
           is_breaking: boolean
           is_featured: boolean
+          is_reporter_story: boolean
           is_sponsored: boolean
           language_id: string
           published_at: string | null
@@ -1391,6 +1392,10 @@ export type Database = {
       fail_kyc_webhook_event: { Args: { p_event_id: string; p_processing_token: string; p_failure_detail: string }; Returns: boolean }
       fail_reporter_order: {
         Args: { p_payment_id: string; p_order_creation_token: string }
+        Returns: boolean
+      }
+      is_reporter_story: {
+        Args: { "": Database["public"]["Tables"]["stories"]["Row"] }
         Returns: boolean
       }
       fail_reporter_refund_request: {

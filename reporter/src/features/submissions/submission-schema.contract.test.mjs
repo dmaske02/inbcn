@@ -87,7 +87,9 @@ test("revision and story guards preserve submitted and canonical provenance", ()
   assert.match(draftGuard, /new\.published_at is distinct from old\.published_at/u);
   assert.match(draftGuard, /new\.updated_at := clock_timestamp\(\)/u);
   assert.match(provenanceGuard, /security definer set search_path = ''/u);
-  assert.match(provenanceGuard, /old\.story_type is distinct from 'citizen_report'.*new\.story_type is distinct from 'citizen_report'/u);
+  assert.match(provenanceGuard, /old_reporter_story boolean := public\.is_reporter_story\(old\)/u);
+  assert.match(provenanceGuard, /new_reporter_story boolean := public\.is_reporter_story\(new\)/u);
+  assert.match(provenanceGuard, /if not old_reporter_story and not new_reporter_story then return new/u);
   assert.match(provenanceGuard, /new\.story_type is distinct from old\.story_type/u);
   assert.match(provenanceGuard, /new\.content is distinct from old\.content/u);
   assert.match(provenanceGuard, /new\.featured_media_id is distinct from old\.featured_media_id/u);
@@ -107,6 +109,45 @@ test("revision and story guards preserve submitted and canonical provenance", ()
   assert.match(provenanceGuard, /new\.updated_at := transition_time/u);
   assert.match(provenanceGuard, /REPORTER_STORY_PROVENANCE_IMMUTABLE/u);
   assert.match(provenanceGuard, /REPORTER_STORY_LIFECYCLE_IMMUTABLE/u);
+});
+
+test("reporter provenance is explicit and preserves legacy citizen-report CMS workflows", () => {
+  const predicate = sqlFunction("is_reporter_story");
+  const guard = sqlFunction("guard_reporter_story_provenance");
+  const synchronize = sqlFunction("synchronize_reporter_story_evidence");
+  const source = compact(sql);
+
+  assert.match(predicate, /public\.is_reporter_story\(public\.stories\)/u);
+  assert.match(predicate, /stable security definer set search_path = ''/u);
+  assert.match(predicate, /\$1\.story_type = 'citizen_report'/u);
+  assert.match(predicate, /reporter_profiles\.profile_id = \$1\.created_by/u);
+  assert.match(predicate, /story_revisions\.story_id = \$1\.id/u);
+  assert.match(guard, /old_reporter_story boolean := public\.is_reporter_story\(old\)/u);
+  assert.match(guard, /new_reporter_story boolean := public\.is_reporter_story\(new\)/u);
+  assert.match(guard, /if not old_reporter_story and not new_reporter_story then return new/u);
+  assert.match(synchronize, /old_reporter_story boolean := public\.is_reporter_story\(old\)/u);
+  assert.match(synchronize, /new_reporter_story boolean := public\.is_reporter_story\(new\)/u);
+  assert.match(synchronize, /if \(not old_reporter_story and not new_reporter_story\)/u);
+
+  for (const name of [
+    "submit_reporter_story",
+    "direct_publish_reporter_story",
+    "withdraw_reporter_story",
+    "request_reporter_changes",
+  ]) {
+    assert.match(sqlFunction(name), /not public\.is_reporter_story\(current_story\)/u);
+  }
+
+  for (const policy of [
+    "Reporters can read their own stories",
+    "Reporters can create their own story drafts",
+    "Reporters can update their own story drafts",
+  ]) {
+    assert.match(source, new RegExp(`create policy "${policy}".*public\\.is_reporter_story\\(stories\\)`, "u"));
+  }
+  assert.match(source, /create or replace view public\.public_reporter_profiles.*public\.is_reporter_story\(stories\)/u);
+  assert.match(source, /revoke all on function public\.is_reporter_story\(public\.stories\) from public, anon, authenticated, service_role/u);
+  assert.match(source, /grant execute on function public\.is_reporter_story\(public\.stories\) to anon, authenticated, service_role/u);
 });
 
 test("every reporter review transition requires matching latest immutable evidence", () => {
@@ -147,7 +188,7 @@ test("canonical CMS review states advance reporter evidence monotonically and au
   const synchronize = sqlFunction("synchronize_reporter_story_evidence");
 
   assert.match(synchronize, /security definer set search_path = ''/u);
-  assert.match(synchronize, /new\.story_type is distinct from 'citizen_report'/u);
+  assert.match(synchronize, /not old_reporter_story and not new_reporter_story/u);
   assert.match(synchronize, /new\.status not in \('approved', 'scheduled', 'published', 'rejected', 'archived'\)/u);
   assert.match(synchronize, /select \* into current_revision from public\.story_revisions .* order by revision_number desc limit 1 for update/u);
   assert.match(synchronize, /when new\.status = 'approved' then 'approved'/u);
@@ -199,7 +240,7 @@ test("reviewed submission locks ownership and snapshots canonical story media at
   assert.match(submit, /reporter_access_generation.*access_sync_generation/u);
   assert.match(submit, /public_status not in \('active', 'grace'\)/u);
   assert.match(submit, /membership_grace_ends_at < submission_time/u);
-  assert.match(submit, /story_type is distinct from 'citizen_report'/u);
+  assert.match(submit, /not public\.is_reporter_story\(current_story\)/u);
   assert.match(submit, /current_story\.created_by is distinct from actor_id/u);
   assert.match(submit, /current_story\.status is distinct from 'draft'/u);
   assert.match(submit, /from public\.languages/u);
@@ -329,4 +370,6 @@ test("generated database contracts expose submission tables and RPCs", () => {
   assert.match(source, /direct_publish_reporter_story: \{ Args:/u);
   assert.match(source, /withdraw_reporter_story: \{ Args:/u);
   assert.match(source, /request_reporter_changes: \{ Args:/u);
+  assert.match(source, /stories: \{ Row: \{.*is_reporter_story: boolean/u);
+  assert.match(source, /is_reporter_story: \{ Args: \{ "": Database\["public"\]\["Tables"\]\["stories"\]\["Row"\] \} Returns: boolean \}/u);
 });

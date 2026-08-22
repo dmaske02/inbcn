@@ -94,6 +94,7 @@ export type CmsStoryDto = Readonly<{
   sourceId: string | null;
   createdBy: string | null;
   approvedBy: string | null;
+  isReporterStory: boolean;
   type: DatabaseEnum<"story_type">;
   status: DatabaseEnum<"story_status">;
   slug: string;

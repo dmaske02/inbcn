@@ -32,7 +32,7 @@ const STORY_DETAIL_COLUMNS =
   `${STORY_SUMMARY_COLUMNS}, content, updated_at, external_url, seo_title, seo_description, seo_keywords, canonical_url` as const;
 const CATEGORY_STORY_COLUMNS = `${STORY_SUMMARY_COLUMNS}, content` as const;
 const CMS_STORY_COLUMNS =
-  "id, language_id, category_id, source_id, created_by, approved_by, story_type, status, slug, title, summary, content, external_id, external_url, external_author, external_published_at, external_image_url, external_image_width, external_image_height, featured_media_id, seo_title, seo_description, seo_keywords, canonical_url, is_featured, is_breaking, submitted_at, approved_at, scheduled_at, published_at, created_at, updated_at" as const;
+  "id, language_id, category_id, source_id, created_by, approved_by, is_reporter_story, story_type, status, slug, title, summary, content, external_id, external_url, external_author, external_published_at, external_image_url, external_image_width, external_image_height, featured_media_id, seo_title, seo_description, seo_keywords, canonical_url, is_featured, is_breaking, submitted_at, approved_at, scheduled_at, published_at, created_at, updated_at" as const;
 
 export type CmsStoryListQuery = Readonly<{
   page: number;
@@ -85,7 +85,7 @@ type CategoryStoryRow = StorySummaryRow & Pick<TableRow<"stories">, "content">;
 
 type CmsStoryRow = Pick<TableRow<"stories">, keyof CmsStoryDto extends never ? never :
   | "id" | "language_id" | "category_id" | "source_id" | "created_by" | "approved_by"
-  | "story_type" | "status" | "slug" | "title" | "summary" | "content"
+  | "is_reporter_story" | "story_type" | "status" | "slug" | "title" | "summary" | "content"
   | "external_id" | "external_url" | "external_author" | "external_published_at" | "external_image_url" | "external_image_width" | "external_image_height"
   | "featured_media_id" | "seo_title" | "seo_description" | "seo_keywords"
   | "canonical_url" | "is_featured" | "is_breaking" | "submitted_at" | "approved_at"
@@ -95,6 +95,7 @@ function toCmsStoryDto(row: CmsStoryRow): CmsStoryDto {
   return {
     id: row.id, languageId: row.language_id, categoryId: row.category_id,
     sourceId: row.source_id, createdBy: row.created_by, approvedBy: row.approved_by,
+    isReporterStory: row.is_reporter_story,
     type: row.story_type, status: row.status, slug: row.slug, title: row.title,
     summary: row.summary, content: row.content,
     externalId: row.external_id, externalUrl: row.external_url,

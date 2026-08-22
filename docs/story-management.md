@@ -98,6 +98,16 @@ while allowing the CMS to advance only the lifecycle fields defined for the
 requested transition. Same-status updates cannot rewrite submission, approval,
 rejection, schedule, or publication provenance. The CMS preserves
 `citizen_report` and exposes no generic save command for reporter stories.
+Reporter provenance is explicit: the database classifies a citizen report as a
+reporter submission only when its creator has a reporter profile or the story
+already has immutable reporter revision evidence. The CMS selects that
+classification as a computed field and uses it for command restrictions.
+Consequently, legacy writer/admin-created `citizen_report` rows with neither
+form of reporter provenance keep their ordinary CMS edit/review/archive
+workflow; no synthetic revision or reporter attribution is created for them.
+The provenance guard evaluates both the old and new row classifications, so
+changing creator or type cannot make a protected reporter submission escape the
+evidence rules or make a legacy story silently enter them.
 
 Draft content can change only while the canonical status remains `draft`.
 Leaving draft requires the latest locked revision to match the canonical story,

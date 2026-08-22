@@ -87,7 +87,14 @@ a server-received location captured within 30 minutes, and atomically snapshot,
 store private evidence, transition the canonical story, and append coordinate-
 free audit metadata.
 
-Direct story DML is limited to owned `citizen_report` drafts. A trigger protects
+Reporter story DML is limited to owned, explicitly reporter-provenanced
+`citizen_report` drafts. The shared database predicate requires either a
+reporter-profile creator or existing immutable reporter revision evidence and
+is evaluated against both old and new rows for guarded transitions. Revision
+evidence keeps the classification historical even if later membership changes.
+Legacy writer/admin citizen reports without either provenance signal continue
+through the pre-existing CMS policies and are not given reporter revisions or a
+reporter byline. A trigger protects
 server-owned identity, lifecycle, publication, origin, promotion, sponsorship,
 and timestamp fields, while RLS prevents draft creation/update after membership
 or access synchronization becomes invalid. A separate database guard freezes
@@ -133,4 +140,8 @@ rechecks that the supplied actor is an active database `admin` profile.
   rejection, or reporter withdrawal, calculated from the database transition
   clock rather than caller-controlled story timestamps; `legal_hold = true`
   excludes them from the retention queue.
+- The reporter-provenance predicate returns only a boolean. It is executable by
+  anonymous callers because the anonymous public-reporter projection uses it to
+  exclude legacy citizen reports from reporter byline counts; its unnamed
+  composite argument keeps it out of the standalone RPC surface.
 - Storage policies remain outside Phase 1.

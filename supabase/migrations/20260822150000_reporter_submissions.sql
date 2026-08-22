@@ -111,6 +111,54 @@ comment on table public.story_locations is
 comment on column public.story_locations.retention_due_at is
   'Delete after this time unless legal_hold is true; set one year after publication, rejection, or withdrawal.';
 
+-- Reporter provenance is explicit rather than inferred from story_type alone.
+-- The unnamed stories-row argument also exposes this as a PostgREST computed
+-- field without creating a separately callable RPC endpoint.
+create or replace function public.is_reporter_story(public.stories)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select $1.story_type = 'citizen_report'
+    and (
+      (
+        $1.created_by is not null
+        and exists (
+          select 1
+          from public.reporter_profiles
+          where reporter_profiles.profile_id = $1.created_by
+        )
+      )
+      or exists (
+        select 1
+        from public.story_revisions
+        where story_revisions.story_id = $1.id
+      )
+    );
+$$;
+
+create or replace view public.public_reporter_profiles
+with (security_barrier = true)
+as
+select
+  reporter_profiles.public_slug,
+  reporter_profiles.legal_display_name,
+  reporter_profiles.avatar_url,
+  reporter_profiles.public_status,
+  reporter_profiles.home_district,
+  reporter_profiles.bio,
+  reporter_profiles.beats,
+  (
+    select count(*)::integer
+    from public.stories
+    where stories.created_by = reporter_profiles.profile_id
+      and stories.status = 'published'
+      and public.is_reporter_story(stories)
+  ) as published_story_count
+from public.reporter_profiles;
+
 create or replace function public.protect_story_revision_immutability()
 returns trigger
 language plpgsql
@@ -282,9 +330,10 @@ declare
   content_changed boolean;
   lifecycle_changed boolean;
   staff_actor boolean;
+  old_reporter_story boolean := public.is_reporter_story(old);
+  new_reporter_story boolean := public.is_reporter_story(new);
 begin
-  if old.story_type is distinct from 'citizen_report'
-    and new.story_type is distinct from 'citizen_report' then
+  if not old_reporter_story and not new_reporter_story then
     return new;
   end if;
 
@@ -658,8 +707,10 @@ declare
   transition_time timestamptz;
   target_outcome text;
   target_reason text;
+  old_reporter_story boolean := public.is_reporter_story(old);
+  new_reporter_story boolean := public.is_reporter_story(new);
 begin
-  if new.story_type is distinct from 'citizen_report'
+  if (not old_reporter_story and not new_reporter_story)
     or new.status not in ('approved', 'scheduled', 'published', 'rejected', 'archived')
     or new.status = old.status then
     return new;
@@ -817,7 +868,7 @@ begin
     raise exception using errcode = 'P0002', message = 'REPORTER_STORY_NOT_FOUND';
   end if;
   if current_story.created_by is distinct from actor_id
-    or current_story.story_type is distinct from 'citizen_report' then
+    or not public.is_reporter_story(current_story) then
     raise exception using errcode = '42501', message = 'REPORTER_STORY_FORBIDDEN';
   end if;
   if current_story.status is distinct from 'draft' then
@@ -1025,7 +1076,7 @@ begin
     raise exception using errcode = 'P0002', message = 'REPORTER_STORY_NOT_FOUND';
   end if;
   if current_story.created_by is distinct from actor_id
-    or current_story.story_type is distinct from 'citizen_report' then
+    or not public.is_reporter_story(current_story) then
     raise exception using errcode = '42501', message = 'REPORTER_DIRECT_PUBLISH_FORBIDDEN';
   end if;
   if current_story.status is distinct from 'draft'
@@ -1231,7 +1282,7 @@ begin
     raise exception using errcode = 'P0002', message = 'REPORTER_STORY_NOT_FOUND';
   end if;
   if current_story.created_by is distinct from actor_id
-    or current_story.story_type is distinct from 'citizen_report' then
+    or not public.is_reporter_story(current_story) then
     raise exception using errcode = '42501', message = 'REPORTER_STORY_FORBIDDEN';
   end if;
   if current_story.status not in ('draft', 'pending_review') then
@@ -1399,7 +1450,7 @@ begin
   if not found then
     raise exception using errcode = 'P0002', message = 'REPORTER_STORY_NOT_FOUND';
   end if;
-  if current_story.story_type is distinct from 'citizen_report'
+  if not public.is_reporter_story(current_story)
     or current_story.created_by is null
     or current_story.status is distinct from 'pending_review' then
     raise exception using errcode = 'P0001', message = 'REPORTER_STORY_INVALID_STATE';
@@ -1487,7 +1538,7 @@ for select
 to authenticated
 using (
   created_by = (select auth.uid())
-  and story_type = 'citizen_report'
+  and public.is_reporter_story(stories)
   and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'reporter'
   and exists (
     select 1
@@ -1513,7 +1564,7 @@ for insert
 to authenticated
 with check (
   created_by = (select auth.uid())
-  and story_type = 'citizen_report'
+  and public.is_reporter_story(stories)
   and status = 'draft'
   and source_id is null
   and approved_by is null
@@ -1568,7 +1619,7 @@ for update
 to authenticated
 using (
   created_by = (select auth.uid())
-  and story_type = 'citizen_report'
+  and public.is_reporter_story(stories)
   and status = 'draft'
   and exists (
     select 1
@@ -1590,7 +1641,7 @@ using (
 )
 with check (
   created_by = (select auth.uid())
-  and story_type = 'citizen_report'
+  and public.is_reporter_story(stories)
   and status = 'draft'
   and source_id is null
   and approved_by is null
@@ -1738,6 +1789,8 @@ using (
 
 revoke all on function public.protect_story_revision_immutability()
 from public, anon, authenticated, service_role;
+revoke all on function public.is_reporter_story(public.stories)
+from public, anon, authenticated, service_role;
 revoke all on function public.guard_reporter_story_draft_write()
 from public, anon, authenticated, service_role;
 revoke all on function public.guard_reporter_story_provenance()
@@ -1761,3 +1814,5 @@ grant execute on function public.withdraw_reporter_story(uuid)
 to authenticated;
 grant execute on function public.request_reporter_changes(uuid, uuid, text)
 to authenticated;
+grant execute on function public.is_reporter_story(public.stories)
+to anon, authenticated, service_role;

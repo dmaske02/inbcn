@@ -84,8 +84,11 @@ boundaries.
 
 `public_reporter_profiles` exposes only public slug, verified legal display
 name, approved avatar, public status, district, bio, beats, and published-story
-count. Date of birth, KYC references, payment identifiers, consent receipts,
-review notes, city/state, and trust controls remain in private base tables.
+count. The count includes only citizen reports with reporter-profile or
+immutable-revision provenance; legacy writer/admin citizen reports are not
+attributed to a reporter. Date of birth, KYC references, payment identifiers,
+consent receipts, review notes, city/state, and trust controls remain in private
+base tables.
 
 ## Design notes
 

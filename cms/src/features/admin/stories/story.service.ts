@@ -102,7 +102,7 @@ export async function getStoryListView(admin: AdminIdentity, params: StoryListPa
         story.status,
         story.createdBy === admin.id,
         story.type === "external_article",
-        story.type === "citizen_report",
+        story.isReporterStory,
       ),
     })),
     references,
@@ -144,7 +144,7 @@ export async function getStoryEditorView(admin: AdminIdentity, id?: string) {
       story.status,
       story.createdBy === admin.id,
       story.type === "external_article",
-      story.type === "citizen_report",
+      story.isReporterStory,
     ),
     readTime: calculateReadTime(story.content),
   };
@@ -239,7 +239,7 @@ export async function saveStory(admin: AdminIdentity, id: string, input: StoryFo
     story.status,
     story.createdBy === admin.id,
     story.type === "external_article",
-    story.type === "citizen_report",
+    story.isReporterStory,
   ).includes("save")) {
     throw new StoryManagementError("FORBIDDEN", "This story cannot be edited in its current state.");
   }
@@ -274,7 +274,7 @@ export async function runStoryCommand(
     story.status,
     story.createdBy === admin.id,
     story.type === "external_article",
-    story.type === "citizen_report",
+    story.isReporterStory,
   );
   if (!allowed.includes(command)) throw new StoryManagementError("INVALID_TRANSITION", "That action is not allowed for this story.");
   if (command === "delete") {

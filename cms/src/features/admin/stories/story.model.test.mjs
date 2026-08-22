@@ -65,7 +65,26 @@ test("exposes only commands allowed by role, ownership, and status", () => {
   assert.deepEqual(getAllowedStoryCommands("admin", "draft", true), ["save", "submit", "approve", "reject", "publish", "schedule", "archive", "delete"]);
 });
 
-test("reporter stories retain review transitions but cannot be silently saved in CMS", async () => {
+test("legacy citizen reports retain ordinary CMS edit and archive commands", () => {
+  assert.deepEqual(
+    getAllowedStoryCommands("writer", "draft", true, false, false),
+    ["save", "submit"],
+  );
+  assert.deepEqual(
+    getAllowedStoryCommands("editor", "pending_review", false, false, false),
+    ["save", "approve"],
+  );
+  assert.deepEqual(
+    getAllowedStoryCommands("admin", "approved", false, false, false),
+    ["save", "publish", "schedule", "archive", "delete"],
+  );
+  assert.deepEqual(
+    getAllowedStoryCommands("admin", "archived", false, false, false),
+    ["delete"],
+  );
+});
+
+test("explicit reporter submissions retain review transitions but cannot be silently saved", async () => {
   assert.deepEqual(
     getAllowedStoryCommands("editor", "pending_review", false, false, true),
     ["approve"],
@@ -85,15 +104,26 @@ test("reporter stories retain review transitions but cannot be silently saved in
   );
   assert.deepEqual(getAllowedStoryCommands("admin", "archived", false, false, true), []);
 
-  const service = await readFile(new URL("./story.service.ts", import.meta.url), "utf8");
+  const [service, repository, dto, databaseTypes] = await Promise.all([
+    readFile(new URL("./story.service.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../news/server/stories.repository.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../news/server/dto.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../../../../packages/database/src/database.types.ts", import.meta.url), "utf8"),
+  ]);
+  assert.doesNotMatch(service, /story\.type === "citizen_report"/u);
   assert.match(
     service,
-    /export async function saveStory[\s\S]*?story\.type === "citizen_report"[\s\S]*?\.includes\("save"\)/u,
+    /export async function saveStory[\s\S]*?story\.isReporterStory[\s\S]*?\.includes\("save"\)/u,
   );
   assert.match(
     service,
-    /export async function runStoryCommand[\s\S]*?story\.type === "citizen_report"/u,
+    /export async function runStoryCommand[\s\S]*?story\.isReporterStory/u,
   );
+  assert.match(repository, /CMS_STORY_COLUMNS[\s\S]*is_reporter_story/u);
+  assert.match(repository, /isReporterStory: row\.is_reporter_story/u);
+  assert.match(dto, /isReporterStory: boolean/u);
+  assert.match(databaseTypes, /stories: \{[\s\S]*?Row: \{[\s\S]*?is_reporter_story: boolean/u);
+  assert.match(databaseTypes, /is_reporter_story: \{[\s\S]*Args: \{ "": Database\["public"\]\["Tables"\]\["stories"\]\["Row"\] \}[\s\S]*Returns: boolean/u);
 });
 
 const validStoryForm = {
