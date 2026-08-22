@@ -22,6 +22,42 @@ The baseline migration is stored in
   provenance.
 - `push_subscriptions` stores Web Push endpoints for authenticated or anonymous
   readers.
+- `reporter_applications` stores one active onboarding application per profile,
+  minimal hosted-KYC results, the 30-day paid-completion deadline, and the
+  admin decision. It never stores provider payloads or identity artifacts.
+- `reporter_profiles` stores approved public identity, locality, membership
+  dates, the two independent trust grants, and public-photo verification.
+- `reporter_payments` stores fixed INR 100 application and renewal receipts,
+  unique Razorpay identifiers, refund state, and the membership period credited.
+- `reporter_consents` stores immutable, versioned notice receipts by application,
+  notice key, version, and locale.
+- `webhook_events` stores unique provider receipts and safe processing state for
+  idempotent Razorpay, hosted-KYC, and LiveKit callback handling.
+- `reporter_notifications` stores in-app notifications and optional delivery
+  state without coupling delivery success to the underlying business event.
+- `audit_events` stores append-only, safe actor/action/subject metadata for
+  security and reporter lifecycle transitions.
+
+## Reporter foundation
+
+`supabase/migrations/20260822090000_reporter_foundation.sql` adds the `reporter`
+profile role and the reporter onboarding relations. Application and renewal
+payments are constrained to `10000` paise and `INR`; provider order, payment,
+refund, and event identifiers are unique. Partial indexes enforce one active
+application per profile and support admin, expiry, incomplete-application,
+refund, and webhook queues.
+
+`approve_reporter_application`, `reject_reporter_application`, and
+`apply_reporter_payment` own the row-locked transitions. First approval starts
+membership at approval, expires it one year later, and adds seven days of grace.
+Rejection queues refund eligibility in PostgreSQL; external Razorpay calls remain
+outside the database. Renewal extends from the prior expiry through grace, or
+starts from capture after grace.
+
+`public_reporter_profiles` exposes only public slug, verified legal display
+name, approved avatar, public status, district, bio, beats, and published-story
+count. Date of birth, KYC references, payment identifiers, consent receipts,
+review notes, city/state, and trust controls remain in private base tables.
 
 ## Design notes
 
@@ -48,3 +84,7 @@ The baseline migration is stored in
   database triggers or functions.
 - Row Level Security, policies, seed data, and application integrations are
   intentionally outside this migration.
+- Reporter statuses and fixed fee/currency rules are database constraints.
+  Hosted-KYC storage is limited to the provider key, opaque reference, minimal
+  result, verified legal name/adult outcome, and timestamps. Aadhaar numbers,
+  OTPs, XML, identity images, and full provider payloads are not schema fields.

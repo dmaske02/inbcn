@@ -14,6 +14,325 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_events: {
+        Row: { id: string; actor_id: string | null; action: string; subject_type: string; subject_id: string; metadata: Json; request_correlation_id: string | null; created_at: string }
+        Insert: { id?: string; actor_id?: string | null; action: string; subject_type: string; subject_id: string; metadata?: Json; request_correlation_id?: string | null; created_at?: string }
+        Update: { id?: string; actor_id?: string | null; action?: string; subject_type?: string; subject_id?: string; metadata?: Json; request_correlation_id?: string | null; created_at?: string }
+        Relationships: [
+          { foreignKeyName: "audit_events_actor_id_fkey"; columns: ["actor_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ]
+      }
+      reporter_applications: {
+        Row: {
+          id: string
+          profile_id: string
+          status: string
+          legal_name: string
+          date_of_birth: string
+          age_18_declared: boolean
+          home_city: string
+          home_district: string
+          home_state: string
+          bio: string | null
+          beats: string[]
+          public_photo_url: string
+          public_photo_id: string
+          public_photo_verified_by: string | null
+          public_photo_verified_at: string | null
+          kyc_provider: string | null
+          kyc_reference: string | null
+          kyc_status: string
+          kyc_started_at: string | null
+          kyc_completed_at: string | null
+          verified_legal_name: string | null
+          verified_adult: boolean | null
+          submitted_at: string | null
+          completion_deadline: string | null
+          reviewed_by: string | null
+          reviewed_at: string | null
+          decision_reason: string | null
+          approved_at: string | null
+          rejected_at: string | null
+          refund_eligible_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          profile_id: string
+          status?: string
+          legal_name: string
+          date_of_birth: string
+          age_18_declared?: boolean
+          home_city: string
+          home_district: string
+          home_state: string
+          bio?: string | null
+          beats?: string[]
+          public_photo_url: string
+          public_photo_id: string
+          public_photo_verified_by?: string | null
+          public_photo_verified_at?: string | null
+          kyc_provider?: string | null
+          kyc_reference?: string | null
+          kyc_status?: string
+          kyc_started_at?: string | null
+          kyc_completed_at?: string | null
+          verified_legal_name?: string | null
+          verified_adult?: boolean | null
+          submitted_at?: string | null
+          completion_deadline?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          decision_reason?: string | null
+          approved_at?: string | null
+          rejected_at?: string | null
+          refund_eligible_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          profile_id?: string
+          status?: string
+          legal_name?: string
+          date_of_birth?: string
+          age_18_declared?: boolean
+          home_city?: string
+          home_district?: string
+          home_state?: string
+          bio?: string | null
+          beats?: string[]
+          public_photo_url?: string
+          public_photo_id?: string
+          public_photo_verified_by?: string | null
+          public_photo_verified_at?: string | null
+          kyc_provider?: string | null
+          kyc_reference?: string | null
+          kyc_status?: string
+          kyc_started_at?: string | null
+          kyc_completed_at?: string | null
+          verified_legal_name?: string | null
+          verified_adult?: boolean | null
+          submitted_at?: string | null
+          completion_deadline?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          decision_reason?: string | null
+          approved_at?: string | null
+          rejected_at?: string | null
+          refund_eligible_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "reporter_applications_profile_id_fkey"; columns: ["profile_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "reporter_applications_public_photo_verified_by_fkey"; columns: ["public_photo_verified_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "reporter_applications_reviewed_by_fkey"; columns: ["reviewed_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ]
+      }
+      reporter_consents: {
+        Row: { id: string; application_id: string; profile_id: string; notice_key: string; notice_version: string; locale: string; consented_at: string; withdrawn_at: string | null; created_at: string }
+        Insert: { id?: string; application_id: string; profile_id: string; notice_key: string; notice_version: string; locale: string; consented_at?: string; withdrawn_at?: string | null; created_at?: string }
+        Update: { id?: string; application_id?: string; profile_id?: string; notice_key?: string; notice_version?: string; locale?: string; consented_at?: string; withdrawn_at?: string | null; created_at?: string }
+        Relationships: [
+          { foreignKeyName: "reporter_consents_application_profile_fkey"; columns: ["application_id", "profile_id"]; isOneToOne: false; referencedRelation: "reporter_applications"; referencedColumns: ["id", "profile_id"] },
+          { foreignKeyName: "reporter_consents_profile_id_fkey"; columns: ["profile_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ]
+      }
+      reporter_notifications: {
+        Row: { id: string; profile_id: string; notification_type: string; message: string; destination: string | null; delivery_channel: string; delivery_status: string; delivered_at: string | null; read_at: string | null; created_at: string }
+        Insert: { id?: string; profile_id: string; notification_type: string; message: string; destination?: string | null; delivery_channel?: string; delivery_status?: string; delivered_at?: string | null; read_at?: string | null; created_at?: string }
+        Update: { id?: string; profile_id?: string; notification_type?: string; message?: string; destination?: string | null; delivery_channel?: string; delivery_status?: string; delivered_at?: string | null; read_at?: string | null; created_at?: string }
+        Relationships: [
+          { foreignKeyName: "reporter_notifications_profile_id_fkey"; columns: ["profile_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ]
+      }
+      reporter_payments: {
+        Row: {
+          id: string
+          profile_id: string
+          application_id: string | null
+          purpose: string
+          amount_paise: number
+          currency: string
+          payment_status: string
+          refund_status: string
+          razorpay_order_id: string
+          razorpay_payment_id: string | null
+          razorpay_refund_id: string | null
+          captured_at: string | null
+          refund_eligible_at: string | null
+          refund_requested_at: string | null
+          refunded_at: string | null
+          refund_failure_detail: string | null
+          credited_membership_started_at: string | null
+          credited_membership_expires_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          profile_id: string
+          application_id?: string | null
+          purpose: string
+          amount_paise?: number
+          currency?: string
+          payment_status?: string
+          refund_status?: string
+          razorpay_order_id: string
+          razorpay_payment_id?: string | null
+          razorpay_refund_id?: string | null
+          captured_at?: string | null
+          refund_eligible_at?: string | null
+          refund_requested_at?: string | null
+          refunded_at?: string | null
+          refund_failure_detail?: string | null
+          credited_membership_started_at?: string | null
+          credited_membership_expires_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          profile_id?: string
+          application_id?: string | null
+          purpose?: string
+          amount_paise?: number
+          currency?: string
+          payment_status?: string
+          refund_status?: string
+          razorpay_order_id?: string
+          razorpay_payment_id?: string | null
+          razorpay_refund_id?: string | null
+          captured_at?: string | null
+          refund_eligible_at?: string | null
+          refund_requested_at?: string | null
+          refunded_at?: string | null
+          refund_failure_detail?: string | null
+          credited_membership_started_at?: string | null
+          credited_membership_expires_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "reporter_payments_profile_id_fkey"; columns: ["profile_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "reporter_payments_application_profile_fkey"; columns: ["application_id", "profile_id"]; isOneToOne: false; referencedRelation: "reporter_applications"; referencedColumns: ["id", "profile_id"] },
+        ]
+      }
+      reporter_profiles: {
+        Row: {
+          profile_id: string
+          public_slug: string
+          legal_display_name: string
+          avatar_url: string
+          home_city: string
+          home_district: string
+          home_state: string
+          bio: string | null
+          beats: string[]
+          public_status: string
+          membership_started_at: string
+          membership_expires_at: string
+          membership_grace_ends_at: string
+          can_publish_directly: boolean
+          direct_publish_granted_by: string | null
+          direct_publish_granted_at: string | null
+          direct_publish_revoked_by: string | null
+          direct_publish_revoked_at: string | null
+          can_broadcast_live: boolean
+          live_broadcast_granted_by: string | null
+          live_broadcast_granted_at: string | null
+          live_broadcast_revoked_by: string | null
+          live_broadcast_revoked_at: string | null
+          public_photo_verified_by: string
+          public_photo_verified_at: string
+          suspended_by: string | null
+          suspended_at: string | null
+          suspension_reason: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          profile_id: string
+          public_slug: string
+          legal_display_name: string
+          avatar_url: string
+          home_city: string
+          home_district: string
+          home_state: string
+          bio?: string | null
+          beats?: string[]
+          public_status?: string
+          membership_started_at: string
+          membership_expires_at: string
+          membership_grace_ends_at: string
+          can_publish_directly?: boolean
+          direct_publish_granted_by?: string | null
+          direct_publish_granted_at?: string | null
+          direct_publish_revoked_by?: string | null
+          direct_publish_revoked_at?: string | null
+          can_broadcast_live?: boolean
+          live_broadcast_granted_by?: string | null
+          live_broadcast_granted_at?: string | null
+          live_broadcast_revoked_by?: string | null
+          live_broadcast_revoked_at?: string | null
+          public_photo_verified_by: string
+          public_photo_verified_at: string
+          suspended_by?: string | null
+          suspended_at?: string | null
+          suspension_reason?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          profile_id?: string
+          public_slug?: string
+          legal_display_name?: string
+          avatar_url?: string
+          home_city?: string
+          home_district?: string
+          home_state?: string
+          bio?: string | null
+          beats?: string[]
+          public_status?: string
+          membership_started_at?: string
+          membership_expires_at?: string
+          membership_grace_ends_at?: string
+          can_publish_directly?: boolean
+          direct_publish_granted_by?: string | null
+          direct_publish_granted_at?: string | null
+          direct_publish_revoked_by?: string | null
+          direct_publish_revoked_at?: string | null
+          can_broadcast_live?: boolean
+          live_broadcast_granted_by?: string | null
+          live_broadcast_granted_at?: string | null
+          live_broadcast_revoked_by?: string | null
+          live_broadcast_revoked_at?: string | null
+          public_photo_verified_by?: string
+          public_photo_verified_at?: string
+          suspended_by?: string | null
+          suspended_at?: string | null
+          suspension_reason?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "reporter_profiles_profile_id_fkey"; columns: ["profile_id"]; isOneToOne: true; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "reporter_profiles_direct_publish_granted_by_fkey"; columns: ["direct_publish_granted_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "reporter_profiles_direct_publish_revoked_by_fkey"; columns: ["direct_publish_revoked_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "reporter_profiles_live_broadcast_granted_by_fkey"; columns: ["live_broadcast_granted_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "reporter_profiles_live_broadcast_revoked_by_fkey"; columns: ["live_broadcast_revoked_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "reporter_profiles_public_photo_verified_by_fkey"; columns: ["public_photo_verified_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "reporter_profiles_suspended_by_fkey"; columns: ["suspended_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ]
+      }
+      webhook_events: {
+        Row: { id: string; provider: string; provider_event_id: string; event_type: string; signature_verified_at: string; processing_status: string; attempt_count: number; failure_detail: string | null; subject_type: string | null; subject_id: string | null; processed_at: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; provider: string; provider_event_id: string; event_type: string; signature_verified_at: string; processing_status?: string; attempt_count?: number; failure_detail?: string | null; subject_type?: string | null; subject_id?: string | null; processed_at?: string | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; provider?: string; provider_event_id?: string; event_type?: string; signature_verified_at?: string; processing_status?: string; attempt_count?: number; failure_detail?: string | null; subject_type?: string | null; subject_id?: string | null; processed_at?: string | null; created_at?: string; updated_at?: string }
+        Relationships: []
+      }
       breaking_alerts: {
         Row: { id: string; title: string; message: string; type: string; placement: string; status: string; is_active: boolean; priority: number; target_scope: string; language_id: string; category_id: string | null; story_id: string | null; background_color: string; text_color: string; dismissible: boolean; start_at: string; end_at: string | null; created_by: string | null; created_at: string; updated_at: string }
         Insert: { id?: string; title: string; message: string; type: string; placement: string; status?: string; is_active?: boolean; priority?: number; target_scope?: string; language_id: string; category_id?: string | null; story_id?: string | null; background_color?: string; text_color?: string; dismissible?: boolean; start_at?: string; end_at?: string | null; created_by?: string | null; created_at?: string; updated_at?: string }
@@ -742,6 +1061,19 @@ export type Database = {
       }
     }
     Views: {
+      public_reporter_profiles: {
+        Row: {
+          public_slug: string | null
+          legal_display_name: string | null
+          avatar_url: string | null
+          public_status: string | null
+          home_district: string | null
+          bio: string | null
+          beats: string[] | null
+          published_story_count: number | null
+        }
+        Relationships: []
+      }
       ingest_run_dashboard: {
         Row: {
           completed_at: string | null
@@ -765,6 +1097,11 @@ export type Database = {
       }
     }
     Functions: {
+      apply_reporter_payment: {
+        Args: { p_razorpay_order_id: string; p_razorpay_payment_id: string; p_amount_paise: number; p_currency: string; p_captured_at: string }
+        Returns: string
+      }
+      approve_reporter_application: { Args: { p_application_id: string }; Returns: string }
       claim_auto_import_batch: {
         Args: { p_started_at: string; p_lock_expires_at: string; p_queue_size: number; p_force?: boolean }
         Returns: Json
@@ -776,10 +1113,11 @@ export type Database = {
       move_homepage_section_to: { Args: { section_id: string; target_position: number }; Returns: undefined }
       retire_media_asset: { Args: { media_id: string; expected_updated_at: string }; Returns: string }
       restore_media_asset: { Args: { media_id: string; expected_updated_at: string }; Returns: string }
+      reject_reporter_application: { Args: { p_application_id: string; p_decision_reason: string }; Returns: string }
     }
     Enums: {
       media_type: "image" | "video" | "audio" | "document"
-      profile_role: "admin" | "editor" | "writer" | "broadcaster" | "reader"
+      profile_role: "admin" | "editor" | "writer" | "broadcaster" | "reader" | "reporter"
       source_type: "newsdata_api" | "rss" | "website" | "social" | "manual"
       story_status:
         | "draft"
@@ -922,7 +1260,7 @@ export const Constants = {
   public: {
     Enums: {
       media_type: ["image", "video", "audio", "document"],
-      profile_role: ["admin", "editor", "writer", "broadcaster", "reader"],
+      profile_role: ["admin", "editor", "writer", "broadcaster", "reader", "reporter"],
       source_type: ["newsdata_api", "rss", "website", "social", "manual"],
       story_status: [
         "draft",

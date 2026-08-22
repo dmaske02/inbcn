@@ -29,6 +29,32 @@ updates and receive no editorial privileges.
 - `ingest_runs`: only editors and admins can access or manage ingestion history.
 - `push_subscriptions`: authenticated users manage rows tied to their own
   profile. Admins can additionally read all subscriptions.
+- `reporter_applications`: applicants can create, read, and edit only their own
+  draft input columns. Payment, KYC, review, decision, and refund fields are
+  server-controlled. Admins can read the review queue.
+- `reporter_profiles` and `reporter_payments`: reporters/applicants can read
+  only their own private membership and receipts; admins can read all rows.
+- `reporter_consents`: applicants can insert immutable receipts only for their
+  own draft application and read only their receipts; admins can read them.
+- `webhook_events` and `audit_events`: admins have read-only access. Only the
+  service role writes callback receipts and append-only audit records.
+- `reporter_notifications`: reporters read their own rows and may update only
+  `read_at`; notification creation and delivery state are server-controlled.
+- `public_reporter_profiles`: anonymous and authenticated users can select the
+  deliberately narrow public projection; neither role can select its base table.
+
+## Reporter transition functions
+
+Reporter payment and decision transitions use `SECURITY DEFINER` functions
+with an empty fixed search path, fully qualified relations, row locks, explicit
+role/state checks, and an audit insert in the same transaction. Approval and
+rejection require the signed `app_metadata.role = admin` claim. Payment capture
+is executable only by `service_role` after provider verification and is
+idempotent for an exact repeat of an already captured payment identifier.
+
+The functions never call Razorpay. Rejection changes the captured payment to
+`refund_pending`, allowing the server-side refund worker to call Razorpay and
+record the eventual provider result separately.
 
 ## Security notes
 
@@ -40,4 +66,10 @@ updates and receive no editorial privileges.
   granted.
 - The `service_role` retains privileged server-side access and must never be
   exposed to browsers.
+- Reporter authorization extends `profile_role` with `reporter`, but still uses
+  only the signed `app_metadata.role` claim for user roles. `user_metadata` is
+  never consulted.
+- Reporter base tables revoke default Data API access before adding explicit
+  table/column grants. Applicants cannot write lifecycle, KYC, payment, trust,
+  photo-verification, notification-delivery, webhook, or audit fields.
 - Storage policies remain outside Phase 1.
