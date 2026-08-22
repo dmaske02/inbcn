@@ -33,6 +33,10 @@ import { buildTransitionPatch, parseTags } from "./story.workflow";
 import { getMediaReferenceView, isSelectableMedia } from "@/features/admin/media/media.service";
 import { resolveFeaturedMediaSelection } from "@/features/admin/media/media.model";
 import { validateFeaturedMediaChange } from "./story-featured-media-policy";
+import {
+  runPreauthorizedStoryBatch,
+  StoryBatchAuthorizationError,
+} from "./story-bulk.service";
 
 const PAGE_SIZE = 20;
 const STORY_STATUSES: readonly StoryStatus[] = ["draft", "pending_review", "approved", "scheduled", "published", "rejected", "archived"];
@@ -293,14 +297,9 @@ export async function runStoryCommand(
 ): Promise<void> {
   const story = await getCmsStoryById(id);
   if (!story) throw new StoryManagementError("NOT_FOUND", "Story not found.");
-  const allowed = getAllowedStoryCommands(
-    admin.role,
-    story.status,
-    story.createdBy === admin.id,
-    story.type === "external_article",
-    story.isReporterStory,
-  );
-  if (!allowed.includes(command)) throw new StoryManagementError("INVALID_TRANSITION", "That action is not allowed for this story.");
+  if (!isStoryCommandAllowed(admin, story, command)) {
+    throw new StoryManagementError("INVALID_TRANSITION", "That action is not allowed for this story.");
+  }
   if (command === "delete") {
     await deleteCmsStory(id);
     return;
@@ -314,6 +313,20 @@ export async function runStoryCommand(
     }
     throw error;
   }
+}
+
+function isStoryCommandAllowed(
+  admin: AdminIdentity,
+  story: CmsStoryDto,
+  command: Exclude<StoryCommand, "save" | "request_changes">,
+): boolean {
+  return getAllowedStoryCommands(
+    admin.role,
+    story.status,
+    story.createdBy === admin.id,
+    story.type === "external_article",
+    story.isReporterStory,
+  ).includes(command);
 }
 
 export async function requestReporterChanges(
@@ -388,5 +401,17 @@ export async function runBulkStoryCommand(
   ids: readonly string[],
   command: "publish" | "archive" | "delete",
 ): Promise<void> {
-  for (const id of [...new Set(ids)]) await runStoryCommand(admin, id, command);
+  try {
+    await runPreauthorizedStoryBatch(
+      ids,
+      getCmsStoryById,
+      (story) => isStoryCommandAllowed(admin, story, command),
+      (id) => runStoryCommand(admin, id, command),
+    );
+  } catch (error) {
+    if (error instanceof StoryBatchAuthorizationError) {
+      throw new StoryManagementError("INVALID_TRANSITION", "The selected stories cannot run that action.");
+    }
+    throw error;
+  }
 }

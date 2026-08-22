@@ -103,6 +103,13 @@ test("explicit reporter submissions retain review transitions but cannot be sile
     ["archive"],
   );
   assert.deepEqual(getAllowedStoryCommands("admin", "archived", false, false, true), []);
+  for (const status of ["draft", "pending_review", "approved", "scheduled", "published", "rejected", "archived"]) {
+    assert.equal(
+      getAllowedStoryCommands("admin", status, false, false, true).includes("delete"),
+      false,
+      `reporter ${status}`,
+    );
+  }
 
   const [service, repository, dto, databaseTypes] = await Promise.all([
     readFile(new URL("./story.service.ts", import.meta.url), "utf8"),

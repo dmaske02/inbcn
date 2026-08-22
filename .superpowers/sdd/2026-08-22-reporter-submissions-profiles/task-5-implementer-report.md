@@ -122,3 +122,35 @@ deferred surfaces are live migration/type generation, public website reporter
 profiles, and live broadcasting.
 
 Commit subject: `feat(cms): review reporter submissions and trust`
+
+## Bulk-selection review follow-up
+
+Reporter rows no longer render a bulk-selection checkbox in the story list, so
+the global delete control cannot collect a reporter story through the UI. The
+row retains its `Open` link to the dedicated immutable review panel and its
+valid detail actions.
+
+Bulk execution now deduplicates and loads the entire requested batch, checks
+every loaded story against the requested command, and performs no mutation if
+any story is missing or unauthorized. Only after that preflight succeeds does
+it call the existing `runStoryCommand` once per unique ID. That call still
+reloads and reauthorizes each story immediately before mutation, preserving the
+existing race defense.
+
+RED was 24/28 with failures for the missing UI guard and preauthorization
+coordinator. GREEN is 28/28 and explicitly covers reporter-first and
+reporter-last mixed batches with zero mutations, unique-ID loading/mutation,
+the no-delete reporter model invariant, UI bulk exclusion, and continued detail
+review access.
+
+Fresh follow-up verification used bundled Node `v24.19.0`:
+
+- Focused model/service/UI contracts: 28 passed.
+- Full CMS tests: 600 passed.
+- Root tests: website 213, CMS 600, reporter 202; 1,015 total passed.
+- Root typecheck and lint: passed for every workspace, without warnings.
+- CMS Next.js 16.3 production build: passed with the same documented temporary
+  Node signing workaround and `NEXT_PUBLIC_CMS_URL` placeholder above.
+- `git diff --check`: passed.
+
+Follow-up commit subject: `fix(cms): preauthorize bulk story actions`

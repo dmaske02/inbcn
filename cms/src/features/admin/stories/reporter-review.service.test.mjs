@@ -14,9 +14,10 @@ const migration = await readFile(
   new URL("supabase/migrations/20260822153000_reporter_review_trust.sql", root),
   "utf8",
 ).catch(() => "");
-const [service, actions, reporterRepository, reporterService, reporterActions, panel, directory, layout, databaseTypes] = await Promise.all([
+const [service, actions, storyList, reporterRepository, reporterService, reporterActions, panel, directory, layout, databaseTypes] = await Promise.all([
   readFile(new URL("./story.service.ts", import.meta.url), "utf8"),
   readFile(new URL("./story.actions.ts", import.meta.url), "utf8"),
+  readFile(new URL("./story-list.tsx", import.meta.url), "utf8"),
   readFile(new URL("../reporters/reporter.repository.ts", import.meta.url), "utf8"),
   readFile(new URL("../reporters/reporter.service.ts", import.meta.url), "utf8"),
   readFile(new URL("../reporters/reporter.actions.ts", import.meta.url), "utf8"),
@@ -115,6 +116,18 @@ test("canonical guarded transitions stay authoritative and public revalidation i
   assert.match(actions, /if \(reporterAffecting\)[\s\S]*revalidatePath\("\/admin\/reporters"\)/u);
   assert.match(actions, /revalidateStories\(storyId, publicAffecting, true\)/u);
   assert.match(actions, /publicAffecting[\s\S]*revalidatePublicNews/u);
+});
+
+test("reporter rows expose detail review but no bulk selection path", () => {
+  assert.match(
+    storyList,
+    /story\.isReporterStory\s*\?\s*null\s*:\s*<input[\s\S]*name="storyIds"/u,
+  );
+  assert.match(storyList, /href=\{`\/admin\/stories\/\$\{story\.id\}`\}>Open<\/Link>/u);
+  assert.match(
+    service,
+    /runBulkStoryCommand[\s\S]*runPreauthorizedStoryBatch[\s\S]*getCmsStoryById[\s\S]*runStoryCommand/u,
+  );
 });
 
 test("pending reporter rejection notifies exactly once without affecting legacy citizen reports", () => {
