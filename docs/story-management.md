@@ -68,6 +68,36 @@ Status is informative and cannot be edited directly. Commands produce database-s
 - Schedule sets `scheduled` and a future `scheduled_at` without setting `published_at`.
 - Archive preserves publication history and sets `archived`.
 
+### Reporter submissions
+
+Reporter content stays in the canonical `stories` and `media` tables with
+`story_type = 'citizen_report'`. Submission and direct publication run through
+database functions that lock the reporter membership, database profile, story,
+and attached canonical media before inserting an immutable `story_revisions`
+snapshot and its private `story_locations` evidence. The functions return the
+canonical story status plus the revision ID, number, and outcome so portal and
+CMS clients do not have to infer reporter workflow semantics from story status.
+
+The canonical status enum is unchanged. A changes request moves the story from
+`pending_review` back to `draft`; the latest revision remains distinguishable by
+its immutable `changes_requested` outcome and reason, and the reporter receives
+an in-app notification containing that reason. A reporter withdrawal before
+editorial control maps the canonical story to `rejected`, while the latest
+revision outcome is `withdrawn`, the audit action is `story.withdrawn`, and
+location retention becomes due one year later. This compatibility mapping costs
+callers one revision lookup when they need to distinguish a returned draft from
+an initial draft, or a withdrawal from an editorial rejection.
+
+Published, approved, and scheduled stories are under editorial control and
+cannot be withdrawn or edited by reporters. Direct publication is available
+only to an active, generation-synchronized reporter with an effective
+`can_publish_directly` grant; grace membership may submit for review but cannot
+publish directly. Once a reporter story has been published, database guards
+also prohibit silent content or publication-provenance rewrites; the canonical
+archive lifecycle remains available. Existing CMS publish/reject transitions
+finalize the latest pending revision and start the same one-year coordinate-
+retention clock.
+
 ## Validation and errors
 
 Zod validates all editable schema-backed fields, URLs, UUID selections, and slug format. Slug uniqueness is checked per language before insert or update and remains protected by the database unique constraint. Missing stories render the Next.js not-found state. Repository failures and invalid transitions are converted to safe editorial messages.

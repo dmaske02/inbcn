@@ -1007,6 +1007,127 @@ export type Database = {
           },
         ]
       }
+      story_locations: {
+        Row: {
+          accuracy_meters: number
+          captured_at: string
+          id: string
+          latitude: number
+          legal_hold: boolean
+          locality: string
+          longitude: number
+          received_at: string
+          retention_due_at: string | null
+          revision_id: string
+          story_id: string
+        }
+        Insert: {
+          accuracy_meters: number
+          captured_at: string
+          id?: string
+          latitude: number
+          legal_hold?: boolean
+          locality: string
+          longitude: number
+          received_at?: string
+          retention_due_at?: string | null
+          revision_id: string
+          story_id: string
+        }
+        Update: {
+          accuracy_meters?: number
+          captured_at?: string
+          id?: string
+          latitude?: number
+          legal_hold?: boolean
+          locality?: string
+          longitude?: number
+          received_at?: string
+          retention_due_at?: string | null
+          revision_id?: string
+          story_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "story_locations_revision_story_fkey"
+            columns: ["revision_id", "story_id"]
+            isOneToOne: true
+            referencedRelation: "story_revisions"
+            referencedColumns: ["id", "story_id"]
+          },
+          {
+            foreignKeyName: "story_locations_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "stories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      story_revisions: {
+        Row: {
+          associated_media_ids: string[]
+          id: string
+          review_outcome: string
+          review_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          revision_number: number
+          snapshot: Json
+          story_id: string
+          submitted_at: string
+          submitted_by: string
+        }
+        Insert: {
+          associated_media_ids?: string[]
+          id?: string
+          review_outcome?: string
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          revision_number: number
+          snapshot: Json
+          story_id: string
+          submitted_at?: string
+          submitted_by: string
+        }
+        Update: {
+          associated_media_ids?: string[]
+          id?: string
+          review_outcome?: string
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          revision_number?: number
+          snapshot?: Json
+          story_id?: string
+          submitted_at?: string
+          submitted_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "story_revisions_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "story_revisions_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "stories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "story_revisions_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stories: {
         Row: {
           approved_at: string | null
@@ -1226,6 +1347,18 @@ export type Database = {
       delete_homepage_section: { Args: { section_id: string }; Returns: undefined }
       delete_homepage_section_if_current: { Args: { section_id: string; expected_updated_at: string; expected_order: string[] }; Returns: boolean }
       duplicate_homepage_section_after: { Args: { source_section_id: string; expected_updated_at: string; expected_order: string[]; new_block_id: string; new_title: string }; Returns: string | null }
+      direct_publish_reporter_story: {
+        Args: {
+          p_story_id: string
+          p_event_occurred_at: string
+          p_latitude: number
+          p_longitude: number
+          p_accuracy_meters: number
+          p_captured_at: string
+          p_locality: string
+        }
+        Returns: Json
+      }
       complete_kyc_webhook_event: {
         Args: { p_event_id: string; p_processing_token: string; p_provider: string; p_reference: string; p_verified: boolean; p_legal_name: string | null; p_adult: boolean | null; p_verified_at: string }
         Returns: boolean
@@ -1283,9 +1416,26 @@ export type Database = {
         Args: { p_payment_id: string; p_actor_id: string }
         Returns: Json
       }
+      request_reporter_changes: {
+        Args: { p_story_id: string; p_revision_id: string; p_reason: string }
+        Returns: Json
+      }
       release_reporter_kyc_start: { Args: { p_application_id: string; p_profile_id: string; p_reservation_token: string }; Returns: boolean }
       reserve_reporter_kyc_start: { Args: { p_application_id: string; p_profile_id: string }; Returns: string | null }
+      submit_reporter_story: {
+        Args: {
+          p_story_id: string
+          p_event_occurred_at: string
+          p_latitude: number
+          p_longitude: number
+          p_accuracy_meters: number
+          p_captured_at: string
+          p_locality: string
+        }
+        Returns: Json
+      }
       suspend_reporter: { Args: { p_profile_id: string; p_reason: string }; Returns: string }
+      withdraw_reporter_story: { Args: { p_story_id: string }; Returns: Json }
     }
     Enums: {
       media_type: "image" | "video" | "audio" | "document"

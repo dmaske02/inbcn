@@ -45,6 +45,18 @@ updates and receive no editorial privileges.
   Audit access is append-only (`SELECT`/`INSERT`) for the service role.
 - `reporter_notifications`: reporters read their own rows and may update only
   `read_at`; notification creation and delivery state are server-controlled.
+- `story_revisions`: authenticated reporters may read only their own immutable
+  snapshots after the database-active reporter profile, membership window,
+  access-sync state, signed role, and signed generation all match. Active editor
+  and admin profiles may read revisions; writers cannot. Authenticated clients
+  receive no insert, update, or delete grant; final outcomes move only once from
+  `pending_review` through guarded database transitions.
+- `story_locations`: authenticated reporters may read only location evidence
+  attached to their own revisions. Exact coordinates are additionally readable
+  only by database-active editors/admins; writers and anonymous users have no
+  policy or grant. Security-definer transitions own inserts; service operations
+  may update only retention/legal-hold fields. A later guarded retention worker
+  owns deletion after the one-year due date.
 - `public_reporter_profiles`: anonymous and authenticated users can select the
   deliberately narrow public projection; neither role can select its base table.
 
@@ -60,6 +72,24 @@ completion deadline, and a captured, not-yet-refund-eligible payment. It accepts
 only the application ID and uses PostgreSQL's clock for both the eligibility
 decision and persisted transition timestamps. Payment capture is idempotent for
 an exact repeat of an already captured identifier.
+
+Reporter story submission functions use the same empty-search-path and row-lock
+pattern. Every reporter call rechecks the signed `reporter` role, active database
+profile, current access-sync generation, and live membership dates. Review
+submission permits active or grace membership; direct publication requires
+active membership and `can_publish_directly`. The functions validate an active
+language/category relation, reject non-owned or retired canonical media, require
+a server-received location captured within 30 minutes, and atomically snapshot,
+store private evidence, transition the canonical story, and append coordinate-
+free audit metadata.
+
+Direct story DML is limited to owned `citizen_report` drafts. A trigger protects
+server-owned identity, lifecycle, publication, origin, promotion, sponsorship,
+and timestamp fields, while RLS prevents draft creation/update after membership
+or access synchronization becomes invalid. A separate database guard makes
+published reporter content and publication provenance immutable while retaining
+the archive lifecycle. Reporters cannot create revisions or locations directly
+and cannot transition a story status outside the RPCs.
 
 The functions never call Razorpay. Rejection changes the captured payment to
 `refund_pending`, allowing the server-side refund worker to call Razorpay and
@@ -86,4 +116,9 @@ rechecks that the supplied actor is an active database `admin` profile.
   grants. Applicants have no application or consent DML grant/policy path and
   cannot write lifecycle, KYC, payment, trust, portrait, notification-delivery,
   webhook, or audit fields. The service-role key remains server-only.
+- Exact latitude, longitude, accuracy, and capture time never appear in a public
+  view, anonymous grant, generic audit payload, error, or documentation example.
+  Location rows become deletion-eligible one year after publication, editorial
+  rejection, or reporter withdrawal; `legal_hold = true` excludes them from the
+  retention queue.
 - Storage policies remain outside Phase 1.
