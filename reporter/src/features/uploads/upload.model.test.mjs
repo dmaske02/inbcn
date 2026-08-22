@@ -9,6 +9,7 @@ import {
   UploadClientError,
   cloudinaryUploadChunks,
   createBrowserUpload,
+  isUploadBusy,
   isSignedUploadFresh,
   validateProviderAsset,
   validateUpload,
@@ -109,6 +110,8 @@ const imageAsset = {
   public_id: "inbcn/reporter/story/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222/33333333-3333-4333-8333-333333333333",
   resource_type: "image",
   type: "upload",
+  status: "active",
+  placeholder: false,
   format: "jpg",
   bytes: 1_000_000,
   width: 1200,
@@ -197,6 +200,28 @@ test("rejects forged or incomplete authoritative provider facts", () => {
     mediaType: "video",
     originalFilename: "clip.mp4",
   }, "2026-08-23T10:20:00.000Z").ok, false);
+});
+
+test("rejects deleted, missing, and placeholder Admin API assets", () => {
+  for (const patch of [
+    { status: "deleted" },
+    { status: "not_found" },
+    { status: undefined },
+    { placeholder: true },
+  ]) {
+    assert.equal(validateProviderAsset(
+      { ...imageAsset, ...patch },
+      providerExpectation,
+      "2026-08-23T10:20:00.000Z",
+    ).ok, false);
+  }
+});
+
+test("rejects an asset created beyond the signed upload validity window", () => {
+  assert.equal(validateProviderAsset({
+    ...imageAsset,
+    created_at: new Date((providerExpectation.signedAt + 2 * 60 * 60) * 1_000).toISOString(),
+  }, providerExpectation, new Date((providerExpectation.signedAt + 3 * 60 * 60) * 1_000).toISOString()).ok, false);
 });
 
 test("uses Cloudinary's one-hour signing lifetime without claiming a shorter TTL", () => {
@@ -645,6 +670,27 @@ function respondingRequests() {
   };
 }
 
+test("uses browser crypto with its required receiver when no upload ID is injected", async () => {
+  const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, "crypto");
+  const browserCrypto = {
+    randomUUID() {
+      if (this !== browserCrypto) throw new TypeError("Illegal invocation");
+      return "browser-generated-upload-id";
+    },
+  };
+  const fake = respondingRequests();
+  Object.defineProperty(globalThis, "crypto", { configurable: true, value: browserCrypto });
+  try {
+    const transfer = createBrowserUpload(fakeFile(MAX_VIDEO_UPLOAD_BYTES), browserAuthorization, {
+      createRequest: () => fake.createRequest(),
+    });
+    assert.deepEqual(await transfer.promise, { assetId: "asset-video-1" });
+    assert.equal(fake.requests[0].headers["X-Unique-Upload-Id"], "browser-generated-upload-id");
+  } finally {
+    if (cryptoDescriptor) Object.defineProperty(globalThis, "crypto", cryptoDescriptor);
+  }
+});
+
 test("uploads a 250 MiB file directly in Cloudinary-supported chunks with aggregate progress", async () => {
   const fake = respondingRequests();
   const progress = [];
@@ -705,4 +751,19 @@ test("media uploader announces progress and retries pending completion without l
   assert.match(component, /\/api\/uploads\/sign/u);
   assert.match(component, /\/api\/uploads\/complete/u);
   assert.doesNotMatch(component, /setFile\(null\)/u);
+});
+
+test("busy uploader state disables every mutable control", async () => {
+  for (const phase of ["signing", "uploading", "completing"]) {
+    assert.equal(isUploadBusy(phase), true);
+  }
+  for (const phase of ["idle", "error", "complete"]) {
+    assert.equal(isUploadBusy(phase), false);
+  }
+
+  const component = await readFile(new URL("../submissions/media-uploader.tsx", import.meta.url), "utf8").catch(() => "");
+  assert.match(component, /const busy = isUploadBusy\(phase\)/u);
+  assert.match(component, /id="story-media-file"[\s\S]*?disabled=\{busy\}[\s\S]*?\/>/u);
+  assert.match(component, /id="story-media-title"[\s\S]*?disabled=\{busy\}[\s\S]*?\/>/u);
+  assert.match(component, /id="story-media-alt"[\s\S]*?disabled=\{busy\}[\s\S]*?\/>/u);
 });

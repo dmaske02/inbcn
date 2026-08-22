@@ -129,3 +129,44 @@ removed before the final typecheck.
   @parcel watcher, and Lightning CSS bindings described above.
 
 Commit subject: `feat(reporter): add signed field media uploads`
+
+## Review follow-up — 2026-08-23
+
+Resolved all four requested findings with focused RED/GREEN coverage:
+
+- Browser chunk upload no longer detaches `crypto.randomUUID` from its Web
+  Crypto receiver. The injected test callback remains supported, while the
+  production fallback now directly invokes `crypto.randomUUID()`. A
+  browser-faithful receiver test failed with `Illegal invocation` before the
+  fix and completes a 250 MiB chunk plan without injection after it.
+- Authoritative Admin API assets must now have exact `status = active` and may
+  not have `placeholder = true`. Deleted, missing-status, `not_found`, and
+  backed-up placeholder responses all failed the new deliverability contract
+  before the validator was tightened. This follows Cloudinary's current Admin
+  response contract: status determines whether delivery URLs work, and deleted
+  backed-up assets may be returned as placeholders.
+- Provider `created_at` must fall from one minute before the signed timestamp
+  through the documented one-hour validity plus one minute of boundary clock
+  skew. The existing current-server-time sanity check remains. A provider
+  record created two hours after signing initially passed and is now rejected.
+- Signing, transfer, and completion are one busy UI interval. The file picker,
+  title, and alt-text controls are disabled throughout it, while cancellation
+  remains available during transfer. One runtime-tested busy-state owner drives
+  both the operation guard and control state, preventing a new selection or
+  metadata edit from racing old closures, pending completion, or cancellation.
+
+Follow-up focused tests passed 27/27; the complete reporter suite passed
+179/179; root website/CMS/reporter suites passed 213/213, 587/587, and 179/179
+(979 total). Reporter and root typechecks and lints passed. `git diff --check`
+passed.
+
+The reviewer independently reported a passing production build for this review
+round. The implementer's required bundled-Node reruns still reproduced the
+machine-local native binding gates before application compilation: reporter
+Turbopack could not load the Darwin ARM64 SWC binary, reporter Webpack could not
+load the Lightning CSS binary, and root build stopped on Darwin SWC/@parcel
+Team-ID validation. This report preserves both pieces of evidence rather than
+claiming the local commands passed.
+
+Docker/Postgres remains unavailable, so the original live migration,
+generated-type, and database concurrency verification deferral is unchanged.

@@ -27,6 +27,9 @@ const formats = {
 const CONTROL_OR_PATH = /[\u0000-\u001f\u007f/\\]/u;
 const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "avif"]);
 const VIDEO_EXTENSIONS = new Set(["mp4", "webm"]);
+const CLOUDINARY_SIGNATURE_VALIDITY_MS = 60 * 60 * 1_000;
+// One minute covers boundary clock skew without extending Cloudinary's documented one-hour signing window materially.
+const CLOUDINARY_UPLOAD_CLOCK_SKEW_MS = 60 * 1_000;
 
 export function validateUpload(input: Readonly<{
   mediaType: unknown;
@@ -186,6 +189,8 @@ export function validateProviderAsset(
     || asset.public_id !== expected.publicId
     || asset.resource_type !== expected.mediaType
     || asset.type !== "upload"
+    || asset.status !== "active"
+    || asset.placeholder === true
     || !formatDetails
     || formatDetails.mediaType !== expected.mediaType
     || !formatDetails.extensions.includes(extension as never)
@@ -197,7 +202,8 @@ export function validateProviderAsset(
     || !expectedSecureUrl(asset.secure_url, expected.cloudName, expected.mediaType, expected.publicId, format)
     || !Number.isFinite(created) || !Number.isFinite(current)
     || !Number.isSafeInteger(expected.signedAt)
-    || created < expected.signedAt * 1_000 - 60_000
+    || created < expected.signedAt * 1_000 - CLOUDINARY_UPLOAD_CLOCK_SKEW_MS
+    || created > expected.signedAt * 1_000 + CLOUDINARY_SIGNATURE_VALIDITY_MS + CLOUDINARY_UPLOAD_CLOCK_SKEW_MS
     || created > current + 5 * 60_000) {
     return { ok: false };
   }
@@ -222,6 +228,12 @@ export function validateProviderAsset(
 
 export const CLOUDINARY_DIRECT_UPLOAD_LIMIT = 100 * 1024 * 1024;
 export const CLOUDINARY_UPLOAD_CHUNK_BYTES = 20 * 1024 * 1024;
+
+export type UploadPhase = "idle" | "signing" | "uploading" | "completing" | "error" | "complete";
+
+export function isUploadBusy(phase: UploadPhase): boolean {
+  return phase === "signing" || phase === "uploading" || phase === "completing";
+}
 
 export type BrowserUploadAuthorization = Readonly<{
   cloudName: string;
@@ -307,7 +319,7 @@ export function createBrowserUpload(
 ): Readonly<{ promise: Promise<Readonly<{ assetId: string }>>; cancel(): void }> {
   const chunks = cloudinaryUploadChunks(file.size);
   const createRequest = options.createRequest ?? (() => new XMLHttpRequest() as BrowserRequest);
-  const uploadId = (options.uploadId ?? crypto.randomUUID)();
+  const uploadId = options.uploadId ? options.uploadId() : crypto.randomUUID();
   let active: BrowserRequest | null = null;
   let cancelled = false;
 

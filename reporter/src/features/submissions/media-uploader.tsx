@@ -5,14 +5,15 @@ import { useRef, useState } from "react";
 import {
   type BrowserUploadAuthorization,
   type UploadMediaType,
+  type UploadPhase,
   UploadClientError,
   createBrowserUpload,
+  isUploadBusy,
   isSignedUploadFresh,
   validateUpload,
   validateUploadMetadata,
 } from "../uploads/upload.model";
 
-type UploadPhase = "idle" | "signing" | "uploading" | "completing" | "error" | "complete";
 type PendingCompletion = Readonly<{
   authorization: BrowserUploadAuthorization;
   assetId: string;
@@ -56,9 +57,10 @@ export function MediaUploader({
   const mediaType: UploadMediaType | null = file?.type.startsWith("image/")
     ? "image"
     : file?.type.startsWith("video/") ? "video" : null;
+  const busy = isUploadBusy(phase);
 
   async function upload() {
-    if (!file || !mediaType || phase === "signing" || phase === "uploading" || phase === "completing") return;
+    if (!file || !mediaType || busy) return;
     const validFile = validateUpload({
       mediaType,
       filename: file.name,
@@ -154,6 +156,7 @@ export function MediaUploader({
       <input
         id="story-media-file"
         type="file"
+        disabled={busy}
         accept=".jpg,.jpeg,.png,.webp,.avif,.mp4,.webm,image/jpeg,image/png,image/webp,image/avif,video/mp4,video/webm"
         onChange={(event) => {
           setFile(event.target.files?.[0] ?? null);
@@ -165,9 +168,21 @@ export function MediaUploader({
         }}
       />
       <label htmlFor="story-media-title">Media title</label>
-      <input id="story-media-title" value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} />
+      <input
+        id="story-media-title"
+        value={title}
+        maxLength={200}
+        disabled={busy}
+        onChange={(event) => setTitle(event.target.value)}
+      />
       <label htmlFor="story-media-alt">Alt text {mediaType === "video" ? "(optional)" : ""}</label>
-      <textarea id="story-media-alt" value={altText} maxLength={500} onChange={(event) => setAltText(event.target.value)} />
+      <textarea
+        id="story-media-alt"
+        value={altText}
+        maxLength={500}
+        disabled={busy}
+        onChange={(event) => setAltText(event.target.value)}
+      />
       <div aria-live="polite" role={phase === "error" ? "alert" : "status"}>
         {message}
         {phase === "uploading" ? <progress max={100} value={progress}>{progress}%</progress> : null}
@@ -176,7 +191,7 @@ export function MediaUploader({
       {phase === "uploading" ? (
         <button type="button" onClick={() => activeTransfer.current?.cancel()}>Cancel upload</button>
       ) : (
-        <button type="button" disabled={!file || phase === "signing" || phase === "completing"} onClick={() => void upload()}>
+        <button type="button" disabled={!file || busy} onClick={() => void upload()}>
           {phase === "error" ? "Retry" : "Upload media"}
         </button>
       )}
