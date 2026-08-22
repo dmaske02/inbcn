@@ -52,6 +52,38 @@ test("the signed callback route maps invalid signatures to 401", async () => {
   assert.deepEqual(await response.json(), { code: "invalid-kyc-signature" });
 });
 
+test("the callback returns retryable 503 for a fresh active processing lease", async () => {
+  const handler = createKycCallbackHandler({
+    process: async () => ({ duplicate: true, status: "processing" }),
+  });
+  const response = await handler(new Request("https://reporter.inbcn.com/api/kyc/callback", {
+    method: "POST",
+    headers: { "x-kyc-signature": "valid" },
+    body: "opaque-body",
+  }));
+
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { code: "kyc-webhook-busy" });
+  const retryAfter = Number(response.headers.get("retry-after"));
+  assert.equal(Number.isInteger(retryAfter), true);
+  assert.equal(retryAfter > 0 && retryAfter <= 5 * 60, true);
+});
+
+test("the callback idempotently acknowledges an already processed event", async () => {
+  const handler = createKycCallbackHandler({
+    process: async () => ({ duplicate: true, status: "processed" }),
+  });
+  const response = await handler(new Request("https://reporter.inbcn.com/api/kyc/callback", {
+    method: "POST",
+    headers: { "x-kyc-signature": "valid" },
+    body: "opaque-body",
+  }));
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { duplicate: true, status: "processed" });
+  assert.equal(response.headers.has("retry-after"), false);
+});
+
 test("the callback rejects an oversized declared body before reading its stream", async () => {
   let bodyAccesses = 0;
   const handler = createKycCallbackHandler({

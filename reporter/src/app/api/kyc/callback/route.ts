@@ -4,6 +4,7 @@ import {
 } from "../../../../features/application/application.service.ts";
 
 export const MAX_KYC_WEBHOOK_SIZE = 1024 * 1024;
+const KYC_WEBHOOK_RETRY_AFTER_SECONDS = 60;
 
 type Dependencies = Readonly<{
   process(input: Readonly<{ rawBody: string; signature: string }>): Promise<unknown>;
@@ -12,6 +13,13 @@ type Dependencies = Readonly<{
 type BodyReadResult =
   | Readonly<{ ok: true; rawBody: string }>
   | Readonly<{ ok: false; status: 400 | 413 }>;
+
+function hasActiveProcessingLease(result: unknown): boolean {
+  return typeof result === "object"
+    && result !== null
+    && "status" in result
+    && result.status === "processing";
+}
 
 export async function readKycWebhookBody(request: Request): Promise<BodyReadResult> {
   const declaredLength = request.headers.get("content-length");
@@ -60,7 +68,14 @@ export function createKycCallbackHandler(dependencies: Dependencies) {
     const body = await readKycWebhookBody(request);
     if (!body.ok) return Response.json({ code: "invalid-request" }, { status: body.status });
     try {
-      return Response.json(await dependencies.process({ rawBody: body.rawBody, signature }), { status: 200 });
+      const result = await dependencies.process({ rawBody: body.rawBody, signature });
+      if (hasActiveProcessingLease(result)) {
+        return Response.json({ code: "kyc-webhook-busy" }, {
+          status: 503,
+          headers: { "Retry-After": String(KYC_WEBHOOK_RETRY_AFTER_SECONDS) },
+        });
+      }
+      return Response.json(result, { status: 200 });
     } catch (error) {
       if (error instanceof KycServiceError) {
         return Response.json({ code: error.code }, { status: error.httpStatus });
