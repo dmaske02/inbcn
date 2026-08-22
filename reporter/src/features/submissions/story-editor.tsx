@@ -7,6 +7,7 @@ import type { SubmissionActionState } from "./submission.actions.ts";
 import {
   chooseLocalDraft,
   createDraftPersistence,
+  createDraftSaveTracker,
   loadLocalDraft,
   type LocalDraft,
   type LocalDraftFields,
@@ -16,13 +17,14 @@ import { MediaUploader } from "./media-uploader.tsx";
 import { isFreshCapture, type CapturedLocation } from "./submission.model.ts";
 
 type Action = (state: SubmissionActionState, formData: FormData) => Promise<SubmissionActionState>;
+type EditorActionState = SubmissionActionState & Readonly<{ draftSaveAttempt?: number; draftSaveGeneration?: number }>;
 type Media = Readonly<{ id: string; title: string; type: "image" | "video" }>;
 type References = Readonly<{
   languages: readonly Readonly<{ id: string; code: "en" | "hi" | "mr"; nativeName: string }>[];
   categories: readonly Readonly<{ id: string; languageId: string; name: string }>[];
 }>;
 
-const initialState: SubmissionActionState = { status: "idle" };
+const initialState: EditorActionState = { status: "idle" };
 const fieldClass = "mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground";
 const buttonClass = "min-h-11 rounded-md px-4 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground disabled:cursor-not-allowed disabled:opacity-60";
 
@@ -71,6 +73,7 @@ export function StoryEditor({
   saveAction,
   submitAction,
   directAction,
+  storageStoryId = storyId,
 }: Readonly<{
   userId: string;
   storyId: string;
@@ -84,6 +87,7 @@ export function StoryEditor({
   saveAction: Action;
   submitAction?: Action;
   directAction?: Action;
+  storageStoryId?: string;
 }>) {
   const router = useRouter();
   const [fields, setFields] = useState<LocalDraftFields>(() => editorFields(story, references.languages, media));
@@ -93,15 +97,26 @@ export function StoryEditor({
   const [locationMessage, setLocationMessage] = useState("Capture current location before submitting. This is private evidence, not public story content.");
   const [capturing, setCapturing] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [storageMessage, setStorageMessage] = useState("");
   const [transitionState, setTransitionState] = useState<SubmissionActionState | null>(null);
   const [transitionPending, startTransition] = useTransition();
   const persistence = useRef<ReturnType<typeof createDraftPersistence> | null>(null);
+  const saveTracker = useRef(createDraftSaveTracker());
+  const saveAttemptInput = useRef<HTMLInputElement>(null);
+  const saveGenerationInput = useRef<HTMLInputElement>(null);
   const form = useRef<HTMLFormElement>(null);
-  const [saveState, saveFormAction, saving] = useActionState(saveAction, initialState);
+  const [saveState, saveFormAction, saving] = useActionState(async (previous: EditorActionState, formData: FormData) => {
+    const result = await saveAction(previous, formData);
+    return {
+      ...result,
+      draftSaveAttempt: Number(formData.get("draftSaveAttempt")),
+      draftSaveGeneration: Number(formData.get("draftSaveGeneration")),
+    };
+  }, initialState);
 
   useEffect(() => {
-    persistence.current = createDraftPersistence(window.localStorage);
-    const saved = loadLocalDraft(window.localStorage, userId, storyId);
+    persistence.current = createDraftPersistence(window.localStorage, window, () => setStorageMessage("This browser could not save local recovery. Your current edits are still open."));
+    const saved = loadLocalDraft(window.localStorage, userId, storageStoryId);
     const restoreTimer = window.setTimeout(() => {
       if (chooseLocalDraft(saved, story.updatedAt) === "restore") setRestore(saved);
     }, 0);
@@ -109,25 +124,35 @@ export function StoryEditor({
       window.clearTimeout(restoreTimer);
       persistence.current?.flush();
     };
-  }, [story.updatedAt, storyId, userId]);
+  }, [storageStoryId, story.updatedAt, userId]);
 
   useEffect(() => {
-    if (saveState.status !== "success" || !saveState.storyId) return;
-    persistence.current?.clear(userId, storyId);
+    if (!Number.isSafeInteger(saveState.draftSaveAttempt) || !Number.isSafeInteger(saveState.draftSaveGeneration)) return;
+    const acknowledgement = saveTracker.current.acknowledge({
+      attempt: saveState.draftSaveAttempt ?? 0,
+      generation: saveState.draftSaveGeneration ?? 0,
+      status: saveState.status,
+    });
+    if (!acknowledgement.clear || !saveState.storyId) return;
+    persistence.current?.clear(userId, storageStoryId);
     if (saveState.redirectToEditor) router.replace(`/stories/${saveState.storyId}`);
-    const cleanTimer = window.setTimeout(() => setDirty(false), 0);
+    const savedGeneration = saveState.draftSaveGeneration ?? 0;
+    const cleanTimer = window.setTimeout(() => {
+      if (saveTracker.current.isCurrentGeneration(savedGeneration)) setDirty(false);
+    }, 0);
     return () => window.clearTimeout(cleanTimer);
-  }, [router, saveState.redirectToEditor, saveState.status, saveState.storyId, storyId, userId]);
+  }, [router, saveState, storageStoryId, userId]);
 
   useEffect(() => {
-    if (transitionState?.status === "success") persistence.current?.clear(userId, storyId);
-  }, [storyId, transitionState?.status, userId]);
+    if (transitionState?.status === "success") persistence.current?.clear(userId, storageStoryId);
+  }, [storageStoryId, transitionState?.status, userId]);
 
   function updateFields(update: (current: LocalDraftFields) => LocalDraftFields) {
+    saveTracker.current.edit();
     setDirty(true);
     setFields((current) => {
       const next = update(current);
-      persistence.current?.schedule(localDraft(userId, storyId, next));
+      persistence.current?.schedule(localDraft(userId, storageStoryId, next));
       return next;
     });
   }
@@ -135,13 +160,14 @@ export function StoryEditor({
   function restoreDraft() {
     if (!restore) return;
     setFields({ ...restore.fields, eventOccurredAt: indiaDateTime(restore.fields.eventOccurredAt) });
+    saveTracker.current.edit();
     setDirty(true);
     persistence.current?.schedule(restore);
     setRestore(null);
   }
 
   function discardDraft() {
-    persistence.current?.clear(userId, storyId);
+    persistence.current?.clear(userId, storageStoryId);
     setRestore(null);
   }
 
@@ -166,6 +192,12 @@ export function StoryEditor({
     startTransition(async () => setTransitionState(await action(initialState, formData)));
   }
 
+  function prepareSave() {
+    const token = saveTracker.current.beginSave();
+    if (saveAttemptInput.current) saveAttemptInput.current.value = String(token.attempt);
+    if (saveGenerationInput.current) saveGenerationInput.current.value = String(token.generation);
+  }
+
   const categories = references.categories.filter((category) => category.languageId === fields.languageId);
   const canTransition = Boolean(!dirty && location && isFreshCapture(location.capturedAt, new Date()) && locality.trim());
   const featuredMedia = fields.media.filter((item) => item.type === "image");
@@ -173,7 +205,9 @@ export function StoryEditor({
 
   if (!editable) return null;
   return (
-    <form action={saveFormAction} className="space-y-5 rounded-lg border border-border bg-background p-5 shadow-sm sm:p-6" onBlur={() => persistence.current?.flush()} ref={form}>
+    <form action={saveFormAction} className="space-y-5 rounded-lg border border-border bg-background p-5 shadow-sm sm:p-6" onBlur={() => persistence.current?.flush()} onSubmit={prepareSave} ref={form}>
+      <input name="draftSaveAttempt" ref={saveAttemptInput} type="hidden" />
+      <input name="draftSaveGeneration" ref={saveGenerationInput} type="hidden" />
       <input name="latitude" type="hidden" value={location?.latitude ?? ""} />
       <input name="longitude" type="hidden" value={location?.longitude ?? ""} />
       <input name="accuracy" type="hidden" value={location?.accuracy ?? ""} />
@@ -188,7 +222,7 @@ export function StoryEditor({
       ) : null}
       <label className="block text-sm font-medium">Headline<input className={fieldClass} maxLength={240} name="title" onChange={(event) => updateFields((current) => ({ ...current, title: event.target.value }))} required value={fields.title} /></label>
       <label className="block text-sm font-medium">Summary<textarea className={fieldClass} maxLength={1000} name="summary" onChange={(event) => updateFields((current) => ({ ...current, summary: event.target.value }))} required rows={3} value={fields.summary} /></label>
-      <label className="block text-sm font-medium">Body<textarea className={fieldClass} name="body" onChange={(event) => updateFields((current) => ({ ...current, body: event.target.value }))} required rows={10} value={fields.body} /></label>
+      <label className="block text-sm font-medium">Body<textarea className={fieldClass} maxLength={100_000} name="body" onChange={(event) => updateFields((current) => ({ ...current, body: event.target.value }))} required rows={10} value={fields.body} /></label>
       <label className="block text-sm font-medium">Language<select className={fieldClass} name="language" onChange={(event) => {
         const [languageId] = event.target.value.split(":", 1);
         const language = references.languages.find((item) => item.id === languageId);
@@ -201,6 +235,7 @@ export function StoryEditor({
       {featuredMedia.length ? <label className="block text-sm font-medium">Featured image<select className={fieldClass} name="featuredMediaId" onChange={(event) => updateFields((current) => ({ ...current, featuredMediaId: event.target.value || null }))} value={fields.featuredMediaId ?? ""}><option value="">None</option>{featuredMedia.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label> : <input name="featuredMediaId" type="hidden" value="" />}
       <button className={`${buttonClass} bg-foreground text-background`} disabled={isSaving} type="submit">{saving ? "Saving…" : "Save draft"}</button>
       {actionMessage(saveState)}
+      {storageMessage ? <p aria-live="polite" className="text-sm text-destructive" role="alert">{storageMessage}</p> : null}
       {canSubmit ? <section aria-labelledby="private-evidence-heading" className="space-y-3 border-t border-border pt-5"><h2 id="private-evidence-heading" className="text-lg font-semibold">Private current-location evidence</h2><p className="text-sm text-muted-foreground">Your exact coordinates, accuracy, and capture time are private evidence for the newsroom and never appear in the story.</p><button className={`${buttonClass} border border-border`} disabled={capturing || transitionPending} onClick={() => void captureLocation()} type="button">{capturing ? "Capturing location…" : "Capture current location"}</button><p aria-live="polite" className="text-sm" role={location ? "status" : undefined}>{locationMessage}</p>{location ? <p className="rounded-md border border-border p-3 text-sm">Private capture: {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)} · accuracy {Math.round(location.accuracy)} m · {new Date(location.capturedAt).toLocaleString()}</p> : null}<label className="block text-sm font-medium">Detailed locality confirmation<input aria-required="true" className={fieldClass} maxLength={200} name="locality" onChange={(event) => setLocality(event.target.value)} value={locality} /></label><div className="flex flex-wrap gap-2"><button className={`${buttonClass} bg-foreground text-background`} disabled={!canTransition || transitionPending} onClick={() => transition(submitAction)} type="button">{transitionPending ? "Working…" : "Submit for review"}</button>{canDirectPublish ? <button className={`${buttonClass} border border-border`} disabled={!canTransition || transitionPending} onClick={() => transition(directAction)} type="button">Publish directly</button> : null}</div>{actionMessage(transitionState)}</section> : null}
     </form>
   );

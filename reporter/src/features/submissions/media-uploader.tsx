@@ -187,7 +187,7 @@ export function MediaUploader({
         {message}
         {phase === "uploading" ? <progress max={100} value={progress}>{progress}%</progress> : null}
       </div>
-      {completedId ? <input type="hidden" name="mediaIds" value={completedId} /> : null}
+      {completedId && !onUploaded ? <input type="hidden" name="mediaIds" value={completedId} /> : null}
       {phase === "uploading" ? (
         <button type="button" onClick={() => activeTransfer.current?.cancel()}>Cancel upload</button>
       ) : (

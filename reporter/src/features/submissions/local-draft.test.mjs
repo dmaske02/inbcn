@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  NEW_REPORTER_DRAFT_ID,
   chooseLocalDraft,
   createDraftPersistence,
+  createDraftSaveTracker,
   draftStorageKey,
   loadLocalDraft,
   saveLocalDraft,
@@ -46,6 +48,15 @@ test("scopes versioned local drafts exactly to a reporter and stable story UUID"
   assert.equal(JSON.stringify(local).includes("capturedAt"), false);
 });
 
+test("uses one discoverable current-user new-draft alias without weakening UUID scoping", () => {
+  const draft = { ...local, storyId: NEW_REPORTER_DRAFT_ID };
+  const storage = memoryStorage();
+  assert.equal(draftStorageKey(userId, NEW_REPORTER_DRAFT_ID), `inbcn:reporter-draft:${userId}:new`);
+  assert.equal(saveLocalDraft(storage, draft), true);
+  assert.deepEqual(loadLocalDraft(storage, userId, NEW_REPORTER_DRAFT_ID), draft);
+  assert.equal(loadLocalDraft(storage, "99999999-9999-4999-8999-999999999999", NEW_REPORTER_DRAFT_ID), null);
+});
+
 test("loads only bounded current-version drafts for their matching owner and story", () => {
   const key = draftStorageKey(userId, storyId);
   const storage = memoryStorage({ [key]: JSON.stringify(local) });
@@ -76,6 +87,16 @@ test("ignores corrupt or oversized records and safely handles disabled or quota 
   assert.equal(saveLocalDraft(broken, local), false);
 });
 
+test("retains bounded partial editor fields, including an empty event time and body beyond fifteen thousand characters", () => {
+  const partial = {
+    ...local,
+    fields: { ...local.fields, body: "x".repeat(50_000), eventOccurredAt: "", languageCode: "", languageId: "", categoryId: "" },
+  };
+  const storage = memoryStorage();
+  assert.equal(saveLocalDraft(storage, partial), true);
+  assert.deepEqual(loadLocalDraft(storage, userId, storyId), partial);
+});
+
 test("offers restoration only when a validated local draft is newer than the server", () => {
   assert.equal(chooseLocalDraft(local, "2026-08-23T12:00:00.000Z"), "restore");
   assert.equal(chooseLocalDraft(local, "2026-08-23T12:01:00.000Z"), "server");
@@ -100,4 +121,18 @@ test("debounces edits, flushes on blur, and clears only when asked after a confi
   assert.equal(loadLocalDraft(storage, userId, storyId)?.updatedAt, local.updatedAt);
   persistence.clear(userId, storyId);
   assert.equal(loadLocalDraft(storage, userId, storyId), null);
+});
+
+test("acknowledges only the exact saved edit generation and handles repeated successes", () => {
+  const tracker = createDraftSaveTracker();
+  tracker.edit();
+  const first = tracker.beginSave();
+  tracker.edit();
+  assert.equal(tracker.acknowledge({ ...first, status: "success" }).clear, false);
+  const second = tracker.beginSave();
+  assert.equal(tracker.acknowledge({ ...second, status: "success" }).clear, true);
+  const third = tracker.beginSave();
+  assert.equal(tracker.acknowledge({ ...third, status: "success" }).clear, true);
+  tracker.edit();
+  assert.equal(tracker.isCurrentGeneration(third.generation), false);
 });

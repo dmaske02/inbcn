@@ -29,6 +29,7 @@ export default async function NewReporterStoryPage() {
         saveAction={saveReporterDraftAction.bind(null, draftTarget)}
         story={{ title: "", summary: "", body: "", languageId: "", categoryId: "", eventOccurredAt: "", featuredMediaId: null, updatedAt: new Date().toISOString() }}
         storyId={draftTarget.storyId}
+        storageStoryId="new"
         userId={actor.userId}
       />
     </div>

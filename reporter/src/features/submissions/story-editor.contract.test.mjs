@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const source = await readFile(new URL("./story-editor.tsx", import.meta.url), "utf8");
+const uploader = await readFile(new URL("./media-uploader.tsx", import.meta.url), "utf8");
 
 test("mobile editor keeps local recovery and browser capture in one client island", () => {
   assert.match(source, /^"use client";/u);
@@ -22,6 +23,17 @@ test("mobile editor filters categories and preserves ordered uploaded media inva
   assert.match(source, /Move media up/u);
   assert.match(source, /Move media down/u);
   assert.match(source, /Remove media/u);
+});
+
+test("editor owns attached-media hidden inputs after an uploader callback", () => {
+  assert.match(uploader, /completedId && !onUploaded/u);
+  assert.match(source, /fields\.media\.map\(\(item\) => <input[^>]+name="mediaIds"/u);
+});
+
+test("editor tracks save attempts against edit generations and uses the new-draft recovery alias", () => {
+  assert.match(source, /createDraftSaveTracker/u);
+  assert.match(source, /storageStoryId/u);
+  assert.match(source, /onSubmit=\{prepareSave\}/u);
 });
 
 test("mobile editor preserves the server language value contract and renders ISO-Z event times for native inputs", () => {

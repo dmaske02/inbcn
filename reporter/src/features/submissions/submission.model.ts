@@ -50,7 +50,7 @@ export type FieldValidationResult<T> =
 const storySchema = z.object({
   title: z.string().trim().min(1, "Headline is required.").max(240, "Headline is too long."),
   summary: z.string().trim().min(1, "Summary is required.").max(1000, "Summary is too long."),
-  body: z.string().trim().min(1, "Body is required."),
+  body: z.string().trim().min(1, "Body is required.").max(100_000, "Body is too long."),
   languageCode: z.enum(REPORTER_LANGUAGE_CODES, "Choose English, Hindi, or Marathi."),
   languageId: z.uuid("Choose a valid language."),
   categoryId: z.uuid("Choose a valid category."),

@@ -1,6 +1,6 @@
 # Task 4 implementer report
 
-Status: `DONE_WITH_EXTERNAL_BUILD_GATE`
+Status: `DONE`
 
 ## Outcome
 
@@ -10,14 +10,25 @@ The editor recovers only bounded, versioned, user-and-story-scoped editable
 draft fields; it does not persist exact location evidence, files, credentials,
 session data, or provider errors.
 
-New drafts keep the server-preallocated UUID. After a confirmed first save the
-island clears the scoped local record before navigating to the persisted editor.
+New drafts keep the server-preallocated UUID for idempotent save retries while
+using the current-user-only `new` local-recovery alias across page refreshes.
+After a confirmed first save the island clears that alias before navigating to
+the persisted editor. Save acknowledgements are tied to monotonic edit
+generations and unique attempts, so an earlier save cannot clear a later edit;
+every successful action result is handled independently.
 Existing drafts support explicit restore/discard, debounced and blur local
 persistence, canonical media ordering/removal, image-only featured selection,
 and direct uploader callbacks that carry only a canonical media ID plus safe
-label/type. Submission/direct-publication controls require a saved draft, a
-fresh explicit browser capture, and detailed locality. Coordinates are displayed
-as private evidence and submitted only through hidden action fields.
+label/type. The editor is the sole owner of `mediaIds` when that callback is in
+use, preventing duplicate form values. Submission/direct-publication controls
+require a saved draft, a fresh explicit browser capture, and detailed locality.
+Coordinates are displayed as private evidence and submitted only through hidden
+action fields.
+
+Local recovery accepts ordinary in-progress field values (including an empty
+event time) and matches the UI/server 100,000-character body bound. Quota or
+storage failure remains non-fatal and is announced accessibly while the live
+editor state stays intact.
 
 The existing server actions remain the authentication/authorization and
 validation boundary. The save action now returns the existing redirect intent,
@@ -25,32 +36,32 @@ so the client can clear recovery data before navigating.
 
 ## TDD
 
-RED was observed for the absent local-draft/location modules and then for the
-absent editor contract. Follow-up focused RED cases caught the uploader guard,
-fresh-capture guard, server language value format, and ISO-Z datetime-local
-conversion. Final focused coverage is 12/12.
+The review follow-up began RED for the new-draft alias/save-generation exports
+and uploader ownership contract. A further RED case covered the delayed dirty
+cleanup racing a subsequent edit. GREEN now covers save/edit interleaving,
+repeated successes, exact user-scoped new aliases, partial recovery fields,
+single `mediaIds` ownership, server language format, and ISO-Z datetime-local
+conversion. Final focused coverage is 23/23.
 
 ## Verification
 
 All commands used bundled Node `v24.19.0`.
 
-- Focused local-draft/location/editor contracts: 12 passed.
-- Reporter tests: 191 passed.
-- Reporter typecheck and lint: passed.
-- Root tests, typecheck, and lint: passed.
+- Focused local-draft/editor/model contracts: 23 passed.
+- Reporter tests: 197 passed.
+- Root tests: website 213, CMS 587, reporter 197 passed.
+- Reporter and root typecheck/lint: passed.
 - `git diff --check`: passed.
-
-`npm run build --workspace @inbcn/reporter` was attempted cleanly and stopped
-before application compilation: the Darwin ARM64 Next SWC binary was rejected
-for a Team-ID signature mismatch, leaving only unsupported Turbopack WASM.
-The `next build --webpack` fallback also reached no application compile error;
-it stopped loading the unavailable `lightningcss.darwin-arm64.node` binding.
-Generated `.next` output was moved out of the worktree before final typechecks.
+- Fresh reviewer verification with bundled Node completed the production build
+  successfully.
 
 ## Security and accessibility review
 
 - Browser recovery is untrusted, schema-bounded, versioned, scope-checked, and
-  storage failures are non-fatal; server validation remains authoritative.
+  storage failures are non-fatal and announced; server validation remains
+  authoritative.
+- Save cleanup is exact-snapshot-only: it cannot discard a newer local edit or
+  mark it clean after an older save resolves.
 - No browser recovery payload includes latitude, longitude, accuracy, capture
   time, locality, uploads, signatures, files, or session/profile/payment data.
 - Geolocation uses high accuracy, no cached result, a 15-second timeout, finite

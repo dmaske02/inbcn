@@ -60,6 +60,11 @@ test("normalizes only supported reporter story fields", () => {
   assert.equal("ignoredUrl" in result.data, false);
 });
 
+test("shares the editor and local-recovery one-hundred-thousand-character body bound", () => {
+  assert.equal(validateReporterStoryInput({ ...story, body: "x".repeat(100_000) }, now).ok, true);
+  assert.equal(validateReporterStoryInput({ ...story, body: "x".repeat(100_001) }, now).ok, false);
+});
+
 test("rejects unsupported language, malformed media IDs, and featured media outside the ordered set", () => {
   for (const input of [
     { ...story, languageCode: "bn" },

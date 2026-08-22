@@ -1,5 +1,7 @@
 export const LOCAL_DRAFT_VERSION = 1;
-const MAX_LOCAL_DRAFT_BYTES = 20_000;
+export const NEW_REPORTER_DRAFT_ID = "new";
+const MAX_LOCAL_DRAFT_BYTES = 110_000;
+const MAX_BODY_CHARACTERS = 100_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const LANGUAGES = new Set(["en", "hi", "mr"]);
 
@@ -35,6 +37,7 @@ function text(value: unknown, maximum: number): string | null {
 }
 
 function parsedTime(value: unknown): string | null {
+  if (value === "") return "";
   if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) return null;
   return value;
 }
@@ -44,7 +47,7 @@ function parsedFields(value: unknown): LocalDraftFields | null {
   const fields = value as Record<string, unknown>;
   const title = text(fields.title, 240);
   const summary = text(fields.summary, 1_000);
-  const body = text(fields.body, 15_000);
+  const body = text(fields.body, MAX_BODY_CHARACTERS);
   const languageCode = fields.languageCode;
   const languageId = text(fields.languageId, 36);
   const categoryId = text(fields.categoryId, 36);
@@ -77,7 +80,8 @@ function parseLocalDraft(value: unknown): LocalDraft | null {
   const storyId = text(draft.storyId, 36);
   const updatedAt = parsedTime(draft.updatedAt);
   const fields = parsedFields(draft.fields);
-  if (draft.version !== LOCAL_DRAFT_VERSION || !userId || !UUID.test(userId) || !storyId || !UUID.test(storyId) || !updatedAt || !fields) return null;
+  if (draft.version !== LOCAL_DRAFT_VERSION || !userId || !UUID.test(userId)
+    || !storyId || (storyId !== NEW_REPORTER_DRAFT_ID && !UUID.test(storyId)) || !updatedAt || !fields) return null;
   return { version: LOCAL_DRAFT_VERSION, userId, storyId, updatedAt, fields };
 }
 
@@ -117,7 +121,11 @@ export function chooseLocalDraft(local: LocalDraft | null, serverUpdatedAt: stri
   return local && Date.parse(local.updatedAt) > Date.parse(serverUpdatedAt) ? "restore" : "server";
 }
 
-export function createDraftPersistence(storage: SafeStorage, timer: Timer = window): Readonly<{
+export function createDraftPersistence(
+  storage: SafeStorage,
+  timer: Timer = window,
+  onFailure: () => void = () => {},
+): Readonly<{
   schedule(draft: LocalDraft): void;
   flush(): void;
   clear(userId: string, storyId: string): void;
@@ -127,7 +135,7 @@ export function createDraftPersistence(storage: SafeStorage, timer: Timer = wind
   const flush = () => {
     if (timeout !== null) timer.clearTimeout(timeout);
     timeout = null;
-    if (pending) saveLocalDraft(storage, pending);
+    if (pending && !saveLocalDraft(storage, pending)) onFailure();
     pending = null;
   };
   return {
@@ -144,4 +152,20 @@ export function createDraftPersistence(storage: SafeStorage, timer: Timer = wind
       clearLocalDraft(storage, userId, storyId);
     },
   };
+}
+
+export function createDraftSaveTracker() {
+  let generation = 0;
+  let attempt = 0;
+  let acknowledged = 0;
+  return {
+    edit() { generation += 1; },
+    beginSave() { return { attempt: ++attempt, generation }; },
+    isCurrentGeneration(candidate: number) { return candidate === generation; },
+    acknowledge(result: Readonly<{ attempt: number; generation: number; status: "success" | "error" | "idle" }>) {
+      if (result.attempt <= acknowledged) return { clear: false };
+      acknowledged = result.attempt;
+      return { clear: result.status === "success" && result.generation === generation };
+    },
+  } as const;
 }
