@@ -2,12 +2,12 @@
   "name": "inbcn",
   "version": "0.1.0",
   "private": true,
-  "workspaces": ["website", "cms", "packages/*"],
+  "workspaces": ["website", "cms", "reporter", "packages/*"],
   "scripts": {
-    "build": "npm run build --workspace @inbcn/website && npm run build --workspace @inbcn/cms",
-    "lint": "npm run lint --workspace @inbcn/website && npm run lint --workspace @inbcn/cms",
-    "test": "npm run test --workspace @inbcn/website && npm run test --workspace @inbcn/cms",
-    "typecheck": "npm run typecheck --workspace @inbcn/database && npm run typecheck --workspace @inbcn/domain && npm run typecheck --workspace @inbcn/website && npm run typecheck --workspace @inbcn/cms"
+    "build": "npm run build --workspace @inbcn/website && npm run build --workspace @inbcn/cms && npm run build --workspace @inbcn/reporter",
+    "lint": "npm run lint --workspace @inbcn/website && npm run lint --workspace @inbcn/cms && npm run lint --workspace @inbcn/reporter",
+    "test": "npm run test --workspace @inbcn/website && npm run test --workspace @inbcn/cms && npm run test --workspace @inbcn/reporter",
+    "typecheck": "npm run typecheck --workspace @inbcn/database && npm run typecheck --workspace @inbcn/domain && npm run typecheck --workspace @inbcn/website && npm run typecheck --workspace @inbcn/cms && npm run typecheck --workspace @inbcn/reporter"
   },
   "devDependencies": {
     "typescript": "^5"
