@@ -1,4 +1,5 @@
 import type { DatabaseEnum } from "@/lib/supabase/types";
+import type { PublicReporter } from "@/features/reporters/public-reporter.model";
 
 export type LanguageDto = Readonly<{
   id: string;
@@ -70,6 +71,7 @@ export type StoryDto = StorySummaryDto &
     seoDescription: string | null;
     seoKeywords: readonly string[];
     canonicalUrl: string | null;
+    reporter: PublicReporter | null;
   }>;
 
 export type CategoryStoryDto = StorySummaryDto &

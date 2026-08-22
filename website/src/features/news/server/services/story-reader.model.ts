@@ -132,6 +132,11 @@ export function buildArticleJsonLd(input: Readonly<{
   canonical: string;
   imageUrl: string;
   author: string;
+  reporter?: Readonly<{
+    legalName: string;
+    profileUrl: string;
+    photoUrl: string;
+  }> | null;
   publishedAt: string;
   updatedAt: string;
   readTime: number;
@@ -146,7 +151,14 @@ export function buildArticleJsonLd(input: Readonly<{
     datePublished: input.publishedAt,
     dateModified: input.updatedAt,
     timeRequired: `PT${input.readTime}M`,
-    author: { "@type": "Organization", name: input.author },
+    author: input.reporter
+      ? {
+          "@type": "Person",
+          name: input.reporter.legalName,
+          url: input.reporter.profileUrl,
+          image: input.reporter.photoUrl,
+        }
+      : { "@type": "Organization", name: input.author },
     publisher: { "@type": "Organization", name: "INBCN" },
   } as const;
 }

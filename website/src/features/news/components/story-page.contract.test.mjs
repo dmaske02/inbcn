@@ -45,3 +45,12 @@ test("article metadata preserves canonical social data and exposes author and re
   assert.match(source, /modifiedTime: view\.story\.updatedAt/u);
   assert.match(source, /"article:reading_time": String\(view\.story\.readTime\)/u);
 });
+
+test("article reporter attribution links in the header and renders one full server byline card", async () => {
+  const source = await readFile(new URL("../../../app/[locale]/story/[slug]/page.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /view\.story\.reporter && reporterHref \?/u);
+  assert.match(source, /buildPublicReporterUrl/u);
+  assert.match(source, /<ReporterBylineCard/u);
+  assert.equal((source.match(/<ReporterBylineCard\b/gu) ?? []).length, 1);
+});

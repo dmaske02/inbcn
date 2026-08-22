@@ -181,6 +181,25 @@
     "pagination": { "previous": "Previous", "next": "Next", "page": "Page", "of": "of" },
     "advertisement": "Advertisement"
   },
+  "reporters": {
+    "home": "Home",
+    "status": {
+      "label": "Reporter status",
+      "verified": "Verified Reporter",
+      "former": "Former Reporter",
+      "suspended": "Suspended"
+    },
+    "district": "District",
+    "beats": "Reporting beats",
+    "viewProfile": "View reporter profile",
+    "publishedStories": "Published stories",
+    "noStories": "No published stories are available in this language.",
+    "notFound": {
+      "title": "Reporter not found",
+      "description": "This verified reporter profile is not available.",
+      "home": "Return home"
+    }
+  },
   "liveTvPage": {
     "home": "Home",
     "title": "Live TV",

@@ -13,6 +13,7 @@ import type {
   StoryDto,
   StorySummaryDto,
 } from "./dto";
+import { resolveStoryReporter } from "@/features/reporters/public-reporter.model";
 import {
   assertRepositoryQuerySucceeded,
   RepositoryError,
@@ -29,7 +30,7 @@ const IMPORTED_IDENTITY_PAGE_SIZE = 500;
 const STORY_SUMMARY_COLUMNS =
   "id, translation_group_id, language_id, category_id, source_id, external_author, story_type, slug, title, summary, external_image_url, external_image_width, external_image_height, featured_media_id, is_featured, is_breaking, is_sponsored, published_at" as const;
 const STORY_DETAIL_COLUMNS =
-  `${STORY_SUMMARY_COLUMNS}, content, updated_at, external_url, seo_title, seo_description, seo_keywords, canonical_url` as const;
+  `${STORY_SUMMARY_COLUMNS}, content, updated_at, external_url, seo_title, seo_description, seo_keywords, canonical_url, status, is_reporter_story, public_reporter` as const;
 const CATEGORY_STORY_COLUMNS = `${STORY_SUMMARY_COLUMNS}, content` as const;
 const CMS_STORY_COLUMNS =
   "id, language_id, category_id, source_id, created_by, approved_by, story_type, status, slug, title, summary, content, external_id, external_url, external_author, external_published_at, external_image_url, external_image_width, external_image_height, featured_media_id, seo_title, seo_description, seo_keywords, canonical_url, is_featured, is_breaking, submitted_at, approved_at, scheduled_at, published_at, created_at, updated_at" as const;
@@ -79,6 +80,9 @@ type StoryDetailRow = StorySummaryRow &
     | "seo_description"
     | "seo_keywords"
     | "canonical_url"
+    | "status"
+    | "is_reporter_story"
+    | "public_reporter"
   >;
 
 type CategoryStoryRow = StorySummaryRow & Pick<TableRow<"stories">, "content">;
@@ -183,6 +187,11 @@ function toStoryDto(row: StoryDetailRow, media: FeaturedMediaRow | null): StoryD
     seoDescription: row.seo_description,
     seoKeywords: row.seo_keywords,
     canonicalUrl: row.canonical_url,
+    reporter: resolveStoryReporter(
+      row.status,
+      row.is_reporter_story,
+      row.public_reporter,
+    ),
   };
 }
 
@@ -444,6 +453,25 @@ export async function getStoriesByLanguage(
   }
 
   return getPublishedStories({ languageId: language.id });
+}
+
+export async function getPublishedReporterStories(
+  languageId: string,
+  publicSlug: string,
+): Promise<StorySummaryDto[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("stories")
+    .select(STORY_SUMMARY_COLUMNS)
+    .eq("language_id", languageId)
+    .eq("status", "published")
+    .not("published_at", "is", null)
+    .lte("published_at", new Date().toISOString())
+    .eq("public_reporter->>public_slug", publicSlug)
+    .order("published_at", { ascending: false });
+
+  assertRepositoryQuerySucceeded(error, "load published reporter stories");
+  return attachFeaturedMedia(data);
 }
 
 export async function getCmsStories(query: CmsStoryListQuery): Promise<CmsStoryListResultDto> {

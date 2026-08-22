@@ -225,6 +225,35 @@ test("generates NewsArticle JSON-LD without protected author identifiers", () =>
   assert.equal("created_by" in jsonLd, false);
 });
 
+test("uses a safe localized Person only for verified reporter attribution", () => {
+  const jsonLd = buildArticleJsonLd({
+    title: "Published field report",
+    description: "Summary",
+    canonical: "https://inbcn.example/hi/story/field-report",
+    imageUrl: "https://inbcn.example/fallback.svg",
+    author: "Ananya Patil",
+    reporter: {
+      legalName: "Ananya Patil",
+      profileUrl: "https://inbcn.example/hi/reporters/ananya_patil",
+      photoUrl: "https://res.cloudinary.com/inbcn/image/upload/reporter/ananya.jpg",
+    },
+    publishedAt: "2026-08-01T10:00:00.000Z",
+    updatedAt: "2026-08-01T11:00:00.000Z",
+    readTime: 4,
+  });
+
+  assert.deepEqual(jsonLd.author, {
+    "@type": "Person",
+    name: "Ananya Patil",
+    url: "https://inbcn.example/hi/reporters/ananya_patil",
+    image: "https://res.cloudinary.com/inbcn/image/upload/reporter/ananya.jpg",
+  });
+  const serialized = JSON.stringify(jsonLd);
+  for (const forbidden of ["profile_id", "created_by", "phone", "kyc", "latitude"]) {
+    assert.equal(serialized.includes(forbidden), false);
+  }
+});
+
 test("splits plain text into trimmed readable paragraphs", () => {
   assert.deepEqual(splitStoryBody(" First paragraph.\n\nSecond paragraph.\nThird line. "), [
     "First paragraph.", "Second paragraph.", "Third line.",

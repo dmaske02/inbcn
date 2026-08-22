@@ -8,6 +8,10 @@ import { getCategories } from "../categories.repository";
 import { getStoriesByCategory, getStoriesByLanguage, getStoryBySlug } from "../stories.repository";
 import type { StorySummaryDto } from "../dto";
 import {
+  composePublicReporterMetadata,
+  type PublicReporter,
+} from "@/features/reporters/public-reporter.model";
+import {
   buildArticleJsonLd,
   buildPublicStoryUrl,
   calculateReadTime,
@@ -39,6 +43,7 @@ export type StoryReaderViewModel = Readonly<{
     summary: string;
     paragraphs: readonly string[];
     author: string;
+    reporter: PublicReporter | null;
     publishedAt: string;
     updatedAt: string;
     readTime: number;
@@ -84,7 +89,8 @@ export const getStoryReaderData = cache(async (locale: string, slug: string): Pr
     getStoriesByLanguage(locale),
   ]);
   const relatedDtos = selectRelatedStories(story.id, sameCategoryStories, latestStories);
-  const author = formatPublicAuthor(story.externalAuthor, t("author.newsDesk"));
+  const author = story.reporter?.legalName
+    ?? formatPublicAuthor(story.externalAuthor, t("author.newsDesk"));
   const categoriesById = new Map(categories.map((item) => [item.id, item]));
   const toCard = (item: StorySummaryDto): StoryReaderCard => ({
     id: item.id,
@@ -135,6 +141,11 @@ export const getStoryReaderData = cache(async (locale: string, slug: string): Pr
     slug: story.slug,
     imageUrl: image.src,
   });
+  const reporterMetadata = composePublicReporterMetadata({
+    reporter: story.reporter,
+    locale,
+    siteUrl,
+  });
 
   return {
     story: {
@@ -143,6 +154,7 @@ export const getStoryReaderData = cache(async (locale: string, slug: string): Pr
       summary: story.summary,
       paragraphs,
       author,
+      reporter: story.reporter,
       publishedAt: story.publishedAt,
       updatedAt: story.updatedAt,
       readTime,
@@ -171,6 +183,13 @@ export const getStoryReaderData = cache(async (locale: string, slug: string): Pr
       canonical: metadata.canonical,
       imageUrl: metadata.openGraph.images[0],
       author,
+      reporter: story.reporter && reporterMetadata
+        ? {
+            legalName: story.reporter.legalName,
+            profileUrl: reporterMetadata.canonical,
+            photoUrl: story.reporter.photoUrl,
+          }
+        : null,
       publishedAt: story.publishedAt,
       updatedAt: story.updatedAt,
       readTime,

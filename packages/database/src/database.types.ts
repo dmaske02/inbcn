@@ -1153,6 +1153,7 @@ export type Database = {
           is_sponsored: boolean
           language_id: string
           published_at: string | null
+          public_reporter: Json | null
           rejected_at: string | null
           rejection_reason: string | null
           scheduled_at: string | null
@@ -1421,6 +1422,10 @@ export type Database = {
       is_reporter_story: {
         Args: { "": Database["public"]["Tables"]["stories"]["Row"] }
         Returns: boolean
+      }
+      public_reporter: {
+        Args: { "": Database["public"]["Tables"]["stories"]["Row"] }
+        Returns: Json
       }
       fail_reporter_refund_request: {
         Args: { p_payment_id: string; p_refund_request_token: string }

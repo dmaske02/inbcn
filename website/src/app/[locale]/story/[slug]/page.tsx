@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { ReadingProgress } from "@/features/news/components/reading-progress";
 import { StoryShareActions } from "@/features/news/components/story-share-actions";
 import { getStoryReaderData, type StoryReaderViewModel } from "@/features/news/server/services/story-reader.service";
+import { ReporterBylineCard } from "@/features/reporters/reporter-byline-card";
+import { buildPublicReporterUrl } from "@/features/reporters/public-reporter.model";
 
 type StoryPageProps = { params: Promise<{ locale: string; slug: string }> };
 type ReaderCard = StoryReaderViewModel["related"][number];
@@ -61,13 +63,19 @@ export default async function StoryPage({ params }: StoryPageProps) {
   const { locale, slug } = await params;
   const view = await getStoryReaderData(locale, slug);
   if (!view) notFound();
-  const t = await getTranslations({ locale, namespace: "storyReader" });
+  const [t, reporterT] = await Promise.all([
+    getTranslations({ locale, namespace: "storyReader" }),
+    getTranslations({ locale, namespace: "reporters" }),
+  ]);
   const dateTime = new Intl.DateTimeFormat(locale, { dateStyle: "long", timeStyle: "short" });
   const jsonLd = JSON.stringify(view.jsonLd).replace(/</gu, "\\u003c");
   const inlineByParagraph = new Map(view.inlineRelated.map((placement) => [placement.afterParagraph, placement.story]));
   const showUpdated = view.story.updatedAt !== view.story.publishedAt;
   const heroImagePresentation = getHeroImagePresentation(view.story.image);
   const shareLabels = { whatsapp: "WhatsApp", copy: t("share.copy"), copied: t("share.copied"), x: t("share.x"), facebook: t("share.facebook"), linkedin: t("share.linkedin"), telegram: t("share.telegram"), email: t("share.email") };
+  const reporterHref = view.story.reporter
+    ? buildPublicReporterUrl(locale, view.story.reporter.slug)
+    : null;
 
   return (
     <div className="bg-[#f6f3ed] pb-24 text-[#14110f] lg:pb-12">
@@ -85,7 +93,13 @@ export default async function StoryPage({ params }: StoryPageProps) {
               <h1 className="mt-3 max-w-[18ch] font-heading text-[38px] font-bold leading-[1.04] tracking-[-0.03em] sm:text-[50px] lg:text-[58px]">{view.story.title}</h1>
               <p className="mt-5 max-w-[60ch] font-heading text-[18px] leading-[1.55] text-[#4a423c] sm:text-[21px]">{view.story.summary}</p>
               <div className="mt-7 flex flex-wrap items-center gap-x-4 gap-y-2 border-y border-[#d8d0c5] py-4 text-[11.5px] text-[#6e655c]">
-                <strong className="text-[#14110f]">{view.story.author}</strong>
+                {view.story.reporter && reporterHref ? (
+                  <Link className="font-bold text-[#14110f] underline-offset-4 hover:text-[#b3261e] hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#b3261e]" href={reporterHref}>
+                    {view.story.author}
+                  </Link>
+                ) : (
+                  <strong className="text-[#14110f]">{view.story.author}</strong>
+                )}
                 <span>{t("meta.published")} <time dateTime={view.story.publishedAt}>{dateTime.format(new Date(view.story.publishedAt))}</time></span>
                 {showUpdated ? <span>{t("meta.updated")} <time dateTime={view.story.updatedAt}>{dateTime.format(new Date(view.story.updatedAt))}</time></span> : null}
                 <span className="font-semibold text-[#14110f]">{t("meta.readTime", { minutes: view.story.readTime })}</span>
@@ -107,11 +121,31 @@ export default async function StoryPage({ params }: StoryPageProps) {
               })}
             </div>
 
-            <section className="mt-10 border-y border-[#d8d0c5] py-6" aria-label="Author information">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b3261e]">{t("sections.author")}</p>
-              <h2 className="mt-2 font-heading text-[22px] font-bold">{view.story.author}</h2>
-              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-[#6e655c]"><time dateTime={view.story.publishedAt}>{dateTime.format(new Date(view.story.publishedAt))}</time>{showUpdated ? <time dateTime={view.story.updatedAt}>{t("meta.updated")} {dateTime.format(new Date(view.story.updatedAt))}</time> : null}<span>{t("meta.readTime", { minutes: view.story.readTime })}</span></div>
-            </section>
+            {view.story.reporter && reporterHref ? (
+              <div className="mt-10">
+                <ReporterBylineCard
+                  href={reporterHref}
+                  labels={{
+                    status: reporterT("status.label"),
+                    statusValues: {
+                      verified: reporterT("status.verified"),
+                      former: reporterT("status.former"),
+                      suspended: reporterT("status.suspended"),
+                    },
+                    district: reporterT("district"),
+                    beats: reporterT("beats"),
+                    profile: reporterT("viewProfile"),
+                  }}
+                  reporter={view.story.reporter}
+                />
+              </div>
+            ) : (
+              <section className="mt-10 border-y border-[#d8d0c5] py-6" aria-label="Author information">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b3261e]">{t("sections.author")}</p>
+                <h2 className="mt-2 font-heading text-[22px] font-bold">{view.story.author}</h2>
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-[#6e655c]"><time dateTime={view.story.publishedAt}>{dateTime.format(new Date(view.story.publishedAt))}</time>{showUpdated ? <time dateTime={view.story.updatedAt}>{t("meta.updated")} {dateTime.format(new Date(view.story.updatedAt))}</time> : null}<span>{t("meta.readTime", { minutes: view.story.readTime })}</span></div>
+              </section>
+            )}
 
             {view.story.tags.length ? <section className="mt-8" aria-labelledby="story-tags"><h2 id="story-tags" className="text-[10px] font-bold uppercase tracking-[0.16em]">{t("sections.tags")}</h2><div className="mt-3 flex flex-wrap gap-2">{view.story.tags.map((tag) => <Badge key={tag} variant="outline" className="rounded-[2px] text-[11px]">{tag}</Badge>)}</div></section> : null}
 
