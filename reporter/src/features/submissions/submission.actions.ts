@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { requireReporterSession } from "../auth/server";
 import {
+  type ReporterDraftActionTarget,
   validateReporterStoryInput,
   validateSubmissionEvidence,
 } from "./submission.model";
@@ -85,12 +86,12 @@ function revalidateStories(id: string) {
 }
 
 export async function saveReporterDraftAction(
-  id: string | null,
+  target: ReporterDraftActionTarget,
   _previousState: SubmissionActionState,
   formData: FormData,
 ): Promise<SubmissionActionState> {
   const actor = await requireReporterSession();
-  if (actor.state !== "reporter" || (id !== null && !validStoryId(id))) {
+  if (actor.state !== "reporter" || !validStoryId(target.storyId)) {
     return { status: "error", message: "This story cannot be changed." };
   }
   const parsed = storyInput(formData, new Date().toISOString());
@@ -103,12 +104,12 @@ export async function saveReporterDraftAction(
   }
   let saved;
   try {
-    saved = await saveReporterDraft(actor.userId, id, parsed.data);
+    saved = await saveReporterDraft(actor.userId, target.storyId, parsed.data);
   } catch (error) {
     return safeError(error);
   }
   revalidateStories(saved.id);
-  if (id === null) redirect(`/stories/${saved.id}`);
+  if (target.redirectToEditor) redirect(`/stories/${saved.id}`);
   return { status: "success", message: "Draft saved.", storyId: saved.id };
 }
 

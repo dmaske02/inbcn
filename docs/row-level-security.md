@@ -92,20 +92,20 @@ path that changes canonical draft fields or `media.story_id` ordering. It
 rechecks the same profile, signed generation, active-or-grace membership,
 ownership, explicit reporter provenance, draft state, current classification,
 and completed canonical media facts in one transaction. Reporter RLS remains
-read-only on `media`, so callers cannot bypass the function with direct media
-association DML. The function persists canonical event time with a five-minute
-future-clock allowance but writes no revision, location, audit coordinate, or
-lifecycle field. Public submit/direct functions then read that event time from
-the locked story; their older event-argument implementations are ungranted
-internal functions.
+read-only on `stories` and `media`, so callers cannot bypass the function with
+direct draft or media-association DML. Existing writer/editor/admin story
+policies remain available to their signed CMS roles. The function persists
+canonical event time with a five-minute future-clock allowance but writes no
+revision, location, audit coordinate, or lifecycle field. Public submit/direct
+functions then read that event time from the locked story; their older
+event-argument implementations are ungranted internal functions.
 
-Reporter story DML is limited to owned, explicitly reporter-provenanced
-`citizen_report` drafts. The shared database predicate requires either a
-reporter-profile creator or existing immutable reporter revision evidence and
-is evaluated against both old and new rows for guarded transitions. Revision
-evidence keeps the classification historical even if later membership changes.
-Legacy writer/admin citizen reports without either provenance signal continue
-through the pre-existing CMS policies and are not given reporter revisions or a
+The shared reporter-story predicate requires either a reporter-profile creator
+or existing immutable reporter revision evidence and is evaluated against both
+old and new rows for guarded transitions. Revision evidence keeps the
+classification historical even if later membership changes. Legacy
+writer/admin citizen reports without either provenance signal continue through
+the pre-existing CMS policies and are not given reporter revisions or a
 reporter byline. A trigger protects
 server-owned identity, lifecycle, publication, origin, promotion, sponsorship,
 and timestamp fields, while RLS prevents draft creation/update after membership

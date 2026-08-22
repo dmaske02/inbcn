@@ -58,7 +58,7 @@ export default async function ReporterStoryPage({ params }: Readonly<{ params: P
       </header>
 
       {editable ? (
-        <SubmissionForm action={saveReporterDraftAction.bind(null, id)} className="space-y-4 rounded-lg border border-border bg-background p-5 shadow-sm sm:p-6">
+        <SubmissionForm action={saveReporterDraftAction.bind(null, { storyId: id, redirectToEditor: false })} className="space-y-4 rounded-lg border border-border bg-background p-5 shadow-sm sm:p-6">
           {editor.media.map((media) => <input key={media.id} name="mediaIds" type="hidden" value={media.id} />)}
           <label className="block text-sm font-medium">Headline<input className={fieldClass} defaultValue={editor.story.title} maxLength={240} name="title" required /></label>
           <label className="block text-sm font-medium">Summary<textarea className={fieldClass} defaultValue={editor.story.summary} maxLength={1000} name="summary" required rows={3} /></label>

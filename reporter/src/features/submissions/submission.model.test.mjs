@@ -8,6 +8,7 @@ import {
   validateReporterStoryInput,
   validateSubmissionEvidence,
 } from "./submission.model.ts";
+import * as submissionModel from "./submission.model.ts";
 
 const now = "2026-08-23T12:00:00.000Z";
 const story = {
@@ -74,8 +75,34 @@ test("rejects unsupported language, malformed media IDs, and featured media outs
 
 test("rejects an invalid or implausibly future event time using server time", () => {
   assert.equal(validateReporterStoryInput({ ...story, eventOccurredAt: "not-a-date" }, now).ok, false);
+  assert.equal(validateReporterStoryInput({ ...story, eventOccurredAt: "2026-02-30T11:00:00.000Z" }, now).ok, false);
   assert.equal(validateReporterStoryInput({ ...story, eventOccurredAt: "2026-08-23T12:05:00.001Z" }, now).ok, false);
   assert.equal(validateReporterStoryInput({ ...story, eventOccurredAt: "2026-08-23T12:05:00.000Z" }, now).ok, true);
+});
+
+test("rejects an impossible calendar date for captured evidence", () => {
+  const result = parseCapturedLocation({
+    latitude: 19.076,
+    longitude: 72.8777,
+    accuracy: 15,
+    capturedAt: "2026-02-30T12:00:00.000Z",
+  }, "2026-03-02T12:00:00.000Z");
+
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.fieldErrors, { capturedAt: ["Capture location again before submitting."] });
+});
+
+test("creates one validated story identity that every new-draft retry reuses", () => {
+  assert.equal(typeof submissionModel.createNewReporterDraftTarget, "function");
+  const target = submissionModel.createNewReporterDraftTarget(
+    () => "55555555-5555-4555-8555-555555555555",
+  );
+
+  assert.deepEqual(target, {
+    storyId: "55555555-5555-4555-8555-555555555555",
+    redirectToEditor: true,
+  });
+  assert.equal(target.storyId, target.storyId);
 });
 
 test("returns field-safe evidence errors for locality, accuracy, and stale capture", () => {

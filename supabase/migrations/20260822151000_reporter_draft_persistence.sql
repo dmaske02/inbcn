@@ -381,6 +381,192 @@ begin
 end;
 $$;
 
+-- Draft withdrawal also crosses the event-evidence guard. Replace the
+-- canonical owner so its immutable snapshot is complete before status moves.
+create or replace function public.withdraw_reporter_story(p_story_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  actor_id uuid := auth.uid();
+  actor_role text := auth.jwt() -> 'app_metadata' ->> 'role';
+  current_reporter public.reporter_profiles%rowtype;
+  current_profile public.profiles%rowtype;
+  current_story public.stories%rowtype;
+  current_revision public.story_revisions%rowtype;
+  withdrawal_time timestamptz := clock_timestamp();
+  media_ids uuid[];
+  next_revision integer;
+  revision_id uuid;
+begin
+  if actor_id is null or actor_role is distinct from 'reporter' then
+    raise exception using errcode = '42501', message = 'REPORTER_STORY_FORBIDDEN';
+  end if;
+  select * into current_reporter
+  from public.reporter_profiles
+  where profile_id = actor_id
+  for update;
+  select * into current_profile
+  from public.profiles
+  where id = actor_id
+  for update;
+  if current_reporter.profile_id is null
+    or current_profile.id is null
+    or current_profile.role is distinct from 'reporter'
+    or not current_profile.is_active
+    or current_reporter.access_sync_status is distinct from 'succeeded'
+    or current_reporter.access_sync_desired_role is distinct from 'reporter'
+    or auth.jwt() -> 'app_metadata' -> 'reporter_access_generation'
+      is distinct from to_jsonb(current_reporter.access_sync_generation)
+    or current_reporter.public_status not in ('active', 'grace')
+    or current_reporter.membership_started_at > withdrawal_time
+    or current_reporter.membership_grace_ends_at < withdrawal_time then
+    raise exception using errcode = '42501', message = 'REPORTER_STORY_FORBIDDEN';
+  end if;
+
+  select * into current_story
+  from public.stories
+  where id = p_story_id
+  for update;
+  if not found then
+    raise exception using errcode = 'P0002', message = 'REPORTER_STORY_NOT_FOUND';
+  end if;
+  if current_story.created_by is distinct from actor_id
+    or not public.is_reporter_story(current_story) then
+    raise exception using errcode = '42501', message = 'REPORTER_STORY_FORBIDDEN';
+  end if;
+  if current_story.status not in ('draft', 'pending_review') then
+    raise exception using errcode = 'P0001', message = 'REPORTER_STORY_EDITORIAL_CONTROL';
+  end if;
+
+  if current_story.status = 'pending_review' then
+    select * into current_revision
+    from public.story_revisions
+    where story_id = current_story.id
+    order by revision_number desc
+    limit 1
+    for update;
+    if not found or current_revision.review_outcome is distinct from 'pending_review' then
+      raise exception using errcode = 'P0001', message = 'REPORTER_STORY_REVISION_CONFLICT';
+    end if;
+    update public.story_revisions
+    set review_outcome = 'withdrawn',
+        reviewed_by = actor_id,
+        reviewed_at = withdrawal_time,
+        review_reason = 'Reporter withdrawal'
+    where id = current_revision.id;
+    revision_id := current_revision.id;
+    next_revision := current_revision.revision_number;
+  else
+    perform 1
+    from public.media
+    where media.story_id = current_story.id
+    order by media.id
+    for share;
+    if exists (
+      select 1
+      from public.media
+      where media.story_id = current_story.id
+        and (
+          media.created_by is distinct from actor_id
+          or media.deleted_at is not null
+          or media.secure_url !~ '^https://'
+          or length(btrim(media.cloudinary_public_id)) = 0
+        )
+    ) then
+      raise exception using errcode = '23514', message = 'REPORTER_STORY_MEDIA_INVALID';
+    end if;
+    select coalesce(
+      array_agg(media.id order by media.sort_order, media.created_at, media.id),
+      '{}'::uuid[]
+    ) into media_ids
+    from public.media
+    where media.story_id = current_story.id;
+    select coalesce(max(revision_number), 0) + 1 into next_revision
+    from public.story_revisions
+    where story_id = current_story.id;
+    revision_id := gen_random_uuid();
+    insert into public.story_revisions (
+      id,
+      story_id,
+      revision_number,
+      submitted_by,
+      snapshot,
+      associated_media_ids,
+      submitted_at,
+      review_outcome,
+      reviewed_by,
+      reviewed_at,
+      review_reason
+    ) values (
+      revision_id,
+      current_story.id,
+      next_revision,
+      actor_id,
+      jsonb_build_object(
+        'language_id', current_story.language_id,
+        'category_id', current_story.category_id,
+        'slug', current_story.slug,
+        'title', current_story.title,
+        'summary', current_story.summary,
+        'content', current_story.content,
+        'featured_media_id', current_story.featured_media_id,
+        'seo_title', current_story.seo_title,
+        'seo_description', current_story.seo_description,
+        'seo_keywords', to_jsonb(current_story.seo_keywords),
+        'event_occurred_at', current_story.event_occurred_at,
+        'media_ids', to_jsonb(media_ids)
+      ),
+      media_ids,
+      withdrawal_time,
+      'withdrawn',
+      actor_id,
+      withdrawal_time,
+      'Reporter withdrawal'
+    );
+  end if;
+
+  update public.story_locations
+  set retention_due_at = greatest(
+    coalesce(retention_due_at, withdrawal_time + interval '1 year'),
+    withdrawal_time + interval '1 year'
+  )
+  where story_id = current_story.id;
+  update public.stories
+  set status = 'rejected',
+      rejected_at = withdrawal_time,
+      rejection_reason = 'Withdrawn by reporter',
+      updated_at = withdrawal_time
+  where id = current_story.id;
+  insert into public.audit_events (actor_id, action, subject_type, subject_id, metadata)
+  values (
+    actor_id,
+    'story.withdrawn',
+    'story',
+    current_story.id,
+    jsonb_build_object('revision_id', revision_id, 'revision_outcome', 'withdrawn')
+  );
+
+  return jsonb_build_object(
+    'story_id', current_story.id,
+    'story_status', 'rejected',
+    'revision_id', revision_id,
+    'revision_number', next_revision,
+    'revision_outcome', 'withdrawn',
+    'retention_due_at', withdrawal_time + interval '1 year'
+  );
+end;
+$$;
+
+-- Reporter story mutation is RPC-only. Existing writer/editor/admin policies
+-- remain in place for the established CMS workflows.
+drop policy if exists "Reporters can create their own story drafts"
+on public.stories;
+drop policy if exists "Reporters can update their own story drafts"
+on public.stories;
+
 revoke all on function public.save_reporter_story_draft(
   uuid, uuid, uuid, text, text, text, timestamptz, uuid[], uuid
 ) from public, anon, authenticated, service_role;
@@ -396,6 +582,8 @@ revoke all on function public.submit_reporter_story(
 revoke all on function public.direct_publish_reporter_story(
   uuid, numeric, numeric, numeric, timestamptz, text
 ) from public, anon, authenticated, service_role;
+revoke all on function public.withdraw_reporter_story(uuid)
+from public, anon, authenticated, service_role;
 revoke all on function public.guard_reporter_story_event_evidence()
 from public, anon, authenticated, service_role;
 
@@ -408,3 +596,5 @@ grant execute on function public.submit_reporter_story(
 grant execute on function public.direct_publish_reporter_story(
   uuid, numeric, numeric, numeric, timestamptz, text
 ) to authenticated;
+grant execute on function public.withdraw_reporter_story(uuid)
+to authenticated;

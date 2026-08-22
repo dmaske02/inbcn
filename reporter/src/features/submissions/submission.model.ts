@@ -27,6 +27,11 @@ export type SubmissionEvidence = Readonly<{
   location: CapturedLocation;
 }>;
 
+export type ReporterDraftActionTarget = Readonly<{
+  storyId: string;
+  redirectToEditor: boolean;
+}>;
+
 export type ReporterStoryState =
   | "draft"
   | "changes_requested"
@@ -69,7 +74,40 @@ const locationSchema = z.object({
 });
 
 function nowMilliseconds(now: string | number | Date): number {
-  return now instanceof Date ? now.getTime() : typeof now === "number" ? now : Date.parse(now);
+  return now instanceof Date ? now.getTime() : typeof now === "number" ? now : strictTimestampMilliseconds(now);
+}
+
+function strictTimestampMilliseconds(value: string): number {
+  const match = value.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/u,
+  );
+  if (!match) return Number.NaN;
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText = "00", timezone] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText);
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
+  if (year < 1 || !daysInMonth || day < 1 || day > daysInMonth
+    || hour > 23 || minute > 59 || second > 59) {
+    return Number.NaN;
+  }
+  if (timezone !== "Z") {
+    const [offsetHour, offsetMinute] = timezone.slice(1).split(":").map(Number);
+    if (offsetHour > 14 || offsetMinute > 59 || (offsetHour === 14 && offsetMinute !== 0)) {
+      return Number.NaN;
+    }
+  }
+  return Date.parse(value);
+}
+
+export function createNewReporterDraftTarget(randomId: () => string): ReporterDraftActionTarget {
+  const storyId = randomId();
+  if (!z.uuid().safeParse(storyId).success) throw new Error("Generated reporter story ID is invalid.");
+  return { storyId, redirectToEditor: true };
 }
 
 function fieldErrors(error: z.ZodError): Readonly<Record<string, string[]>> {
@@ -127,7 +165,7 @@ export function parseCapturedLocation(
     }
     return { ok: false, fieldErrors: errors };
   }
-  const captured = Date.parse(parsed.data.capturedAt);
+  const captured = strictTimestampMilliseconds(parsed.data.capturedAt);
   if (!isFreshCapture(captured, now)) {
     return { ok: false, fieldErrors: { capturedAt: ["Capture location again before submitting."] } };
   }
@@ -143,7 +181,7 @@ export function validateReporterStoryInput(
 ): FieldValidationResult<ReporterStoryInput> {
   const parsed = storySchema.safeParse(input);
   if (!parsed.success) return { ok: false, fieldErrors: fieldErrors(parsed.error) };
-  const eventTime = Date.parse(parsed.data.eventOccurredAt);
+  const eventTime = strictTimestampMilliseconds(parsed.data.eventOccurredAt);
   const current = nowMilliseconds(now);
   if (!Number.isFinite(eventTime) || !Number.isFinite(current) || eventTime > current + 5 * 60_000) {
     return { ok: false, fieldErrors: { eventOccurredAt: ["Enter a valid event time no more than five minutes in the future."] } };

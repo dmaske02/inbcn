@@ -52,12 +52,13 @@ test("draft persistence locks owned completed media and replaces only canonical 
 });
 
 test("draft persistence denies legacy citizen reports and non-draft reporter content", () => {
-  assert.match(compact, /not public\.is_reporter_story\(current_story\)/u);
-  assert.match(compact, /current_story\.created_by is distinct from actor_id/u);
-  assert.match(compact, /current_story\.status is distinct from 'draft'/u);
-  assert.match(compact, /story_type.*'citizen_report'/u);
-  assert.match(compact, /source_id.*null/u);
-  assert.doesNotMatch(compact, /insert into public\.story_revisions|insert into public\.story_locations/u);
+  const saveDraft = sqlFunction("save_reporter_story_draft");
+  assert.match(saveDraft, /not public\.is_reporter_story\(current_story\)/u);
+  assert.match(saveDraft, /current_story\.created_by is distinct from actor_id/u);
+  assert.match(saveDraft, /current_story\.status is distinct from 'draft'/u);
+  assert.match(saveDraft, /story_type.*'citizen_report'/u);
+  assert.match(saveDraft, /source_id.*null/u);
+  assert.doesNotMatch(saveDraft, /insert into public\.story_revisions|insert into public\.story_locations/u);
 });
 
 test("submission wrappers source event evidence from the locked canonical story", () => {
@@ -83,4 +84,26 @@ test("non-draft reporter event evidence is immutable and matches the latest revi
   assert.match(compact, /order by revision_number desc limit 1 for update/u);
   assert.match(compact, /current_revision\.snapshot ->> 'event_occurred_at'/u);
   assert.match(compact, /REPORTER_STORY_EVENT_EVIDENCE_MISMATCH/u);
+});
+
+test("draft withdrawal snapshots canonical event evidence before the guarded transition", () => {
+  const withdraw = sqlFunction("withdraw_reporter_story");
+
+  assert.match(withdraw, /'event_occurred_at', current_story\.event_occurred_at/u);
+  assert.ok(
+    withdraw.indexOf("insert into public.story_revisions") < withdraw.indexOf("update public.stories"),
+    "withdrawal must persist matching immutable evidence before changing canonical status",
+  );
+  assert.match(withdraw, /status = 'rejected'/u);
+  assert.match(withdraw, /review_outcome = 'withdrawn'/u);
+  assert.match(compact, /revoke all on function public\.withdraw_reporter_story\(uuid\) from public, anon, authenticated, service_role/u);
+  assert.match(compact, /grant execute on function public\.withdraw_reporter_story\(uuid\) to authenticated/u);
+});
+
+test("authenticated reporters can mutate stories only through checked RPCs", () => {
+  assert.match(compact, /drop policy if exists "Reporters can create their own story drafts" on public\.stories/u);
+  assert.match(compact, /drop policy if exists "Reporters can update their own story drafts" on public\.stories/u);
+  assert.doesNotMatch(compact, /create policy "Reporters can (?:create|update)[^"]*"/u);
+  assert.doesNotMatch(compact, /grant (?:insert|update|delete|all)[^;]*public\.stories[^;]*to authenticated/u);
+  assert.match(compact, /grant execute on function public\.save_reporter_story_draft[^;]*to authenticated/u);
 });

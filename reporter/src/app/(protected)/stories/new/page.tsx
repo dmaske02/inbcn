@@ -1,6 +1,9 @@
+import { randomUUID } from "node:crypto";
+
 import { requireReporterSession } from "@/features/auth/server";
 import { saveReporterDraftAction } from "@/features/submissions/submission.actions";
 import { SubmissionButton, SubmissionForm } from "@/features/submissions/submission-form";
+import { createNewReporterDraftTarget } from "@/features/submissions/submission.model";
 import { getReporterStoryReferences } from "@/features/submissions/submission.repository";
 
 const fieldClass = "mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm";
@@ -11,13 +14,14 @@ export default async function NewReporterStoryPage() {
     return <p className="text-sm text-muted-foreground">Story tools become available after reporter approval.</p>;
   }
   const references = await getReporterStoryReferences();
+  const draftTarget = createNewReporterDraftTarget(randomUUID);
   return (
     <div className="space-y-6">
       <header>
         <h1 className="text-3xl font-semibold tracking-tight">New story</h1>
         <p className="mt-2 text-sm text-muted-foreground">Save canonical story details before adding verified media and submitting.</p>
       </header>
-      <SubmissionForm action={saveReporterDraftAction.bind(null, null)} className="space-y-4 rounded-lg border border-border bg-background p-5 shadow-sm sm:p-6">
+      <SubmissionForm action={saveReporterDraftAction.bind(null, draftTarget)} className="space-y-4 rounded-lg border border-border bg-background p-5 shadow-sm sm:p-6">
         <label className="block text-sm font-medium">Headline
           <input className={fieldClass} maxLength={240} name="title" required />
         </label>
