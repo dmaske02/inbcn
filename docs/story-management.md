@@ -94,10 +94,19 @@ only to an active, generation-synchronized reporter with an effective
 `can_publish_directly` grant; grace membership may submit for review but cannot
 publish directly. From `pending_review` onward, database guards prohibit silent
 canonical content, type, authorship, media-selection, SEO, or origin changes,
-while allowing the CMS to advance lifecycle status and timestamps. The CMS
-preserves `citizen_report` and exposes no generic save command for reporter
-stories; reporter drafts likewise cannot bypass submission by entering a CMS
-review transition.
+while allowing the CMS to advance only the lifecycle fields defined for the
+requested transition. Same-status updates cannot rewrite submission, approval,
+rejection, schedule, or publication provenance. The CMS preserves
+`citizen_report` and exposes no generic save command for reporter stories.
+
+Draft content can change only while the canonical status remains `draft`.
+Leaving draft requires the latest locked revision to match the canonical story,
+its ordered canonical media IDs, submitter, and expected outcome. Returning from
+`pending_review` to draft likewise requires a latest `changes_requested`
+revision written first by the changes-request function. Stories cannot enter a
+review or publication state without revision evidence, and rejected, published,
+or archived reporter stories cannot be resurrected as drafts through direct
+story updates.
 
 CMS approval and scheduling advance the latest immutable revision to explicit
 `approved` and `scheduled` outcomes and append a coordinate-free audit event.
@@ -108,6 +117,9 @@ reason `Archived before publication` and the same retention deadline; archiving
 after a terminal publication, rejection, or withdrawal preserves that exact
 revision outcome. A completed `changes_requested` outcome and its reason remain
 immutable while the story is a reporter-editable draft.
+Review, publication, audit, and private-location retention times are taken from
+the database clock. CMS-supplied display timestamps cannot make exact location
+evidence eligible for deletion earlier.
 This keeps the existing canonical story-status enum and CMS review workflow at
 the cost of consulting the latest revision when callers need the precise
 reporter outcome.

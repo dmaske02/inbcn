@@ -86,16 +86,61 @@ test("revision and story guards preserve submitted and canonical provenance", ()
   assert.match(draftGuard, /new\.status is distinct from old\.status/u);
   assert.match(draftGuard, /new\.published_at is distinct from old\.published_at/u);
   assert.match(draftGuard, /new\.updated_at := clock_timestamp\(\)/u);
-  assert.match(provenanceGuard, /old\.story_type = 'citizen_report'/u);
-  assert.match(provenanceGuard, /old\.status is distinct from 'draft'/u);
+  assert.match(provenanceGuard, /security definer set search_path = ''/u);
+  assert.match(provenanceGuard, /old\.story_type is distinct from 'citizen_report'.*new\.story_type is distinct from 'citizen_report'/u);
   assert.match(provenanceGuard, /new\.story_type is distinct from old\.story_type/u);
   assert.match(provenanceGuard, /new\.content is distinct from old\.content/u);
   assert.match(provenanceGuard, /new\.featured_media_id is distinct from old\.featured_media_id/u);
-  assert.doesNotMatch(
-    provenanceGuard,
-    /new\.(?:status|submitted_at|approved_by|approved_at|rejected_at|rejection_reason|scheduled_at|published_at) is distinct from old\./u,
-  );
+  for (const field of [
+    "submitted_at",
+    "approved_by",
+    "approved_at",
+    "rejected_at",
+    "rejection_reason",
+    "scheduled_at",
+    "published_at",
+  ]) {
+    assert.match(provenanceGuard, new RegExp(`new\\.${field} is distinct from old\\.${field}`, "u"));
+  }
+  assert.match(provenanceGuard, /old\.status = 'draft' and new\.status = 'draft'.*lifecycle_changed.*return new/u);
+  assert.match(provenanceGuard, /new\.status = old\.status and lifecycle_changed/u);
+  assert.match(provenanceGuard, /new\.updated_at := transition_time/u);
   assert.match(provenanceGuard, /REPORTER_STORY_PROVENANCE_IMMUTABLE/u);
+  assert.match(provenanceGuard, /REPORTER_STORY_LIFECYCLE_IMMUTABLE/u);
+});
+
+test("every reporter review transition requires matching latest immutable evidence", () => {
+  const guard = sqlFunction("guard_reporter_story_provenance");
+
+  assert.match(guard, /select \* into current_revision from public\.story_revisions .* order by revision_number desc limit 1 for update/u);
+  assert.match(guard, /if not found then.*REPORTER_STORY_EVIDENCE_REQUIRED/u);
+  assert.match(guard, /from public\.media .* order by media\.id for share/u);
+  assert.match(guard, /expected_snapshot := jsonb_build_object/u);
+  assert.match(guard, /\(current_revision\.snapshot - 'event_occurred_at'\) is distinct from expected_snapshot/u);
+  assert.match(guard, /current_revision\.associated_media_ids is distinct from canonical_media_ids/u);
+  assert.match(guard, /current_revision\.submitted_by is distinct from new\.created_by/u);
+  assert.match(guard, /REPORTER_STORY_EVIDENCE_MISMATCH/u);
+  assert.match(guard, /old\.status = 'draft' and new\.status = 'pending_review'.*review_outcome is distinct from 'pending_review'/u);
+  assert.match(guard, /old\.status = 'draft' and new\.status = 'published'.*review_outcome is distinct from 'direct_published'/u);
+  assert.match(guard, /old\.status = 'pending_review' and new\.status = 'draft'.*review_outcome is distinct from 'changes_requested'/u);
+  assert.match(guard, /old\.status = 'archived'.*old\.status in \('rejected', 'published'\).*new\.status is distinct from 'archived'.*REPORTER_STORY_TRANSITION_FORBIDDEN/u);
+  assert.doesNotMatch(guard, /old\.status in \('rejected', 'archived', 'published'\).*new\.status = 'draft'/u);
+});
+
+test("reporter lifecycle transitions allow only their exact canonical fields", () => {
+  const guard = sqlFunction("guard_reporter_story_provenance");
+
+  assert.match(guard, /select exists \(.*profiles\.role::text = actor_role.*profiles\.is_active.*\) into staff_actor/u);
+  assert.match(guard, /old\.status = 'pending_review' and new\.status in \('approved', 'scheduled', 'published', 'rejected', 'archived'\).*review_outcome is distinct from 'pending_review' or not staff_actor/u);
+  assert.match(guard, /if new\.status = 'rejected'.*new\.approved_by is distinct from old\.approved_by.*new\.approved_at is distinct from old\.approved_at.*new\.scheduled_at is distinct from old\.scheduled_at.*new\.published_at is distinct from old\.published_at.*length\(btrim\(new\.rejection_reason\)\).*new\.rejected_at := transition_time/u);
+  assert.match(guard, /elsif new\.status = 'approved'.*new\.approved_by is distinct from actor_id.*new\.rejected_at is distinct from old\.rejected_at.*new\.scheduled_at is distinct from old\.scheduled_at.*new\.published_at is distinct from old\.published_at.*new\.approved_at := transition_time/u);
+  assert.match(guard, /elsif new\.status = 'scheduled'.*new\.approved_by is distinct from actor_id.*new\.published_at is distinct from old\.published_at.*new\.scheduled_at <= transition_time.*new\.approved_at := transition_time/u);
+  assert.match(guard, /elsif new\.status = 'published'.*new\.approved_by is distinct from actor_id.*new\.scheduled_at is distinct from old\.scheduled_at.*new\.approved_at := transition_time.*new\.published_at := transition_time/u);
+  assert.match(guard, /old\.status = 'approved'.*new\.status = 'published'.*new\.scheduled_at is not null.*new\.published_at := transition_time/u);
+  assert.match(guard, /old\.status = 'scheduled'.*new\.status = 'published'.*new\.scheduled_at is not null.*new\.published_at := transition_time/u);
+  assert.match(guard, /old\.status = 'published' and new\.status = 'archived'.*lifecycle_changed/u);
+  assert.match(guard, /new\.submitted_at is distinct from current_revision\.submitted_at/u);
+  assert.match(guard, /new\.approved_at is distinct from current_revision\.reviewed_at/u);
 });
 
 test("canonical CMS review states advance reporter evidence monotonically and audit every transition", () => {
@@ -118,6 +163,10 @@ test("canonical CMS review states advance reporter evidence monotonically and au
   assert.doesNotMatch(synchronize, /new\.status = 'archived'.*current_revision\.review_outcome in \([^)]*'changes_requested'/u);
   assert.match(synchronize, /set retention_due_at = greatest/u);
   assert.match(synchronize, /transition_time \+ interval '1 year'/u);
+  assert.match(synchronize, /transition_time := clock_timestamp\(\)/u);
+  assert.doesNotMatch(synchronize, /transition_time := (?:case|new\.)/u);
+  assert.doesNotMatch(synchronize, /coalesce\(new\.(?:published_at|rejected_at|updated_at)/u);
+  assert.match(synchronize, /insert into public\.audit_events \( actor_id, action, subject_type, subject_id, metadata, created_at \).*transition_time/u);
 });
 
 test("reporter RPC authorization rejects NULL roles and orphaned story ownership", () => {
@@ -166,6 +215,10 @@ test("reviewed submission locks ownership and snapshots canonical story media at
   assert.match(submit, /insert into public\.story_locations/u);
   assert.match(submit, /status = 'pending_review'/u);
   assert.match(submit, /insert into public\.audit_events/u);
+  assert.ok(
+    submit.indexOf("insert into public.story_revisions") < submit.indexOf("update public.stories"),
+    "submission must create immutable evidence before changing canonical status",
+  );
 });
 
 test("direct publication is active-membership only and supplies canonical review timestamps", () => {
@@ -187,6 +240,10 @@ test("direct publication is active-membership only and supplies canonical review
   assert.match(publish, /approved_at = publication_time/u);
   assert.match(publish, /published_at = publication_time/u);
   assert.match(publish, /'story\.direct_published'/u);
+  assert.ok(
+    publish.indexOf("insert into public.story_revisions") < publish.indexOf("update public.stories"),
+    "direct publication must create immutable evidence before changing canonical status",
+  );
 });
 
 test("withdrawal and staff changes requests preserve editorial authority", () => {
@@ -202,6 +259,11 @@ test("withdrawal and staff changes requests preserve editorial authority", () =>
   assert.match(withdraw, /status = 'rejected'/u);
   assert.match(withdraw, /review_outcome = 'withdrawn'/u);
   assert.match(withdraw, /set retention_due_at = greatest\( coalesce\(retention_due_at, withdrawal_time \+ interval '1 year'\), withdrawal_time \+ interval '1 year' \)/u);
+  assert.ok(
+    withdraw.indexOf("update public.story_revisions") < withdraw.indexOf("update public.stories")
+      && withdraw.indexOf("insert into public.story_revisions") < withdraw.indexOf("update public.stories"),
+    "withdrawal evidence must be finalized before changing canonical status",
+  );
 
   assert.match(changes, /actor_role not in \('editor', 'admin'\)/u);
   assert.match(changes, /profiles\.role = actor_role/u);
@@ -215,6 +277,10 @@ test("withdrawal and staff changes requests preserve editorial authority", () =>
   assert.match(changes, /status = 'draft'/u);
   assert.match(changes, /insert into public\.reporter_notifications/u);
   assert.match(changes, /insert into public\.audit_events/u);
+  assert.ok(
+    changes.indexOf("update public.story_revisions") < changes.indexOf("update public.stories"),
+    "changes-request evidence must be finalized before returning the story to draft",
+  );
 });
 
 test("RLS exposes only owned reporter evidence and never permits direct evidence writes", () => {

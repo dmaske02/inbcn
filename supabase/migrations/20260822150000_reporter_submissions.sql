@@ -260,53 +260,382 @@ create trigger guard_reporter_story_draft_write
 before insert or update on public.stories
 for each row execute function public.guard_reporter_story_draft_write();
 
--- Submitted reporter content and provenance stay byte-for-byte aligned with the
--- latest immutable snapshot through review and every terminal canonical state.
--- Lifecycle state and its timestamps may still advance through the CMS/RPC
--- workflows. A changes request first returns the story to draft, where the
--- reporter may edit before creating a new immutable revision.
+-- Citizen-report drafts keep only their authorable content mutable. Every
+-- transition out of draft and every review/terminal state must be backed by the
+-- latest immutable revision and its exact canonical media set. RPCs write that
+-- evidence before changing the story; CMS forward transitions are finalized by
+-- the AFTER trigger below.
 create or replace function public.guard_reporter_story_provenance()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
+declare
+  actor_id uuid := auth.uid();
+  actor_role text := auth.jwt() -> 'app_metadata' ->> 'role';
+  current_revision public.story_revisions%rowtype;
+  canonical_media_ids uuid[];
+  expected_snapshot jsonb;
+  transition_time timestamptz := clock_timestamp();
+  provenance_changed boolean;
+  content_changed boolean;
+  lifecycle_changed boolean;
+  staff_actor boolean;
 begin
-  if old.story_type = 'citizen_report'
-    and old.status is distinct from 'draft'
-    and (
-      new.id is distinct from old.id
-      or new.translation_group_id is distinct from old.translation_group_id
-      or new.language_id is distinct from old.language_id
-      or new.category_id is distinct from old.category_id
-      or new.source_id is distinct from old.source_id
-      or new.created_by is distinct from old.created_by
-      or new.story_type is distinct from old.story_type
-      or new.slug is distinct from old.slug
-      or new.title is distinct from old.title
-      or new.summary is distinct from old.summary
-      or new.content is distinct from old.content
-      or new.external_id is distinct from old.external_id
-      or new.external_url is distinct from old.external_url
-      or new.external_author is distinct from old.external_author
-      or new.external_published_at is distinct from old.external_published_at
-      or new.external_image_url is distinct from old.external_image_url
-      or new.external_image_width is distinct from old.external_image_width
-      or new.external_image_height is distinct from old.external_image_height
-      or new.featured_media_id is distinct from old.featured_media_id
-      or new.seo_title is distinct from old.seo_title
-      or new.seo_description is distinct from old.seo_description
-      or new.seo_keywords is distinct from old.seo_keywords
-      or new.canonical_url is distinct from old.canonical_url
-      or new.is_featured is distinct from old.is_featured
-      or new.is_breaking is distinct from old.is_breaking
-      or new.is_sponsored is distinct from old.is_sponsored
-      or new.created_at is distinct from old.created_at
-    ) then
+  if old.story_type is distinct from 'citizen_report'
+    and new.story_type is distinct from 'citizen_report' then
+    return new;
+  end if;
+
+  provenance_changed :=
+    new.id is distinct from old.id
+    or new.translation_group_id is distinct from old.translation_group_id
+    or new.source_id is distinct from old.source_id
+    or new.created_by is distinct from old.created_by
+    or new.story_type is distinct from old.story_type
+    or new.external_id is distinct from old.external_id
+    or new.external_url is distinct from old.external_url
+    or new.external_author is distinct from old.external_author
+    or new.external_published_at is distinct from old.external_published_at
+    or new.external_image_url is distinct from old.external_image_url
+    or new.external_image_width is distinct from old.external_image_width
+    or new.external_image_height is distinct from old.external_image_height
+    or new.canonical_url is distinct from old.canonical_url
+    or new.is_featured is distinct from old.is_featured
+    or new.is_breaking is distinct from old.is_breaking
+    or new.is_sponsored is distinct from old.is_sponsored
+    or new.created_at is distinct from old.created_at;
+  content_changed :=
+    new.language_id is distinct from old.language_id
+    or new.category_id is distinct from old.category_id
+    or new.slug is distinct from old.slug
+    or new.title is distinct from old.title
+    or new.summary is distinct from old.summary
+    or new.content is distinct from old.content
+    or new.featured_media_id is distinct from old.featured_media_id
+    or new.seo_title is distinct from old.seo_title
+    or new.seo_description is distinct from old.seo_description
+    or new.seo_keywords is distinct from old.seo_keywords;
+  lifecycle_changed :=
+    new.submitted_at is distinct from old.submitted_at
+    or new.approved_by is distinct from old.approved_by
+    or new.approved_at is distinct from old.approved_at
+    or new.rejected_at is distinct from old.rejected_at
+    or new.rejection_reason is distinct from old.rejection_reason
+    or new.scheduled_at is distinct from old.scheduled_at
+    or new.published_at is distinct from old.published_at;
+
+  if provenance_changed then
     raise exception using
       errcode = '55000',
       message = 'REPORTER_STORY_PROVENANCE_IMMUTABLE';
   end if;
 
+  if old.status = 'draft' and new.status = 'draft' then
+    if lifecycle_changed then
+      raise exception using
+        errcode = '55000',
+        message = 'REPORTER_STORY_LIFECYCLE_IMMUTABLE';
+    end if;
+    new.updated_at := transition_time;
+    return new;
+  end if;
+
+  if content_changed then
+    raise exception using
+      errcode = '55000',
+      message = 'REPORTER_STORY_PROVENANCE_IMMUTABLE';
+  end if;
+  if new.status = old.status and lifecycle_changed then
+    raise exception using
+      errcode = '55000',
+      message = 'REPORTER_STORY_LIFECYCLE_IMMUTABLE';
+  end if;
+
+  select exists (
+    select 1
+    from public.profiles
+    where profiles.id = actor_id
+      and profiles.role::text = actor_role
+      and profiles.role in ('editor', 'admin')
+      and profiles.is_active
+  ) into staff_actor;
+
+  select * into current_revision
+  from public.story_revisions
+  where story_id = new.id
+  order by revision_number desc
+  limit 1
+  for update;
+  if not found then
+    raise exception using
+      errcode = '55000',
+      message = 'REPORTER_STORY_EVIDENCE_REQUIRED';
+  end if;
+
+  perform 1
+  from public.media
+  where media.story_id = new.id
+  order by media.id
+  for share;
+  select coalesce(
+    array_agg(media.id order by media.sort_order, media.created_at, media.id),
+    '{}'::uuid[]
+  ) into canonical_media_ids
+  from public.media
+  where media.story_id = new.id;
+  expected_snapshot := jsonb_build_object(
+    'language_id', new.language_id,
+    'category_id', new.category_id,
+    'slug', new.slug,
+    'title', new.title,
+    'summary', new.summary,
+    'content', new.content,
+    'featured_media_id', new.featured_media_id,
+    'seo_title', new.seo_title,
+    'seo_description', new.seo_description,
+    'seo_keywords', to_jsonb(new.seo_keywords),
+    'media_ids', to_jsonb(canonical_media_ids)
+  );
+  if current_revision.submitted_by is distinct from new.created_by
+    or current_revision.associated_media_ids is distinct from canonical_media_ids
+    or (current_revision.snapshot - 'event_occurred_at') is distinct from expected_snapshot
+    or exists (
+      select 1
+      from public.media
+      where media.story_id = new.id
+        and media.created_by is distinct from current_revision.submitted_by
+    ) then
+    raise exception using
+      errcode = '55000',
+      message = 'REPORTER_STORY_EVIDENCE_MISMATCH';
+  end if;
+
+  if new.status = old.status then
+    if (new.status = 'pending_review'
+        and current_revision.review_outcome is distinct from 'pending_review')
+      or (new.status = 'approved'
+        and current_revision.review_outcome is distinct from 'approved')
+      or (new.status = 'scheduled'
+        and current_revision.review_outcome is distinct from 'scheduled')
+      or (new.status = 'published'
+        and current_revision.review_outcome not in ('direct_published', 'published'))
+      or (new.status = 'rejected'
+        and current_revision.review_outcome not in ('rejected', 'withdrawn'))
+      or (new.status = 'archived'
+        and current_revision.review_outcome not in (
+          'direct_published', 'published', 'rejected', 'withdrawn'
+        )) then
+      raise exception using
+        errcode = '55000',
+        message = 'REPORTER_STORY_EVIDENCE_MISMATCH';
+    end if;
+    new.updated_at := transition_time;
+    return new;
+  end if;
+
+  if old.status = 'archived'
+    or (
+      old.status in ('rejected', 'published')
+      and new.status is distinct from 'archived'
+    ) then
+    raise exception using
+      errcode = '55000',
+      message = 'REPORTER_STORY_TRANSITION_FORBIDDEN';
+  end if;
+
+  if old.status = 'draft' and new.status = 'pending_review' then
+    if current_revision.review_outcome is distinct from 'pending_review'
+      or current_revision.submitted_by is distinct from actor_id
+      or new.submitted_at is distinct from current_revision.submitted_at
+      or new.approved_by is distinct from old.approved_by
+      or new.approved_at is distinct from old.approved_at
+      or new.rejected_at is distinct from old.rejected_at
+      or new.rejection_reason is distinct from old.rejection_reason
+      or new.scheduled_at is distinct from old.scheduled_at
+      or new.published_at is distinct from old.published_at then
+      raise exception using errcode = '55000', message = 'REPORTER_STORY_EVIDENCE_MISMATCH';
+    end if;
+  elsif old.status = 'draft' and new.status = 'published' then
+    if current_revision.review_outcome is distinct from 'direct_published'
+      or current_revision.submitted_by is distinct from actor_id
+      or current_revision.reviewed_by is distinct from actor_id
+      or new.submitted_at is distinct from current_revision.submitted_at
+      or new.approved_by is distinct from current_revision.reviewed_by
+      or new.approved_at is distinct from current_revision.reviewed_at
+      or new.published_at is distinct from current_revision.reviewed_at
+      or new.rejected_at is distinct from old.rejected_at
+      or new.rejection_reason is distinct from old.rejection_reason
+      or new.scheduled_at is distinct from old.scheduled_at then
+      raise exception using errcode = '55000', message = 'REPORTER_STORY_EVIDENCE_MISMATCH';
+    end if;
+  elsif old.status = 'draft' and new.status = 'rejected' then
+    if current_revision.review_outcome is distinct from 'withdrawn'
+      or current_revision.submitted_by is distinct from actor_id
+      or current_revision.reviewed_by is distinct from actor_id
+      or new.submitted_at is distinct from old.submitted_at
+      or new.approved_by is distinct from old.approved_by
+      or new.approved_at is distinct from old.approved_at
+      or new.rejected_at is distinct from current_revision.reviewed_at
+      or new.rejection_reason is distinct from 'Withdrawn by reporter'
+      or new.scheduled_at is distinct from old.scheduled_at
+      or new.published_at is distinct from old.published_at then
+      raise exception using errcode = '55000', message = 'REPORTER_STORY_EVIDENCE_MISMATCH';
+    end if;
+  elsif old.status = 'pending_review' and new.status = 'draft' then
+    if current_revision.review_outcome is distinct from 'changes_requested'
+      or current_revision.reviewed_by is distinct from actor_id
+      or new.submitted_at is not null
+      or new.approved_by is distinct from old.approved_by
+      or new.approved_at is distinct from old.approved_at
+      or new.rejected_at is distinct from old.rejected_at
+      or new.rejection_reason is distinct from old.rejection_reason
+      or new.scheduled_at is distinct from old.scheduled_at
+      or new.published_at is distinct from old.published_at then
+      raise exception using errcode = '55000', message = 'REPORTER_STORY_EVIDENCE_MISMATCH';
+    end if;
+  elsif old.status = 'pending_review'
+    and new.status = 'rejected'
+    and current_revision.review_outcome = 'withdrawn' then
+    if current_revision.submitted_by is distinct from actor_id
+      or current_revision.reviewed_by is distinct from actor_id
+      or new.submitted_at is distinct from old.submitted_at
+      or new.approved_by is distinct from old.approved_by
+      or new.approved_at is distinct from old.approved_at
+      or new.rejected_at is distinct from current_revision.reviewed_at
+      or new.rejection_reason is distinct from 'Withdrawn by reporter'
+      or new.scheduled_at is distinct from old.scheduled_at
+      or new.published_at is distinct from old.published_at then
+      raise exception using errcode = '55000', message = 'REPORTER_STORY_EVIDENCE_MISMATCH';
+    end if;
+  elsif old.status = 'pending_review'
+    and new.status in ('approved', 'scheduled', 'published', 'rejected', 'archived') then
+    if current_revision.review_outcome is distinct from 'pending_review' or not staff_actor then
+      raise exception using errcode = '55000', message = 'REPORTER_STORY_TRANSITION_FORBIDDEN';
+    end if;
+    if new.submitted_at is distinct from old.submitted_at then
+      raise exception using errcode = '55000', message = 'REPORTER_STORY_LIFECYCLE_IMMUTABLE';
+    end if;
+    if new.status = 'rejected' then
+      if new.approved_by is distinct from old.approved_by
+        or new.approved_at is distinct from old.approved_at
+        or new.scheduled_at is distinct from old.scheduled_at
+        or new.published_at is distinct from old.published_at
+        or new.rejection_reason is null
+        or length(btrim(new.rejection_reason)) not between 1 and 2000 then
+        raise exception using errcode = '55000', message = 'REPORTER_STORY_LIFECYCLE_IMMUTABLE';
+      end if;
+      new.rejected_at := transition_time;
+    elsif new.status = 'approved' then
+      if new.approved_by is distinct from actor_id
+        or new.rejected_at is distinct from old.rejected_at
+        or new.rejection_reason is distinct from old.rejection_reason
+        or new.scheduled_at is distinct from old.scheduled_at
+        or new.published_at is distinct from old.published_at then
+        raise exception using errcode = '55000', message = 'REPORTER_STORY_LIFECYCLE_IMMUTABLE';
+      end if;
+      new.approved_at := transition_time;
+    elsif new.status = 'scheduled' then
+      if new.approved_by is distinct from actor_id
+        or new.rejected_at is distinct from old.rejected_at
+        or new.rejection_reason is distinct from old.rejection_reason
+        or new.published_at is distinct from old.published_at
+        or new.scheduled_at is null
+        or new.scheduled_at <= transition_time then
+        raise exception using errcode = '55000', message = 'REPORTER_STORY_LIFECYCLE_IMMUTABLE';
+      end if;
+      new.approved_at := transition_time;
+    elsif new.status = 'published' then
+      if new.approved_by is distinct from actor_id
+        or new.rejected_at is distinct from old.rejected_at
+        or new.rejection_reason is distinct from old.rejection_reason
+        or new.scheduled_at is distinct from old.scheduled_at then
+        raise exception using errcode = '55000', message = 'REPORTER_STORY_LIFECYCLE_IMMUTABLE';
+      end if;
+      new.approved_at := transition_time;
+      new.published_at := transition_time;
+    else
+      if new.approved_by is distinct from actor_id
+        or new.rejected_at is distinct from old.rejected_at
+        or new.rejection_reason is distinct from old.rejection_reason
+        or new.scheduled_at is distinct from old.scheduled_at
+        or new.published_at is distinct from old.published_at then
+        raise exception using errcode = '55000', message = 'REPORTER_STORY_LIFECYCLE_IMMUTABLE';
+      end if;
+      new.approved_at := transition_time;
+    end if;
+  elsif old.status = 'approved'
+    and new.status in ('scheduled', 'published', 'archived') then
+    if current_revision.review_outcome is distinct from 'approved' or not staff_actor then
+      raise exception using errcode = '55000', message = 'REPORTER_STORY_TRANSITION_FORBIDDEN';
+    end if;
+    if new.submitted_at is distinct from old.submitted_at
+      or new.approved_by is distinct from old.approved_by
+      or new.approved_at is distinct from old.approved_at
+      or new.rejected_at is distinct from old.rejected_at
+      or new.rejection_reason is distinct from old.rejection_reason then
+      raise exception using errcode = '55000', message = 'REPORTER_STORY_LIFECYCLE_IMMUTABLE';
+    end if;
+    if new.status = 'scheduled' then
+      if new.published_at is distinct from old.published_at
+        or new.scheduled_at is null
+        or new.scheduled_at <= transition_time then
+        raise exception using errcode = '55000', message = 'REPORTER_STORY_LIFECYCLE_IMMUTABLE';
+      end if;
+    elsif new.status = 'published' then
+      if new.scheduled_at is not null then
+        raise exception using errcode = '55000', message = 'REPORTER_STORY_LIFECYCLE_IMMUTABLE';
+      end if;
+      new.published_at := transition_time;
+    elsif new.scheduled_at is distinct from old.scheduled_at
+      or new.published_at is distinct from old.published_at then
+      raise exception using errcode = '55000', message = 'REPORTER_STORY_LIFECYCLE_IMMUTABLE';
+    end if;
+  elsif old.status = 'scheduled' and new.status in ('published', 'archived') then
+    if current_revision.review_outcome is distinct from 'scheduled' or not staff_actor then
+      raise exception using errcode = '55000', message = 'REPORTER_STORY_TRANSITION_FORBIDDEN';
+    end if;
+    if new.submitted_at is distinct from old.submitted_at
+      or new.approved_by is distinct from old.approved_by
+      or new.approved_at is distinct from old.approved_at
+      or new.rejected_at is distinct from old.rejected_at
+      or new.rejection_reason is distinct from old.rejection_reason then
+      raise exception using errcode = '55000', message = 'REPORTER_STORY_LIFECYCLE_IMMUTABLE';
+    end if;
+    if new.status = 'published' then
+      if new.scheduled_at is not null then
+        raise exception using errcode = '55000', message = 'REPORTER_STORY_LIFECYCLE_IMMUTABLE';
+      end if;
+      new.published_at := transition_time;
+    elsif new.scheduled_at is distinct from old.scheduled_at
+      or new.published_at is distinct from old.published_at then
+      raise exception using errcode = '55000', message = 'REPORTER_STORY_LIFECYCLE_IMMUTABLE';
+    end if;
+  elsif old.status = 'published' and new.status = 'archived' then
+    if current_revision.review_outcome not in ('direct_published', 'published')
+      or not staff_actor or lifecycle_changed then
+      raise exception using errcode = '55000', message = 'REPORTER_STORY_TRANSITION_FORBIDDEN';
+    end if;
+  elsif old.status = 'rejected' and new.status = 'archived' then
+    if current_revision.review_outcome not in ('rejected', 'withdrawn')
+      or not staff_actor
+      or new.submitted_at is distinct from old.submitted_at
+      or new.rejected_at is distinct from old.rejected_at
+      or new.rejection_reason is distinct from old.rejection_reason
+      or new.scheduled_at is distinct from old.scheduled_at
+      or new.published_at is distinct from old.published_at
+      or new.approved_by is distinct from actor_id then
+      raise exception using errcode = '55000', message = 'REPORTER_STORY_TRANSITION_FORBIDDEN';
+    end if;
+    new.approved_at := transition_time;
+  else
+    raise exception using
+      errcode = '55000',
+      message = 'REPORTER_STORY_TRANSITION_FORBIDDEN';
+  end if;
+
+  new.updated_at := transition_time;
   return new;
 end;
 $$;
@@ -343,7 +672,9 @@ begin
   limit 1
   for update;
   if not found then
-    return new;
+    raise exception using
+      errcode = '55000',
+      message = 'REPORTER_STORY_EVIDENCE_REQUIRED';
   end if;
 
   -- Reporter-owned terminal RPCs already set their precise outcome, retention,
@@ -353,11 +684,7 @@ begin
     return new;
   end if;
 
-  transition_time := case
-    when new.status = 'published' then coalesce(new.published_at, new.updated_at)
-    when new.status = 'rejected' then coalesce(new.rejected_at, new.updated_at)
-    else new.updated_at
-  end;
+  transition_time := clock_timestamp();
   target_outcome := case
     when new.status = 'approved' then 'approved'
     when new.status = 'scheduled' then 'scheduled'
@@ -401,7 +728,14 @@ begin
     where story_id = new.id;
   end if;
 
-  insert into public.audit_events (actor_id, action, subject_type, subject_id, metadata)
+  insert into public.audit_events (
+    actor_id,
+    action,
+    subject_type,
+    subject_id,
+    metadata,
+    created_at
+  )
   values (
     auth.uid(),
     'story.reporter_revision_transition',
@@ -412,7 +746,8 @@ begin
       'from_outcome', current_revision.review_outcome,
       'to_outcome', target_outcome,
       'story_status', new.status
-    )
+    ),
+    transition_time
   );
 
   return new;
