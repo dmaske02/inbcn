@@ -29,13 +29,16 @@ updates and receive no editorial privileges.
 - `ingest_runs`: only editors and admins can access or manage ingestion history.
 - `push_subscriptions`: authenticated users manage rows tied to their own
   profile. Admins can additionally read all subscriptions.
-- `reporter_applications`: applicants can create, read, and edit only their own
-  draft input columns. Payment, KYC, review, decision, and refund fields are
-  server-controlled. Admins can read the review queue.
+- `reporter_applications`: applicants can read only their own rows. Creation and
+  mutation run through authenticated, validated reporter Server Actions and the
+  server-only service-role repository. Payment, KYC, review, decision, photo
+  provenance, and refund fields are server-controlled. Admins can read the
+  review queue.
 - `reporter_profiles` and `reporter_payments`: reporters/applicants can read
   only their own private membership and receipts; admins can read all rows.
-- `reporter_consents`: applicants can insert immutable receipts only for their
-  own draft application and read only their receipts; admins can read them.
+- `reporter_consents`: applicants can read only their own immutable receipts;
+  validated server actions persist current notice versions with server-owned
+  receipt timestamps. Admins can read them.
 - `webhook_events` and `audit_events`: admins have read-only access. The service
   role may insert webhook receipts and update only processing/result columns;
   provider, event, signature, and creation identity cannot be changed or deleted.
@@ -80,6 +83,7 @@ rechecks that the supplied actor is an active database `admin` profile.
   only the signed `app_metadata.role` claim for user roles. `user_metadata` is
   never consulted.
 - Reporter base tables revoke default Data API access before adding explicit
-  table/column grants. Applicants cannot write lifecycle, KYC, payment, trust,
-  photo-verification, notification-delivery, webhook, or audit fields.
+  grants. Applicants have no application or consent DML grant/policy path and
+  cannot write lifecycle, KYC, payment, trust, portrait, notification-delivery,
+  webhook, or audit fields. The service-role key remains server-only.
 - Storage policies remain outside Phase 1.

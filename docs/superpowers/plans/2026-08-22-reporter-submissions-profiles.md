@@ -28,7 +28,7 @@
 ### Task 1: Add submission revisions, locations, and reporter story authorization
 
 **Files:**
-- Create: `supabase/migrations/20260822100000_reporter_submissions.sql`
+- Create: `supabase/migrations/20260822150000_reporter_submissions.sql`
 - Modify: `packages/database/src/database.types.ts`
 - Create: `reporter/src/features/submissions/submission-schema.contract.test.mjs`
 - Modify: `docs/story-management.md`
@@ -67,7 +67,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add supabase/migrations/20260822100000_reporter_submissions.sql packages/database/src/database.types.ts reporter/src/features/submissions/submission-schema.contract.test.mjs docs/story-management.md docs/row-level-security.md
+git add supabase/migrations/20260822150000_reporter_submissions.sql packages/database/src/database.types.ts reporter/src/features/submissions/submission-schema.contract.test.mjs docs/story-management.md docs/row-level-security.md
 git commit -m "feat(database): add reporter story revisions and locations"
 ```
 

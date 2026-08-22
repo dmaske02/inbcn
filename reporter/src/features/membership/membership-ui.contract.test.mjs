@@ -4,6 +4,7 @@ import test from "node:test";
 
 const pageUrl = new URL("../../app/(protected)/membership/page.tsx", import.meta.url);
 const checkoutUrl = new URL("./renewal-checkout.tsx", import.meta.url);
+const reporterCheckoutUrl = new URL("../payments/reporter-checkout.tsx", import.meta.url);
 
 test("membership page derives server-owned status and displays expiry and seven-day grace", async () => {
   const source = await readFile(pageUrl, "utf8");
@@ -16,8 +17,9 @@ test("membership page derives server-owned status and displays expiry and seven-
 
 test("renewal checkout uses the existing order and verification endpoints", async () => {
   const source = await readFile(checkoutUrl, "utf8");
-  assert.match(source, /\/api\/payments\/order/u);
-  assert.match(source, /purpose: "renewal"/u);
-  assert.match(source, /\/api\/payments\/verify/u);
+  const shared = await readFile(reporterCheckoutUrl, "utf8");
+  assert.match(shared, /\/api\/payments\/order/u);
+  assert.match(source, /purpose="renewal"/u);
+  assert.match(shared, /\/api\/payments\/verify/u);
   assert.match(source, /disabled=\{disabled/u);
 });

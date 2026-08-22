@@ -1,6 +1,5 @@
 import "server-only";
 
-import { randomUUID } from "node:crypto";
 import { v2 as cloudinary, type UploadApiResponse } from "cloudinary";
 
 import { env } from "../../config/env.ts";
@@ -74,12 +73,16 @@ type CloudinaryPortraitInput = Readonly<{
 }>;
 
 type ProfilePhotoUploadDependencies = Readonly<{
-  randomId(): string;
   upload(input: CloudinaryPortraitInput): Promise<Readonly<{ secureUrl: string }>>;
 }>;
 
+const APPLICATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+
 export function createProfilePhotoUploader(dependencies: ProfilePhotoUploadDependencies) {
-  return async (input: ProfilePhotoInput): Promise<Readonly<{ publicId: string; secureUrl: string }>> => {
+  return async (
+    input: ProfilePhotoInput,
+    applicationId: string,
+  ): Promise<Readonly<{ publicId: string; secureUrl: string }>> => {
     const inspection = inspectProfilePhoto(input);
     if (!inspection.ok) {
       throw new ApplicationInputError(
@@ -88,7 +91,10 @@ export function createProfilePhotoUploader(dependencies: ProfilePhotoUploadDepen
           : "Upload a valid JPEG, PNG, or WebP portrait.",
       );
     }
-    const publicId = `inbcn/reporter/portrait/${dependencies.randomId()}`;
+    if (!APPLICATION_ID.test(applicationId)) {
+      throw new ProfilePhotoError("The portrait application identity is invalid.");
+    }
+    const publicId = `inbcn/reporter/portrait/${applicationId}`;
     const uploaded = await dependencies.upload({
       ...input,
       format: inspection.format,
@@ -133,13 +139,12 @@ async function uploadToCloudinary(input: CloudinaryPortraitInput): Promise<Reado
 }
 
 const uploadVerifiedProfilePhoto = createProfilePhotoUploader({
-  randomId: randomUUID,
   upload: uploadToCloudinary,
 });
 
-export async function uploadProfilePhoto(file: File) {
+export async function uploadProfilePhoto(file: File, applicationId: string) {
   const bytes = new Uint8Array(await file.arrayBuffer());
-  return uploadVerifiedProfilePhoto({ type: file.type, size: file.size, bytes });
+  return uploadVerifiedProfilePhoto({ type: file.type, size: file.size, bytes }, applicationId);
 }
 
 export async function destroyProfilePhoto(publicId: string): Promise<void> {

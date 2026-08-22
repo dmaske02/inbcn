@@ -38,19 +38,21 @@ test("enforces the ten MiB portrait boundary before upload", () => {
   );
 });
 
-test("uses a generated server-owned Cloudinary public ID", async () => {
+test("uses the preallocated server-owned application ID for Cloudinary identity", async () => {
   let received;
   const uploader = createProfilePhotoUploader({
-    randomId: () => "123e4567-e89b-12d3-a456-426614174000",
     upload: async (input) => {
       received = input;
       return { secureUrl: "https://res.cloudinary.com/demo/image/upload/portrait.jpg" };
     },
   });
 
-  const result = await uploader({ type: "image/jpeg", size: jpeg.length, bytes: jpeg });
+  const result = await uploader(
+    { type: "image/jpeg", size: jpeg.length, bytes: jpeg },
+    "123e4567-e89b-42d3-a456-426614174000",
+  );
 
-  assert.equal(received.publicId, "inbcn/reporter/portrait/123e4567-e89b-12d3-a456-426614174000");
+  assert.equal(received.publicId, "inbcn/reporter/portrait/123e4567-e89b-42d3-a456-426614174000");
   assert.equal(received.format, "jpeg");
   assert.deepEqual(result, {
     publicId: received.publicId,

@@ -25,6 +25,7 @@ const eventEnvelopeSchema = z.object({
   entity: z.literal("event"),
   event: supportedEvent,
   payload: z.record(z.string(), z.unknown()),
+  created_at: z.number().int().positive(),
 });
 const paymentEntitySchema = z.object({
   id: providerId,
@@ -34,6 +35,7 @@ const paymentEntitySchema = z.object({
   currency: z.string(),
   status: z.literal("captured"),
   captured: z.literal(true),
+  created_at: z.number().int().positive(),
 });
 const orderEntitySchema = z.object({
   id: providerId,
@@ -42,6 +44,7 @@ const orderEntitySchema = z.object({
   amount_paid: z.number().int(),
   currency: z.string(),
   status: z.literal("paid"),
+  created_at: z.number().int().positive(),
 });
 const refundEntitySchema = z.object({
   id: providerId,
@@ -109,6 +112,7 @@ type PaymentRepository = Readonly<{
     amountPaise: number;
     currency: string;
     paymentStatus: string;
+    createdAt: string;
   }> | null>;
   applyCapturedPayment(input: Readonly<{
     orderId: string;
@@ -125,6 +129,7 @@ type PaymentRepository = Readonly<{
     paymentId: string;
     amountPaise: number;
     currency: string;
+    capturedAt: string;
   }>): Promise<unknown>;
   completeRefundWebhook(input: Readonly<{
     eventId: string;
@@ -158,6 +163,44 @@ type PaymentServiceDependencies = Readonly<{
   webhookSecret: string;
   now: () => string;
 }>;
+
+const PROVIDER_CLOCK_SKEW_MS = 5 * 60 * 1_000;
+const INTERNAL_ORDER_SKEW_MS = 15 * 60 * 1_000;
+
+function timestampMs(value: string): number {
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) throw new PaymentServiceError("payment-mismatch", 422);
+  return parsed;
+}
+
+function providerTimestamp(seconds: number): Readonly<{ iso: string; ms: number }> {
+  const milliseconds = seconds * 1_000;
+  if (!Number.isSafeInteger(milliseconds)) {
+    throw new PaymentServiceError("payment-mismatch", 422);
+  }
+  const date = new Date(milliseconds);
+  if (!Number.isFinite(date.getTime())) {
+    throw new PaymentServiceError("payment-mismatch", 422);
+  }
+  return { iso: date.toISOString(), ms: date.getTime() };
+}
+
+function assertProviderTime(input: Readonly<{
+  providerSeconds: number;
+  now: string;
+  earliest: Readonly<{ value: number | string; toleranceMs: number }>;
+}>): string {
+  const provider = providerTimestamp(input.providerSeconds);
+  const now = timestampMs(input.now);
+  const earliest = typeof input.earliest.value === "number"
+    ? providerTimestamp(input.earliest.value).ms
+    : timestampMs(input.earliest.value);
+  if (provider.ms > now + PROVIDER_CLOCK_SKEW_MS
+    || provider.ms < earliest - input.earliest.toleranceMs) {
+    throw new PaymentServiceError("payment-mismatch", 422);
+  }
+  return provider.iso;
+}
 
 function assertFixedMoney(input: Readonly<{ amount: number; currency: string }>): void {
   if (input.amount !== REPORTER_PAYMENT_AMOUNT_PAISE
@@ -300,12 +343,22 @@ export function createPaymentService(dependencies: PaymentServiceDependencies) {
         || order.status !== "paid") {
         throw new PaymentServiceError("payment-mismatch", 422);
       }
+      const capturedAt = assertProviderTime({
+        providerSeconds: payment.created_at,
+        now: dependencies.now(),
+        earliest: { value: local.createdAt, toleranceMs: INTERNAL_ORDER_SKEW_MS },
+      });
+      assertProviderTime({
+        providerSeconds: payment.created_at,
+        now: dependencies.now(),
+        earliest: { value: order.created_at, toleranceMs: PROVIDER_CLOCK_SKEW_MS },
+      });
       await dependencies.repository.applyCapturedPayment({
         orderId: local.orderId,
         paymentId: payment.id,
         amountPaise: payment.amount,
         currency: payment.currency,
-        capturedAt: dependencies.now(),
+        capturedAt,
       });
       return { signatureValid: true, status: "captured" } as const;
     },
@@ -351,6 +404,11 @@ export function createPaymentService(dependencies: PaymentServiceDependencies) {
           if (!parsed.success) throw new PaymentServiceError("payment-mismatch", 422);
           const payment = parsed.data.payment.entity;
           assertFixedMoney(payment);
+          const capturedAt = assertProviderTime({
+            providerSeconds: envelope.data.created_at,
+            now: dependencies.now(),
+            earliest: { value: payment.created_at, toleranceMs: PROVIDER_CLOCK_SKEW_MS },
+          });
           if (envelope.data.event === "order.paid") {
             const paidOrder = paidOrderPayloadSchema.parse(envelope.data.payload).order.entity;
             assertFixedMoney(paidOrder);
@@ -359,6 +417,11 @@ export function createPaymentService(dependencies: PaymentServiceDependencies) {
               || paidOrder.status !== "paid") {
               throw new PaymentServiceError("payment-mismatch", 422);
             }
+            assertProviderTime({
+              providerSeconds: envelope.data.created_at,
+              now: dependencies.now(),
+              earliest: { value: paidOrder.created_at, toleranceMs: PROVIDER_CLOCK_SKEW_MS },
+            });
           }
           await dependencies.repository.completePaymentWebhook({
             eventId,
@@ -367,6 +430,7 @@ export function createPaymentService(dependencies: PaymentServiceDependencies) {
             paymentId: payment.id,
             amountPaise: payment.amount,
             currency: payment.currency,
+            capturedAt,
           });
           return { duplicate: false, status: "captured" } as const;
         }

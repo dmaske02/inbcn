@@ -72,7 +72,7 @@ async function failOrder(input: Readonly<{ paymentId: string; token: string }>) 
 async function getOwnedOrder(input: Readonly<{ profileId: string; orderId: string }>) {
   const { data, error } = await createAdminClient()
     .from("reporter_payments")
-    .select("id, razorpay_order_id, amount_paise, currency, payment_status")
+    .select("id, razorpay_order_id, amount_paise, currency, payment_status, created_at")
     .eq("profile_id", input.profileId)
     .eq("razorpay_order_id", input.orderId)
     .maybeSingle();
@@ -84,6 +84,7 @@ async function getOwnedOrder(input: Readonly<{ profileId: string; orderId: strin
     amountPaise: data.amount_paise,
     currency: data.currency,
     paymentStatus: data.payment_status,
+    createdAt: data.created_at,
   } as const;
 }
 
@@ -128,6 +129,7 @@ async function completePaymentWebhook(input: Readonly<{
   paymentId: string;
   amountPaise: number;
   currency: string;
+  capturedAt: string;
 }>) {
   const { data, error } = await createAdminClient().rpc("complete_razorpay_payment_webhook", {
     p_event_id: input.eventId,
@@ -136,6 +138,7 @@ async function completePaymentWebhook(input: Readonly<{
     p_razorpay_payment_id: input.paymentId,
     p_amount_paise: input.amountPaise,
     p_currency: input.currency,
+    p_captured_at: input.capturedAt,
   });
   if (error || !data) throw new PaymentRepositoryError();
   return data;

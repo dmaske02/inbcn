@@ -7,6 +7,8 @@ import {
   createPaymentService,
 } from "./payment.service.ts";
 import { RazorpayClientError } from "./razorpay.client.ts";
+import { getApplicationDeadline } from "../application/application.model.ts";
+import { creditRenewal } from "./payment.model.ts";
 
 const profileId = "11111111-1111-4111-8111-111111111111";
 const applicationId = "22222222-2222-4222-8222-222222222222";
@@ -34,6 +36,7 @@ function dependencies(overrides = {}) {
         amountPaise: 10_000,
         currency: "INR",
         paymentStatus: "order_created",
+        createdAt: "2026-08-22T06:58:00.000Z",
       };
     },
     applyCapturedPayment: async (input) => calls.push(["applyCapturedPayment", input]),
@@ -63,6 +66,7 @@ function dependencies(overrides = {}) {
       currency: "INR",
       status: "captured",
       captured: true,
+      created_at: 1_787_381_940,
     }),
     fetchOrder: async () => ({
       id: orderId,
@@ -72,6 +76,7 @@ function dependencies(overrides = {}) {
       receipt: internalPaymentId,
       notes: { payment_id: internalPaymentId },
       status: "paid",
+      created_at: 1_787_381_900,
     }),
   };
   return {
@@ -81,7 +86,7 @@ function dependencies(overrides = {}) {
       client: { ...client, ...overrides.client },
       checkoutSecret,
       webhookSecret,
-      now: () => "2027-08-22T10:00:00.000Z",
+      now: overrides.now ?? (() => "2026-08-22T08:00:00.000Z"),
     }),
   };
 }
@@ -90,7 +95,7 @@ function signed(rawBody) {
   return createHmac("sha256", webhookSecret).update(rawBody).digest("hex");
 }
 
-function capturedEvent(amount = 10_000) {
+function capturedEvent(amount = 10_000, eventCreatedAt = 1_787_382_000, paymentCreatedAt = 1_787_381_940) {
   return JSON.stringify({
     entity: "event",
     event: "payment.captured",
@@ -104,10 +109,11 @@ function capturedEvent(amount = 10_000) {
           currency: "INR",
           status: "captured",
           captured: true,
+          created_at: paymentCreatedAt,
         },
       },
     },
-    created_at: 1_787_382_000,
+    created_at: eventCreatedAt,
   });
 }
 
@@ -145,6 +151,7 @@ function paidOrderEvent() {
           currency: "INR",
           status: "captured",
           captured: true,
+          created_at: 1_787_381_940,
         },
       },
       order: {
@@ -155,6 +162,7 @@ function paidOrderEvent() {
           amount_paid: 10_000,
           currency: "INR",
           status: "paid",
+          created_at: 1_787_381_900,
         },
       },
     },
@@ -287,7 +295,7 @@ test("uses Checkout HMAC only as a gate, then reconciles exact captured payment 
     paymentId: providerPaymentId,
     amountPaise: 10_000,
     currency: "INR",
-    capturedAt: "2027-08-22T10:00:00.000Z",
+    capturedAt: "2026-08-22T06:59:00.000Z",
   }]);
 });
 
@@ -376,7 +384,52 @@ test("verifies a raw webhook before its durable claim and captured transition", 
     paymentId: providerPaymentId,
     amountPaise: 10_000,
     currency: "INR",
+    capturedAt: "2026-08-22T07:00:00.000Z",
   }]);
+});
+
+test("delayed signed delivery preserves provider capture time for the 30-day deadline", async () => {
+  const rawBody = capturedEvent();
+  const { service, calls } = dependencies({
+    now: () => "2026-09-25T08:00:00.000Z",
+  });
+
+  await service.processRazorpayEvent(rawBody, signed(rawBody), "evt_delayed");
+  const capturedAt = calls.find(([name]) => name === "completePaymentWebhook")[1].capturedAt;
+  assert.equal(capturedAt, "2026-08-22T07:00:00.000Z");
+  assert.equal(getApplicationDeadline(capturedAt), "2026-09-21T07:00:00.000Z");
+});
+
+test("delayed delivery after grace still credits a capture signed at the final grace boundary", async () => {
+  const rawBody = capturedEvent(10_000, 1_819_497_600, 1_819_497_540);
+  const { service, calls } = dependencies({ now: () => "2027-09-05T00:00:00.000Z" });
+
+  await service.processRazorpayEvent(rawBody, signed(rawBody), "evt_grace_delayed");
+  const capturedAt = calls.find(([name]) => name === "completePaymentWebhook")[1].capturedAt;
+  assert.deepEqual(creditRenewal({
+    membershipStartedAt: "2026-08-22T00:00:00.000Z",
+    membershipExpiresAt: "2027-08-22T00:00:00.000Z",
+    membershipGraceEndsAt: "2027-08-29T00:00:00.000Z",
+  }, capturedAt), {
+    membershipStartedAt: "2026-08-22T00:00:00.000Z",
+    creditedMembershipStartedAt: "2027-08-22T00:00:00.000Z",
+    membershipExpiresAt: "2028-08-22T00:00:00.000Z",
+    membershipGraceEndsAt: "2028-08-29T00:00:00.000Z",
+  });
+});
+
+test("future or pre-payment signed capture times are rejected before the atomic transition", async () => {
+  for (const rawBody of [
+    capturedEvent(10_000, 1_787_386_000, 1_787_381_940),
+    capturedEvent(10_000, 1_787_381_000, 1_787_381_940),
+  ]) {
+    const { service, calls } = dependencies();
+    await assert.rejects(
+      service.processRazorpayEvent(rawBody, signed(rawBody), "evt_bad_time"),
+      (error) => error instanceof PaymentServiceError && error.code === "payment-mismatch",
+    );
+    assert.equal(calls.some(([name]) => name === "completePaymentWebhook"), false);
+  }
 });
 
 test("accepts an exact signed paid-order webhook as captured payment evidence", async () => {

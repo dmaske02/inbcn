@@ -6,6 +6,7 @@ import { completeConsentReceiptsAction, type ApplicationActionState } from "./ap
 import { ConsentForm } from "./consent-form";
 import type { ConsentLocale } from "./consent.model";
 import type { ReporterApplicationView } from "./application.repository";
+import { ReporterCheckout } from "../payments/reporter-checkout";
 
 const labels = {
   draft: "Application saved",
@@ -17,7 +18,10 @@ const labels = {
   cancelled: "Application cancelled",
 } as const;
 
-export function ApplicationStatus({ application }: Readonly<{ application: ReporterApplicationView }>) {
+export function ApplicationStatus({
+  application,
+  razorpayKeyId,
+}: Readonly<{ application: ReporterApplicationView; razorpayKeyId?: string }>) {
   const [message, setMessage] = useState("");
   const [locale, setLocale] = useState<ConsentLocale>("en");
   const saveConsents = completeConsentReceiptsAction.bind(null, application.id);
@@ -53,7 +57,24 @@ export function ApplicationStatus({ application }: Readonly<{ application: Repor
         <p className="text-sm">Complete identity verification by <time dateTime={application.completionDeadline}>{new Date(application.completionDeadline).toLocaleDateString("en-IN")}</time>.</p>
       ) : null}
       {application.status === "draft" && application.consentsComplete ? (
-        <p className="text-sm">All current consent receipts are stored. Payment becomes available in the payment step.</p>
+        <div className="space-y-3">
+          <p className="text-sm">All current consent receipts are stored. Pay the application fee to continue.</p>
+          <ReporterCheckout
+            applicationId={application.id}
+            keyId={razorpayKeyId}
+            purpose="application"
+          />
+        </div>
+      ) : null}
+      {application.status === "payment_pending" ? (
+        <div className="space-y-3">
+          <p className="text-sm">Resume the existing secure payment order. A retry will not create a second application charge.</p>
+          <ReporterCheckout
+            applicationId={application.id}
+            keyId={razorpayKeyId}
+            purpose="application"
+          />
+        </div>
       ) : null}
       {application.status === "draft" && !application.consentsComplete ? (
         <form action={consentAction} className="space-y-4">

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 import type { ReporterApplicationFields } from "./application.model.ts";
@@ -69,13 +70,21 @@ type ApplicationServiceDependencies = Readonly<{
 }>;
 
 type ApplicationDraftDependencies = Readonly<{
-  uploadPortrait(file: File): Promise<Readonly<{ publicId: string; secureUrl: string }>>;
+  randomId(): string;
+  uploadPortrait(file: File, applicationId: string): Promise<Readonly<{ publicId: string; secureUrl: string }>>;
   insertApplication(input: Readonly<{
+    applicationId: string;
     profileId: string;
     fields: ReporterApplicationFields;
     publicPhotoId: string;
     publicPhotoUrl: string;
   }>): Promise<Readonly<{ id: string; status: string }>>;
+  recoverApplication(input: Readonly<{
+    applicationId: string;
+    profileId: string;
+    publicPhotoId: string;
+  }>): Promise<Readonly<{ id: string; status: string }> | null>;
+  isPortraitReferenced(publicId: string): Promise<boolean>;
   insertConsents(applicationId: string, profileId: string, receipts: readonly ConsentReceipt[]): Promise<void>;
   destroyPortrait(publicId: string): Promise<void>;
   reportCleanupFailure(publicId: string): void;
@@ -122,22 +131,62 @@ export function createApplicationDraftService(dependencies: ApplicationDraftDepe
     receipts: readonly ConsentReceipt[];
     portrait: File;
   }>) => {
-    const portrait = await dependencies.uploadPortrait(input.portrait);
-    let application: Readonly<{ id: string; status: string }>;
+    const applicationId = dependencies.randomId();
+    const portrait = await dependencies.uploadPortrait(input.portrait, applicationId);
+    let application: Readonly<{ id: string; status: string }> | null = null;
     try {
       application = await dependencies.insertApplication({
+        applicationId,
         profileId: input.profileId,
         fields: input.fields,
         publicPhotoId: portrait.publicId,
         publicPhotoUrl: portrait.secureUrl,
       });
     } catch (error) {
-      try {
-        await dependencies.destroyPortrait(portrait.publicId);
-      } catch {
-        dependencies.reportCleanupFailure(portrait.publicId);
+      const definite = typeof error === "object"
+        && error !== null
+        && "definite" in error
+        && error.definite === true;
+      if (!definite) {
+        try {
+          const recovered = await dependencies.recoverApplication({
+            applicationId,
+            profileId: input.profileId,
+            publicPhotoId: portrait.publicId,
+          });
+          if (recovered) {
+            application = recovered;
+          } else {
+            dependencies.reportCleanupFailure(portrait.publicId);
+            throw error;
+          }
+        } catch (recoveryError) {
+          if (recoveryError !== error) dependencies.reportCleanupFailure(portrait.publicId);
+          throw error;
+        }
+      } else {
+        let referenced: boolean;
+        try {
+          referenced = await dependencies.isPortraitReferenced(portrait.publicId);
+        } catch {
+          dependencies.reportCleanupFailure(portrait.publicId);
+          throw error;
+        }
+        if (referenced) {
+          dependencies.reportCleanupFailure(portrait.publicId);
+          throw error;
+        }
+        try {
+          await dependencies.destroyPortrait(portrait.publicId);
+        } catch {
+          dependencies.reportCleanupFailure(portrait.publicId);
+        }
+        throw error;
       }
-      throw error;
+    }
+    if (!application) {
+      dependencies.reportCleanupFailure(portrait.publicId);
+      throw new Error("Application persistence could not be reconciled.");
     }
     await dependencies.insertConsents(application.id, input.profileId, input.receipts);
     return application;
@@ -304,12 +353,15 @@ export async function saveApplicationDraft(input: Readonly<{
     import("./profile-photo.service.ts"),
   ]);
   return createApplicationDraftService({
+    randomId: randomUUID,
     uploadPortrait: portraits.uploadProfilePhoto,
     insertApplication: repository.insertApplicationDraft,
+    recoverApplication: repository.recoverApplicationDraft,
+    isPortraitReferenced: repository.isProfilePhotoReferenced,
     insertConsents: repository.insertConsentReceipts,
     destroyPortrait: portraits.destroyProfilePhoto,
     reportCleanupFailure: (publicId) => {
-      console.error("Profile portrait cleanup failed.", { publicId });
+      console.error("Profile portrait requires reconciliation.", { publicId });
     },
   })(input);
 }

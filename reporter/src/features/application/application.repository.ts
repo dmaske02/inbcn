@@ -17,6 +17,7 @@ import {
 } from "./consent.persistence.ts";
 
 const applicationSelect = "id, profile_id, status, kyc_status, completion_deadline, public_photo_url, public_photo_verified_at, created_at" as const;
+const POSTGRES_ERROR_CODE = /^[0-9A-Z]{5}$/iu;
 
 export type ReporterApplicationView = Readonly<{
   id: string;
@@ -30,9 +31,12 @@ export type ReporterApplicationView = Readonly<{
 }>;
 
 export class ApplicationRepositoryError extends Error {
-  constructor(message = "The application could not be saved.") {
+  readonly definite: boolean;
+
+  constructor(message = "The application could not be saved.", definite = false) {
     super(message);
     this.name = "ApplicationRepositoryError";
+    this.definite = definite;
   }
 }
 
@@ -91,31 +95,70 @@ export async function isApplicationReadyForPayment(profileId: string, applicatio
 }
 
 export async function insertApplicationDraft(input: Readonly<{
+  applicationId: string;
   profileId: string;
   fields: ReporterApplicationFields;
   publicPhotoId: string;
   publicPhotoUrl: string;
 }>): Promise<ReporterApplicationView> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("reporter_applications")
-    .insert({
-      profile_id: input.profileId,
-      legal_name: input.fields.legalName,
-      date_of_birth: input.fields.dateOfBirth,
-      age_18_declared: input.fields.age18Declared,
-      home_city: input.fields.homeCity,
-      home_district: input.fields.homeDistrict,
-      home_state: input.fields.homeState,
-      bio: input.fields.bio || null,
-      beats: [...input.fields.beats],
-      public_photo_id: input.publicPhotoId,
-      public_photo_url: input.publicPhotoUrl,
-    })
-    .select(applicationSelect)
-    .single();
-  if (error || !data) throw new ApplicationRepositoryError();
+  let result;
+  try {
+    result = await createAdminClient()
+      .from("reporter_applications")
+      .insert({
+        id: input.applicationId,
+        profile_id: input.profileId,
+        legal_name: input.fields.legalName,
+        date_of_birth: input.fields.dateOfBirth,
+        age_18_declared: input.fields.age18Declared,
+        home_city: input.fields.homeCity,
+        home_district: input.fields.homeDistrict,
+        home_state: input.fields.homeState,
+        bio: input.fields.bio || null,
+        beats: [...input.fields.beats],
+        public_photo_id: input.publicPhotoId,
+        public_photo_url: input.publicPhotoUrl,
+      })
+      .select(applicationSelect)
+      .single();
+  } catch {
+    throw new ApplicationRepositoryError();
+  }
+  const { data, error } = result;
+  if (error) {
+    // SQLSTATE proves that PostgreSQL rejected the transaction. PostgREST or
+    // transport errors remain ambiguous and must be reconciled before cleanup.
+    throw new ApplicationRepositoryError(undefined, POSTGRES_ERROR_CODE.test(error.code));
+  }
+  if (!data) throw new ApplicationRepositoryError();
   return applicationView(data, false);
+}
+
+export async function recoverApplicationDraft(input: Readonly<{
+  applicationId: string;
+  profileId: string;
+  publicPhotoId: string;
+}>): Promise<ReporterApplicationView | null> {
+  const { data, error } = await createAdminClient()
+    .from("reporter_applications")
+    .select(applicationSelect)
+    .eq("id", input.applicationId)
+    .eq("profile_id", input.profileId)
+    .eq("public_photo_id", input.publicPhotoId)
+    .maybeSingle();
+  if (error) throw new ApplicationRepositoryError("The application could not be recovered.");
+  return data ? applicationView(data, false) : null;
+}
+
+export async function isProfilePhotoReferenced(publicPhotoId: string): Promise<boolean> {
+  const { data, error } = await createAdminClient()
+    .from("reporter_applications")
+    .select("id")
+    .eq("public_photo_id", publicPhotoId)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new ApplicationRepositoryError("Portrait ownership could not be reconciled.");
+  return data !== null;
 }
 
 export async function insertConsentReceipts(
@@ -123,7 +166,7 @@ export async function insertConsentReceipts(
   profileId: string,
   receipts: readonly ConsentReceipt[],
 ): Promise<void> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const persist = createConsentReceiptPersistence({
     upsert: async (rows) => {
       const { error } = await supabase.from("reporter_consents").upsert(rows.map((row) => ({

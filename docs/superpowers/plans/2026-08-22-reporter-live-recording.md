@@ -27,7 +27,7 @@
 ### Task 1: Add live request and recording schema
 
 **Files:**
-- Create: `supabase/migrations/20260822110000_reporter_live_recording.sql`
+- Create: `supabase/migrations/20260822160000_reporter_live_recording.sql`
 - Modify: `packages/database/src/database.types.ts`
 - Create: `reporter/src/features/live/live-schema.contract.test.mjs`
 - Modify: `docs/database-schema.md`
@@ -67,7 +67,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add supabase/migrations/20260822110000_reporter_live_recording.sql packages/database/src/database.types.ts reporter/src/features/live/live-schema.contract.test.mjs docs/database-schema.md docs/row-level-security.md
+git add supabase/migrations/20260822160000_reporter_live_recording.sql packages/database/src/database.types.ts reporter/src/features/live/live-schema.contract.test.mjs docs/database-schema.md docs/row-level-security.md
 git commit -m "feat(database): add reporter live requests and recordings"
 ```
 

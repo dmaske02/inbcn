@@ -53,7 +53,7 @@ packages/domain/     shared domain types and validation where genuinely common
 supabase/migrations/ canonical schema, grants, functions, and RLS
 ```
 
-Each application is deployed independently. They share one Supabase project and the existing canonical content model. The reporter portal uses only reporter-specific server operations and user-scoped Supabase sessions. It never imports privileged CMS server actions or a service-role client.
+Each application is deployed independently. They share one Supabase project and the existing canonical content model. The reporter browser uses only reporter-specific server operations and user-scoped Supabase sessions. Validated reporter server boundaries may use the server-only service-role client for narrowly owned mutations; no privileged CMS action or service credential enters the client bundle.
 
 ## Identity, Authentication, and Authorization
 
@@ -121,6 +121,8 @@ Any approved account may become suspended by admin action.
 ### Money safety
 
 Razorpay callback signatures are verified on the server. Provider event IDs and payment identifiers are unique, so duplicate webhook delivery cannot duplicate membership or refunds. Refunds use `refund_pending`, `refunded`, and `refund_failed` states. A failed refund alerts admins and can be safely retried against the same payment.
+
+Membership and application deadlines use verified provider time: the signed webhook event time for asynchronous capture, or the fetched payment entity's provider `created_at` as reconciliation fallback. Conservative server-owned clock/order bounds reject future or out-of-order values. The first valid capture timestamp is immutable, so delayed duplicate delivery cannot move an existing period or deadline.
 
 ## KYC Boundary and Client Decision Gate
 
@@ -311,7 +313,7 @@ A read-only public view exposes only approved legal name, photo, public status, 
 
 ## RLS and Security Rules
 
-- Applicants can select/update only their own incomplete application fields permitted by its state.
+- Applicants can select only their own application and consent rows. Validated authenticated server actions own application and consent mutations through server-only persistence; direct authenticated Data API DML is denied.
 - Reporters can select their own membership, payment receipts, stories, revisions, locations, notifications, and live requests.
 - Reporters can insert or update only their own drafts; submitted revisions are immutable.
 - Direct publication is a server/database command that rechecks membership and permission atomically. It is not a broad client update policy.

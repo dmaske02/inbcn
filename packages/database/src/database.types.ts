@@ -1231,7 +1231,7 @@ export type Database = {
         Returns: boolean
       }
       complete_razorpay_payment_webhook: {
-        Args: { p_event_id: string; p_processing_token: string; p_razorpay_order_id: string; p_razorpay_payment_id: string; p_amount_paise: number; p_currency: string }
+        Args: { p_event_id: string; p_processing_token: string; p_razorpay_order_id: string; p_razorpay_payment_id: string; p_amount_paise: number; p_currency: string; p_captured_at: string }
         Returns: boolean
       }
       complete_razorpay_refund_failure_webhook: {

@@ -21,7 +21,7 @@
 - Never store Aadhaar number, OTP, raw XML, Aadhaar image, or full provider payload.
 - Every Server Action and Route Handler performs its own authentication/authorization and input validation.
 - Use signed `app_metadata.role`; never authorize from `user_metadata`.
-- All new tables have explicit grants and RLS with both `USING` and `WITH CHECK` where applicable.
+- All new tables have explicit grants and RLS. Applicant onboarding writes use validated server actions and server-only persistence; owner Data API access is read-only.
 - Read `AGENTS.md` and the relevant `node_modules/next/dist/docs/` pages before implementation.
 
 ---
@@ -141,7 +141,7 @@ Expected: FAIL because the migration is absent.
 
 - [ ] **Step 3: Implement the migration**
 
-Define constrained text statuses, INR/amount checks, one active application per profile, opaque KYC reference, approval/expiry/grace timestamps, two trust booleans, versioned consent receipts, public-photo verification timestamps, and unique Razorpay/provider IDs. Add indexes for admin queues and daily due-state scans. The public view must project only slug, legal display name, avatar, public status, home district, bio, beats, and published-count inputs. Grant applicants only their own safe selects/updates; grant public users only the public view.
+Define constrained text statuses, INR/amount checks, one active application per profile, opaque KYC reference, approval/expiry/grace timestamps, two trust booleans, versioned consent receipts, public-photo verification timestamps, and unique Razorpay/provider IDs. Add indexes for admin queues and daily due-state scans. The public view must project only slug, legal display name, avatar, public status, home district, bio, beats, and published-count inputs. Grant applicants only their own safe selects; validated server actions own application and consent writes through server-only persistence. Grant public users only the public view.
 
 Use security-definer functions with fixed `search_path = ''`, explicit role checks, row locks, expected-state checks, and audit inserts. `approve_reporter_application` sets first membership start to approval time, expiry to `approval + interval '1 year'`, grace end to `expiry + interval '7 days'`, and returns the approved profile ID. `reject_reporter_application` marks refund eligibility but does not call Razorpay from SQL.
 

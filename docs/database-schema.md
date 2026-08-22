@@ -66,9 +66,21 @@ abandoned lease. Refund requests keep `refund_pending` until an exact signed
 Razorpay `refund.processed` event confirms the payment ID, refund ID, `10000`
 paise amount, and `INR` currency.
 
-Renewal credit starts from the later of current expiry and captured server time,
-then adds one calendar year. The capture function remains the single atomic
-owner of payment, application/membership, deadline, and audit changes.
+Renewal paid before or through the inclusive seven-day grace boundary extends
+one calendar year from the prior expiry and preserves the original membership
+start. Payment after grace starts a new membership at the provider capture
+time. Signed Razorpay event time is authoritative for webhooks; verified
+payment-entity `created_at` is the API reconciliation fallback. The first
+verified capture wins and cannot be shifted by later delivery. The capture
+function remains the single atomic owner of payment, application/membership,
+deadline, and audit changes.
+
+`supabase/migrations/20260822140000_reporter_foundation_final_hardening.sql`
+removes authenticated Data API writes to applications and consent receipts.
+Authenticated owners retain safe reads, while validated reporter Server Actions
+write through the server-only service-role client. Database constraints mirror
+the calendar-age, field-length, beat, and Cloudinary portrait-provenance
+boundaries.
 
 `public_reporter_profiles` exposes only public slug, verified legal display
 name, approved avatar, public status, district, bio, beats, and published-story

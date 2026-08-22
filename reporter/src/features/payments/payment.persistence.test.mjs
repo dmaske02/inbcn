@@ -137,7 +137,7 @@ test("Razorpay webhook claim owns durable insert, concurrency, and stale-crash r
   assert.match(body, /attempt_count = current_event\.attempt_count \+ 1/u);
 });
 
-test("captured webhook completion token-CASes its receipt around the atomic SQL payment owner", () => {
+test("the initial captured-webhook function token-CASes its receipt around the atomic SQL payment owner", () => {
   const body = assertSecured("complete_razorpay_payment_webhook");
 
   assert.match(body, /where provider = 'razorpay' and provider_event_id = btrim\(p_event_id\)\s+for update/u);
@@ -233,7 +233,7 @@ test("failed refund confirmation verifies the same exact event/payment boundary"
   assert.match(body, /refund_failure_detail = 'provider-confirmed-failure'/u);
 });
 
-test("apply_reporter_payment alone owns fixed money, capture deadline, and calendar renewal", () => {
+test("the initial apply_reporter_payment owns fixed money, capture deadline, and atomic state changes", () => {
   const body = assertSecured("apply_reporter_payment");
 
   assert.match(body, /p_amount_paise <> 10000 or p_currency <> 'INR'/u);
@@ -246,7 +246,6 @@ test("apply_reporter_payment alone owns fixed money, capture deadline, and calen
   assert.match(body, /completion_deadline = p_captured_at \+ interval '30 days'/u);
   assert.match(body, /where profile_id = current_payment\.profile_id\s+for update/u);
   assert.match(body, /current_reporter\.public_status = 'suspended'/u);
-  assert.match(body, /credited_start := greatest\(current_reporter\.membership_expires_at, p_captured_at\)/u);
   assert.match(body, /credited_expiry := credited_start \+ interval '1 year'/u);
   assert.match(body, /membership_expires_at = credited_expiry/u);
   assert.match(body, /'reporter\.payment_captured'/u);

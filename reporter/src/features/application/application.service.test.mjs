@@ -255,11 +255,14 @@ test("keeps the application KYC-pending when adult or legal-name verification is
 test("stores a separately uploaded portrait and all consent receipts on the draft", async () => {
   const state = { application: null, receipts: [] };
   const save = createApplicationDraftService({
-    uploadPortrait: async () => ({ publicId: "inbcn/reporter/portrait/generated", secureUrl: "https://res.cloudinary.com/demo/portrait.jpg" }),
+    randomId: () => "11111111-1111-4111-8111-111111111111",
+    uploadPortrait: async (_portrait, applicationId) => ({ publicId: `inbcn/reporter/portrait/${applicationId}`, secureUrl: "https://res.cloudinary.com/demo/portrait.jpg" }),
     insertApplication: async (input) => {
       state.application = input;
       return { id: "11111111-1111-4111-8111-111111111111", status: "draft" };
     },
+    recoverApplication: async () => null,
+    isPortraitReferenced: async () => false,
     insertConsents: async (_applicationId, _profileId, receipts) => { state.receipts.push(...receipts); },
     destroyPortrait: async () => {},
     reportCleanupFailure: () => {},
@@ -281,29 +284,79 @@ test("stores a separately uploaded portrait and all consent receipts on the draf
   const application = await save({ profileId: "22222222-2222-4222-8222-222222222222", fields, receipts, portrait: {} });
 
   assert.equal(application.status, "draft");
-  assert.equal(state.application.publicPhotoId, "inbcn/reporter/portrait/generated");
+  assert.equal(state.application.applicationId, "11111111-1111-4111-8111-111111111111");
+  assert.equal(state.application.publicPhotoId, "inbcn/reporter/portrait/11111111-1111-4111-8111-111111111111");
   assert.equal(state.application.fields, fields);
   assert.deepEqual(state.receipts, receipts);
 });
 
-test("reports failed portrait cleanup with only the generated public ID", async () => {
-  const alerts = [];
+test("recovers a committed draft after response loss and never destroys its referenced portrait", async () => {
+  const calls = [];
+  const committed = { id: "11111111-1111-4111-8111-111111111111", status: "draft" };
   const save = createApplicationDraftService({
-    uploadPortrait: async () => ({
-      publicId: "inbcn/reporter/portrait/generated",
+    randomId: () => committed.id,
+    uploadPortrait: async (_portrait, applicationId) => ({
+      publicId: `inbcn/reporter/portrait/${applicationId}`,
       secureUrl: "https://res.cloudinary.com/demo/portrait.jpg",
     }),
-    insertApplication: async () => { throw new Error("database secret detail"); },
-    insertConsents: async () => {},
-    destroyPortrait: async () => { throw new Error("cloud provider secret detail"); },
-    reportCleanupFailure: (publicId) => { alerts.push(publicId); },
+    insertApplication: async () => { throw new Error("response lost after commit"); },
+    recoverApplication: async (input) => {
+      calls.push(["recover", input]);
+      return committed;
+    },
+    isPortraitReferenced: async () => { throw new Error("must not run"); },
+    insertConsents: async () => { calls.push(["consents"]); },
+    destroyPortrait: async () => { calls.push(["destroy"]); },
+    reportCleanupFailure: (publicId) => { calls.push(["reconcile", publicId]); },
   });
 
-  await assert.rejects(save({
+  assert.deepEqual(await save({
     profileId: "22222222-2222-4222-8222-222222222222",
     fields: {},
     receipts: [],
     portrait: {},
-  }));
-  assert.deepEqual(alerts, ["inbcn/reporter/portrait/generated"]);
+  }), committed);
+  assert.equal(calls.some(([name]) => name === "destroy"), false);
+  assert.equal(calls.some(([name]) => name === "consents"), true);
+});
+
+test("destroys a portrait after a definite insert rejection and authoritative no-reference proof", async () => {
+  const calls = [];
+  const insertError = Object.assign(new Error("constraint rejected"), { definite: true });
+  const save = createApplicationDraftService({
+    randomId: () => "11111111-1111-4111-8111-111111111111",
+    uploadPortrait: async () => ({
+      publicId: "inbcn/reporter/portrait/11111111-1111-4111-8111-111111111111",
+      secureUrl: "https://res.cloudinary.com/demo/portrait.jpg",
+    }),
+    insertApplication: async () => { throw insertError; },
+    recoverApplication: async () => { throw new Error("definite failures do not recover by id"); },
+    isPortraitReferenced: async (publicId) => { calls.push(["reference", publicId]); return false; },
+    insertConsents: async () => {},
+    destroyPortrait: async (publicId) => { calls.push(["destroy", publicId]); },
+    reportCleanupFailure: (publicId) => { calls.push(["reconcile", publicId]); },
+  });
+
+  await assert.rejects(save({ profileId: "profile", fields: {}, receipts: [], portrait: {} }), insertError);
+  assert.deepEqual(calls.map(([name]) => name), ["reference", "destroy"]);
+});
+
+test("an ambiguous insert with an unavailable authoritative reread queues reconciliation without deletion", async () => {
+  const calls = [];
+  const save = createApplicationDraftService({
+    randomId: () => "11111111-1111-4111-8111-111111111111",
+    uploadPortrait: async () => ({
+      publicId: "inbcn/reporter/portrait/11111111-1111-4111-8111-111111111111",
+      secureUrl: "https://res.cloudinary.com/demo/portrait.jpg",
+    }),
+    insertApplication: async () => { throw new Error("response lost"); },
+    recoverApplication: async () => { throw new Error("database unavailable"); },
+    isPortraitReferenced: async () => { throw new Error("must not run"); },
+    insertConsents: async () => {},
+    destroyPortrait: async () => { calls.push(["destroy"]); },
+    reportCleanupFailure: (publicId) => { calls.push(["reconcile", publicId]); },
+  });
+
+  await assert.rejects(save({ profileId: "profile", fields: {}, receipts: [], portrait: {} }));
+  assert.deepEqual(calls, [["reconcile", "inbcn/reporter/portrait/11111111-1111-4111-8111-111111111111"]]);
 });

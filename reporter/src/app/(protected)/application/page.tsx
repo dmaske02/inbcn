@@ -2,6 +2,7 @@ import { ApplicationForm } from "@/features/application/application-form";
 import { getCurrentApplication } from "@/features/application/application.repository";
 import { ApplicationStatus } from "@/features/application/application-status";
 import { requireReporterSession } from "@/features/auth/server";
+import { env } from "@/config/env";
 
 export default async function ApplicationPage() {
   const actor = await requireReporterSession();
@@ -14,7 +15,9 @@ export default async function ApplicationPage() {
     );
   }
   const application = await getCurrentApplication(actor.userId);
-  if (application) return <ApplicationStatus application={application} />;
+  if (application) {
+    return <ApplicationStatus application={application} razorpayKeyId={env.public.razorpayKeyId} />;
+  }
 
   return (
     <section className="space-y-6">

@@ -21,7 +21,7 @@ const orderSchema = z.object({
   receipt: z.string().nullable(),
   status: z.enum(["created", "attempted", "paid"]),
   notes: notesSchema.optional(),
-  created_at: z.number().int().optional(),
+  created_at: z.number().int().positive(),
 });
 
 const paymentSchema = z.object({
@@ -32,6 +32,7 @@ const paymentSchema = z.object({
   currency: z.string(),
   status: z.enum(["created", "authorized", "captured", "refunded", "failed"]),
   captured: z.boolean(),
+  created_at: z.number().int().positive(),
 });
 
 const orderCollectionSchema = z.object({

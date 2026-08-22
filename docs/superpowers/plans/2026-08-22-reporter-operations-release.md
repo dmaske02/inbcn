@@ -118,7 +118,7 @@ git commit -m "feat(reporter): add reporter notifications"
 ### Task 3: Add privacy requests and consent-withdrawal operations
 
 **Files:**
-- Create: `supabase/migrations/20260822120000_reporter_privacy_operations.sql`
+- Create: `supabase/migrations/20260822170000_reporter_privacy_operations.sql`
 - Modify: `packages/database/src/database.types.ts`
 - Create: `reporter/src/features/privacy/{privacy.model,privacy.model.test.mjs,privacy.repository,privacy.service,privacy.actions,privacy-request-form}.ts*`
 - Create: `reporter/src/app/(protected)/account/privacy/page.tsx`
@@ -155,7 +155,7 @@ Expected: PASS for privacy-request ownership, consent withdrawal, alternate iden
 - [ ] **Step 5: Commit**
 
 ```bash
-git add supabase/migrations/20260822120000_reporter_privacy_operations.sql packages/database/src/database.types.ts reporter/src/features/privacy reporter/src/app/'(protected)'/account cms/src/features/admin/reporters/privacy cms/src/app/admin/'(protected)'/reporters/privacy
+git add supabase/migrations/20260822170000_reporter_privacy_operations.sql packages/database/src/database.types.ts reporter/src/features/privacy reporter/src/app/'(protected)'/account cms/src/features/admin/reporters/privacy cms/src/app/admin/'(protected)'/reporters/privacy
 git commit -m "feat(reporter): add privacy request operations"
 ```
 

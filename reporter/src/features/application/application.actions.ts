@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { authorizeCurrentReporter } from "../auth/server";
+import { requireReporterSession } from "../auth/server";
 import { applicationInputErrorMessage } from "./application.error";
 import { validateReporterApplication } from "./application.model";
 import { getCurrentApplication, insertConsentReceipts } from "./application.repository";
@@ -34,8 +34,7 @@ export async function saveApplicationAction(
   _previousState: ApplicationActionState,
   formData: FormData,
 ): Promise<ApplicationActionState> {
-  const actor = await authorizeCurrentReporter();
-  if (!actor.ok) return { status: "error", message: "Sign in again to continue." };
+  const actor = await requireReporterSession();
   if (actor.state !== "applicant") {
     return { status: "error", message: "This account cannot create another reporter application." };
   }
@@ -99,8 +98,7 @@ export async function completeConsentReceiptsAction(
   _previousState: ApplicationActionState,
   formData: FormData,
 ): Promise<ApplicationActionState> {
-  const actor = await authorizeCurrentReporter();
-  if (!actor.ok) return { status: "error", message: "Sign in again to continue." };
+  const actor = await requireReporterSession();
   if (actor.state !== "applicant" || !z.uuid().safeParse(applicationId).success) {
     return { status: "error", message: "This application cannot be updated." };
   }
