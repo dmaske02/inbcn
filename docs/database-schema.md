@@ -43,16 +43,20 @@ The baseline migration is stored in
 `supabase/migrations/20260822090000_reporter_foundation.sql` adds the `reporter`
 profile role and the reporter onboarding relations. Application and renewal
 payments are constrained to `10000` paise and `INR`; provider order, payment,
-refund, and event identifiers are unique. Partial indexes enforce one active
-application per profile and support admin, expiry, incomplete-application,
-refund, and webhook queues.
+refund, event, and non-null hosted-KYC references are unique. Pending and
+verified KYC states require the provider/reference pair, while unstarted drafts
+may keep both null. Partial indexes enforce one active application per profile
+and support admin, expiry, incomplete-application, refund, and webhook queues.
 
 `approve_reporter_application`, `reject_reporter_application`, and
-`apply_reporter_payment` own the row-locked transitions. First approval starts
-membership at approval, expires it one year later, and adds seven days of grace.
-Rejection queues refund eligibility in PostgreSQL; external Razorpay calls remain
-outside the database. Renewal extends from the prior expiry through grace, or
-starts from capture after grace.
+`apply_reporter_payment` own the row-locked decision and capture transitions.
+`mark_overdue_reporter_application` atomically cancels a still-incomplete paid
+application at or after its 30-day deadline and queues its captured payment for
+refund. First approval starts membership at approval, expires it one year later,
+and adds seven days of grace. Rejection and overdue processing queue refund
+eligibility in PostgreSQL; external Razorpay calls remain outside the database.
+Renewal extends from the prior expiry through grace, or starts from capture after
+grace.
 
 `public_reporter_profiles` exposes only public slug, verified legal display
 name, approved avatar, public status, district, bio, beats, and published-story

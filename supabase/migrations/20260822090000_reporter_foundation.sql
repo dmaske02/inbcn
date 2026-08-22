@@ -48,6 +48,15 @@ create table public.reporter_applications (
       and length(btrim(kyc_reference)) > 0
     )
   ),
+  constraint reporter_applications_kyc_state_reference_check check (
+    kyc_status not in ('pending', 'verified')
+    or (
+      kyc_provider is not null
+      and length(btrim(kyc_provider)) > 0
+      and kyc_reference is not null
+      and length(btrim(kyc_reference)) > 0
+    )
+  ),
   constraint reporter_applications_kyc_result_check check (
     kyc_status <> 'verified'
     or (
@@ -87,12 +96,25 @@ create table public.reporter_applications (
       and approved_at is null
     )
   ),
+  constraint reporter_applications_cancellation_check check (
+    status <> 'cancelled'
+    or (
+      completion_deadline is not null
+      and refund_eligible_at is not null
+      and approved_at is null
+      and rejected_at is null
+    )
+  ),
   constraint reporter_applications_id_profile_id_key unique (id, profile_id)
 );
 
 create unique index reporter_applications_one_active_per_profile_idx
   on public.reporter_applications (profile_id)
   where status in ('draft', 'payment_pending', 'kyc_pending', 'under_review');
+
+create unique index reporter_applications_kyc_reference_key
+  on public.reporter_applications (kyc_provider, kyc_reference)
+  where kyc_provider is not null and kyc_reference is not null;
 
 create index reporter_applications_admin_queue_idx
   on public.reporter_applications (status, submitted_at, id)
@@ -365,6 +387,17 @@ revoke all on table
   public.public_reporter_profiles
 from public, anon, authenticated;
 
+revoke all on table
+  public.reporter_applications,
+  public.reporter_profiles,
+  public.reporter_payments,
+  public.reporter_consents,
+  public.webhook_events,
+  public.reporter_notifications,
+  public.audit_events,
+  public.public_reporter_profiles
+from service_role;
+
 grant select on table public.public_reporter_profiles to anon, authenticated;
 
 grant select on table
@@ -393,14 +426,27 @@ grant update (read_at) on table public.reporter_notifications to authenticated;
 
 grant select on table public.webhook_events, public.audit_events to authenticated;
 
-grant select, insert, update, delete on table
+grant select on table public.public_reporter_profiles to service_role;
+
+grant select, insert, update on table
   public.reporter_applications,
   public.reporter_profiles,
-  public.reporter_payments,
-  public.reporter_consents,
-  public.webhook_events,
-  public.reporter_notifications
+  public.reporter_payments
 to service_role;
+
+grant select, insert on table public.reporter_consents to service_role;
+grant update (withdrawn_at) on table public.reporter_consents to service_role;
+
+grant select, insert on table public.reporter_notifications to service_role;
+grant update (delivery_status, delivered_at, read_at)
+on table public.reporter_notifications to service_role;
+
+grant select, insert on table public.webhook_events to service_role;
+
+grant update (
+  processing_status, attempt_count, failure_detail, subject_type, subject_id,
+  processed_at, updated_at
+) on table public.webhook_events to service_role;
 
 grant select, insert on table public.audit_events to service_role;
 
@@ -654,6 +700,77 @@ begin
 end;
 $$;
 
+create or replace function public.mark_overdue_reporter_application(
+  p_application_id uuid,
+  p_checked_at timestamptz
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  current_application public.reporter_applications%rowtype;
+  current_payment public.reporter_payments%rowtype;
+begin
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
+    raise exception using errcode = '42501', message = 'REPORTER_OVERDUE_FORBIDDEN';
+  end if;
+  if p_checked_at is null then
+    raise exception using errcode = '22023', message = 'REPORTER_OVERDUE_CHECK_TIME_REQUIRED';
+  end if;
+
+  select * into current_application
+  from public.reporter_applications
+  where id = p_application_id
+  for update;
+
+  if not found then
+    raise exception using errcode = 'P0002', message = 'REPORTER_APPLICATION_NOT_FOUND';
+  end if;
+  if current_application.status <> 'kyc_pending'
+    or current_application.completion_deadline is null
+    or current_application.completion_deadline > p_checked_at then
+    raise exception using errcode = 'P0001', message = 'REPORTER_APPLICATION_NOT_OVERDUE';
+  end if;
+
+  select * into current_payment
+  from public.reporter_payments
+  where application_id = current_application.id
+  for update;
+
+  if not found
+    or current_payment.purpose <> 'application'
+    or current_payment.payment_status <> 'captured'
+    or current_payment.refund_status <> 'not_eligible' then
+    raise exception using errcode = 'P0001', message = 'REPORTER_APPLICATION_PAYMENT_INVALID';
+  end if;
+
+  update public.reporter_applications
+  set status = 'cancelled',
+      refund_eligible_at = p_checked_at,
+      updated_at = p_checked_at
+  where id = current_application.id;
+
+  update public.reporter_payments
+  set refund_status = 'refund_pending',
+      refund_eligible_at = p_checked_at,
+      updated_at = p_checked_at
+  where id = current_payment.id;
+
+  insert into public.audit_events (actor_id, action, subject_type, subject_id, metadata)
+  values (
+    null,
+    'reporter.application_overdue_refund_queued',
+    'reporter_application',
+    current_application.id,
+    jsonb_build_object('payment_id', current_payment.id)
+  );
+
+  return current_payment.id;
+end;
+$$;
+
 create or replace function public.approve_reporter_application(p_application_id uuid)
 returns uuid
 language plpgsql
@@ -851,12 +968,16 @@ $$;
 
 revoke all on function public.apply_reporter_payment(text, text, integer, text, timestamptz)
 from public, anon, authenticated;
+revoke all on function public.mark_overdue_reporter_application(uuid, timestamptz)
+from public, anon, authenticated, service_role;
 revoke all on function public.approve_reporter_application(uuid)
 from public, anon, authenticated;
 revoke all on function public.reject_reporter_application(uuid, text)
 from public, anon, authenticated;
 
 grant execute on function public.apply_reporter_payment(text, text, integer, text, timestamptz)
+to service_role;
+grant execute on function public.mark_overdue_reporter_application(uuid, timestamptz)
 to service_role;
 grant execute on function public.approve_reporter_application(uuid)
 to authenticated;

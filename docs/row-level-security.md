@@ -36,8 +36,10 @@ updates and receive no editorial privileges.
   only their own private membership and receipts; admins can read all rows.
 - `reporter_consents`: applicants can insert immutable receipts only for their
   own draft application and read only their receipts; admins can read them.
-- `webhook_events` and `audit_events`: admins have read-only access. Only the
-  service role writes callback receipts and append-only audit records.
+- `webhook_events` and `audit_events`: admins have read-only access. The service
+  role may insert webhook receipts and update only processing/result columns;
+  provider, event, signature, and creation identity cannot be changed or deleted.
+  Audit access is append-only (`SELECT`/`INSERT`) for the service role.
 - `reporter_notifications`: reporters read their own rows and may update only
   `read_at`; notification creation and delivery state are server-controlled.
 - `public_reporter_profiles`: anonymous and authenticated users can select the
@@ -49,8 +51,10 @@ Reporter payment and decision transitions use `SECURITY DEFINER` functions
 with an empty fixed search path, fully qualified relations, row locks, explicit
 role/state checks, and an audit insert in the same transaction. Approval and
 rejection require the signed `app_metadata.role = admin` claim. Payment capture
-is executable only by `service_role` after provider verification and is
-idempotent for an exact repeat of an already captured payment identifier.
+and 30-day incomplete-application cancellation are executable only by
+`service_role`. The overdue transition requires `kyc_pending`, a reached
+completion deadline, and a captured, not-yet-refund-eligible payment. Payment
+capture is idempotent for an exact repeat of an already captured identifier.
 
 The functions never call Razorpay. Rejection changes the captured payment to
 `refund_pending`, allowing the server-side refund worker to call Razorpay and
