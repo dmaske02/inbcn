@@ -110,8 +110,6 @@ const imageAsset = {
   public_id: "inbcn/reporter/story/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222/33333333-3333-4333-8333-333333333333",
   resource_type: "image",
   type: "upload",
-  status: "active",
-  placeholder: false,
   format: "jpg",
   bytes: 1_000_000,
   width: 1200,
@@ -202,11 +200,20 @@ test("rejects forged or incomplete authoritative provider facts", () => {
   }, "2026-08-23T10:20:00.000Z").ok, false);
 });
 
-test("rejects deleted, missing, and placeholder Admin API assets", () => {
+test("accepts omitted or active status and rejects explicit non-active or malformed status", () => {
+  assert.equal(validateProviderAsset({
+    ...imageAsset,
+    status: "active",
+    placeholder: false,
+  }, providerExpectation, "2026-08-23T10:20:00.000Z").ok, true);
+
   for (const patch of [
     { status: "deleted" },
     { status: "not_found" },
     { status: undefined },
+    { status: null },
+    { status: false },
+    { status: 1 },
     { placeholder: true },
   ]) {
     assert.equal(validateProviderAsset(

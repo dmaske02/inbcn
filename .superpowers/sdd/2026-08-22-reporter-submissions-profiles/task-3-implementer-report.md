@@ -170,3 +170,24 @@ claiming the local commands passed.
 
 Docker/Postgres remains unavailable, so the original live migration,
 generated-type, and database concurrency verification deferral is unchanged.
+
+## Review follow-up — optional Cloudinary status
+
+Corrected the deliverability check for the actual `resource_by_asset_id`
+response shape. Cloudinary may omit the optional `status` field from a valid
+asset response, so omission is now accepted. If `status` is explicitly
+present, only exact string `active` is accepted; non-active strings,
+`undefined`, `null`, booleans, and numbers fail closed. `placeholder = true`
+remains an independent rejection.
+
+The canonical provider fixture no longer supplies either optional `status` or
+`placeholder`, preventing it from masking this compatibility path. Focused RED
+showed the otherwise-valid image and service completion rejected solely due to
+omitted status. Focused GREEN passed 27/27; the full reporter suite passed
+179/179; reporter typecheck and lint passed; and `git diff --check` passed.
+
+The bundled-Node build rerun reproduced the unchanged local native-binding
+gates: Turbopack stopped at Darwin SWC Team-ID validation, and the Webpack
+fallback stopped at the unavailable Lightning CSS ARM64 binding before
+application compilation. The earlier independent reviewer build pass remains
+recorded above. Docker/Postgres remains unavailable.

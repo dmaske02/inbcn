@@ -189,7 +189,7 @@ export function validateProviderAsset(
     || asset.public_id !== expected.publicId
     || asset.resource_type !== expected.mediaType
     || asset.type !== "upload"
-    || asset.status !== "active"
+    || ("status" in asset && asset.status !== "active")
     || asset.placeholder === true
     || !formatDetails
     || formatDetails.mediaType !== expected.mediaType
