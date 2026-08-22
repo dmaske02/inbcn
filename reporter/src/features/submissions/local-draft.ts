@@ -121,6 +121,35 @@ export function chooseLocalDraft(local: LocalDraft | null, serverUpdatedAt: stri
   return local && Date.parse(local.updatedAt) > Date.parse(serverUpdatedAt) ? "restore" : "server";
 }
 
+export function shouldOfferLocalDraft(
+  local: LocalDraft | null,
+  isPersisted: boolean,
+  serverUpdatedAt: string,
+): boolean {
+  return !isPersisted ? local !== null : chooseLocalDraft(local, serverUpdatedAt) === "restore";
+}
+
+export function migrateLocalDraft(
+  storage: SafeStorage,
+  userId: string,
+  fromStoryId: string,
+  toStoryId: string,
+  fields: LocalDraftFields,
+  serverUpdatedAt?: string,
+): boolean {
+  const serverMilliseconds = Date.parse(serverUpdatedAt ?? "");
+  const updatedAt = new Date(Math.max(Date.now(), Number.isFinite(serverMilliseconds) ? serverMilliseconds + 1 : 0)).toISOString();
+  const persisted = saveLocalDraft(storage, {
+    version: LOCAL_DRAFT_VERSION,
+    userId,
+    storyId: toStoryId,
+    updatedAt,
+    fields,
+  });
+  if (persisted) clearLocalDraft(storage, userId, fromStoryId);
+  return persisted;
+}
+
 export function createDraftPersistence(
   storage: SafeStorage,
   timer: Timer = window,
@@ -163,9 +192,10 @@ export function createDraftSaveTracker() {
     beginSave() { return { attempt: ++attempt, generation }; },
     isCurrentGeneration(candidate: number) { return candidate === generation; },
     acknowledge(result: Readonly<{ attempt: number; generation: number; status: "success" | "error" | "idle" }>) {
-      if (result.attempt <= acknowledged) return { clear: false };
+      if (result.attempt <= acknowledged) return { clear: false, stale: false };
       acknowledged = result.attempt;
-      return { clear: result.status === "success" && result.generation === generation };
+      const stale = result.status === "success" && result.generation !== generation;
+      return { clear: result.status === "success" && !stale, stale };
     },
   } as const;
 }

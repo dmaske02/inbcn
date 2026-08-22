@@ -8,7 +8,9 @@ import {
   createDraftSaveTracker,
   draftStorageKey,
   loadLocalDraft,
+  migrateLocalDraft,
   saveLocalDraft,
+  shouldOfferLocalDraft,
 } from "./local-draft.ts";
 
 const userId = "11111111-1111-4111-8111-111111111111";
@@ -55,6 +57,32 @@ test("uses one discoverable current-user new-draft alias without weakening UUID 
   assert.equal(saveLocalDraft(storage, draft), true);
   assert.deepEqual(loadLocalDraft(storage, userId, NEW_REPORTER_DRAFT_ID), draft);
   assert.equal(loadLocalDraft(storage, "99999999-9999-4999-8999-999999999999", NEW_REPORTER_DRAFT_ID), null);
+});
+
+test("offers a new-draft alias after an ordinary refresh without comparing the synthetic blank-page time", () => {
+  const saved = { ...local, storyId: NEW_REPORTER_DRAFT_ID, updatedAt: "2020-01-01T00:00:00.000Z" };
+  assert.equal(shouldOfferLocalDraft(saved, false, "2026-08-23T12:00:00.000Z"), true);
+  assert.equal(shouldOfferLocalDraft(saved, true, "2026-08-23T12:00:00.000Z"), false);
+});
+
+test("migrates a newer new-draft snapshot to the returned persisted ID before clearing only the alias", () => {
+  const alias = { ...local, storyId: NEW_REPORTER_DRAFT_ID };
+  const newerFields = { ...alias.fields, title: "Edited while first save was pending" };
+  const storage = memoryStorage();
+  assert.equal(saveLocalDraft(storage, alias), true);
+  assert.equal(migrateLocalDraft(storage, userId, NEW_REPORTER_DRAFT_ID, storyId, newerFields, "2027-01-01T00:00:00.000Z"), true);
+  assert.equal(loadLocalDraft(storage, userId, NEW_REPORTER_DRAFT_ID), null);
+  assert.equal(loadLocalDraft(storage, userId, storyId)?.fields.title, newerFields.title);
+  assert.ok(Date.parse(loadLocalDraft(storage, userId, storyId)?.updatedAt ?? "") > Date.parse("2027-01-01T00:00:00.000Z"));
+
+  const blocked = {
+    getItem(key) { return storage.getItem(key); },
+    setItem() { throw new Error("quota"); },
+    removeItem(key) { storage.removeItem(key); },
+  };
+  assert.equal(saveLocalDraft(storage, alias), true);
+  assert.equal(migrateLocalDraft(blocked, userId, NEW_REPORTER_DRAFT_ID, storyId, newerFields), false);
+  assert.deepEqual(loadLocalDraft(storage, userId, NEW_REPORTER_DRAFT_ID), alias);
 });
 
 test("loads only bounded current-version drafts for their matching owner and story", () => {

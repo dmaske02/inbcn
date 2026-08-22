@@ -4,6 +4,8 @@ import test from "node:test";
 
 const source = await readFile(new URL("./story-editor.tsx", import.meta.url), "utf8");
 const uploader = await readFile(new URL("./media-uploader.tsx", import.meta.url), "utf8");
+const actions = await readFile(new URL("./submission.actions.ts", import.meta.url), "utf8");
+const newPage = await readFile(new URL("../../app/(protected)/stories/new/page.tsx", import.meta.url), "utf8");
 
 test("mobile editor keeps local recovery and browser capture in one client island", () => {
   assert.match(source, /^"use client";/u);
@@ -34,6 +36,18 @@ test("editor tracks save attempts against edit generations and uses the new-draf
   assert.match(source, /createDraftSaveTracker/u);
   assert.match(source, /storageStoryId/u);
   assert.match(source, /onSubmit=\{prepareSave\}/u);
+});
+
+test("new-story save migrates a stale local snapshot, clears its alias, and always routes to the returned editor", () => {
+  assert.match(source, /migrateLocalDraft/u);
+  assert.match(source, /acknowledgement\.stale/u);
+  assert.match(source, /router\.replace\(`\/stories\/\$\{saveState\.storyId\}`\)/u);
+  assert.match(newPage, /createNewReporterDraftTarget\(randomUUID\)/u);
+  assert.match(newPage, /storageStoryId="new"/u);
+  assert.match(actions, /revalidateStories\(saved\.id\)/u);
+  assert.match(actions, /revalidatePath\("\/stories\/new"\)/u);
+  assert.match(actions, /revalidatePath\(`\/stories\/\$\{id\}`\)/u);
+  assert.match(actions, /updatedAt: saved\.updatedAt/u);
 });
 
 test("mobile editor preserves the server language value contract and renders ISO-Z event times for native inputs", () => {

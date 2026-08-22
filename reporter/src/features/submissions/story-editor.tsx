@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 
 import type { SubmissionActionState } from "./submission.actions.ts";
 import {
-  chooseLocalDraft,
   createDraftPersistence,
   createDraftSaveTracker,
   loadLocalDraft,
+  migrateLocalDraft,
+  shouldOfferLocalDraft,
   type LocalDraft,
   type LocalDraftFields,
 } from "./local-draft.ts";
@@ -118,13 +119,13 @@ export function StoryEditor({
     persistence.current = createDraftPersistence(window.localStorage, window, () => setStorageMessage("This browser could not save local recovery. Your current edits are still open."));
     const saved = loadLocalDraft(window.localStorage, userId, storageStoryId);
     const restoreTimer = window.setTimeout(() => {
-      if (chooseLocalDraft(saved, story.updatedAt) === "restore") setRestore(saved);
+      if (shouldOfferLocalDraft(saved, isPersisted, story.updatedAt)) setRestore(saved);
     }, 0);
     return () => {
       window.clearTimeout(restoreTimer);
       persistence.current?.flush();
     };
-  }, [storageStoryId, story.updatedAt, userId]);
+  }, [isPersisted, storageStoryId, story.updatedAt, userId]);
 
   useEffect(() => {
     if (!Number.isSafeInteger(saveState.draftSaveAttempt) || !Number.isSafeInteger(saveState.draftSaveGeneration)) return;
@@ -133,15 +134,25 @@ export function StoryEditor({
       generation: saveState.draftSaveGeneration ?? 0,
       status: saveState.status,
     });
-    if (!acknowledgement.clear || !saveState.storyId) return;
+    if (saveState.status !== "success" || !saveState.storyId) return;
+    if (saveState.redirectToEditor) {
+      if (acknowledgement.clear) {
+        persistence.current?.clear(userId, storageStoryId);
+      } else if (acknowledgement.stale) {
+        const migrated = migrateLocalDraft(window.localStorage, userId, storageStoryId, saveState.storyId, fields, saveState.updatedAt);
+        if (migrated) persistence.current?.clear(userId, storageStoryId);
+      }
+      router.replace(`/stories/${saveState.storyId}`);
+      return;
+    }
+    if (!acknowledgement.clear) return;
     persistence.current?.clear(userId, storageStoryId);
-    if (saveState.redirectToEditor) router.replace(`/stories/${saveState.storyId}`);
     const savedGeneration = saveState.draftSaveGeneration ?? 0;
     const cleanTimer = window.setTimeout(() => {
       if (saveTracker.current.isCurrentGeneration(savedGeneration)) setDirty(false);
     }, 0);
     return () => window.clearTimeout(cleanTimer);
-  }, [router, saveState, storageStoryId, userId]);
+  }, [fields, router, saveState, storageStoryId, userId]);
 
   useEffect(() => {
     if (transitionState?.status === "success") persistence.current?.clear(userId, storageStoryId);

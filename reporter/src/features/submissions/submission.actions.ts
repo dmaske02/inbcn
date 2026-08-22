@@ -21,6 +21,7 @@ export type SubmissionActionState = Readonly<{
   status: "idle" | "success" | "error";
   message?: string;
   storyId?: string;
+  updatedAt?: string;
   redirectToEditor?: boolean;
   fieldErrors?: Readonly<Record<string, string[]>>;
 }>;
@@ -109,7 +110,13 @@ export async function saveReporterDraftAction(
     return safeError(error);
   }
   revalidateStories(saved.id);
-  return { status: "success", message: "Draft saved.", storyId: saved.id, redirectToEditor: target.redirectToEditor };
+  return {
+    status: "success",
+    message: "Draft saved.",
+    storyId: saved.id,
+    ...(saved.updatedAt ? { updatedAt: saved.updatedAt } : {}),
+    redirectToEditor: target.redirectToEditor,
+  };
 }
 
 async function transitionAction(

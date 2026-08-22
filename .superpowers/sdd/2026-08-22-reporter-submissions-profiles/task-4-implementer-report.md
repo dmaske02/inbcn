@@ -72,3 +72,26 @@ All commands used bundled Node `v24.19.0`.
   keyboard media ordering, and image-only featured selection are present.
 
 Commit subject: `feat(reporter): add mobile field story editor`
+
+## New-story recovery follow-up
+
+An initial new-story save now always replaces the route with the server-returned
+story ID. If edits advanced while that first save was pending, the current
+in-memory fields are first persisted under that returned UUID, with a timestamp
+strictly after the server's saved timestamp, then only the user-scoped `new`
+alias is cleared. The persisted editor therefore offers the newer local draft
+for explicit restoration. Exact-generation saves clear the alias and navigate
+without creating a recovery copy.
+
+An ordinary refresh of an unsaved new editor now offers the current user's
+validated `new` alias directly. This path intentionally does not compare that
+draft to the synthetic blank-page timestamp; persisted editors retain the
+normal newer-than-server comparison. No user enumeration or cross-user key
+access was introduced.
+
+Follow-up RED covered the missing alias migration, explicit new-editor restore
+policy, returned saved timestamp, and action revalidation/new-target contract;
+GREEN focused coverage is 26/26. Full root tests passed (website 213, CMS 587,
+reporter 200), as did root and reporter typecheck/lint and `git diff --check`.
+The fresh reviewer bundled-Node production build remains the recorded passing
+build verification.
