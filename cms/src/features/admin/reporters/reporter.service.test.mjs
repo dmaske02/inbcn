@@ -57,8 +57,8 @@ function fixture(overrides = {}) {
   };
   const service = createReporterService({
     repository,
-    setSignedRole: overrides.setSignedRole ?? (async (id, role) => {
-      calls.push(["role", id, role]);
+    setSignedRole: overrides.setSignedRole ?? (async (id, role, generation) => {
+      calls.push(["role", id, role, generation]);
     }),
     requestFullRefund: overrides.requestFullRefund ?? (async (id) => {
       calls.push(["refund", id]);
@@ -93,7 +93,7 @@ test("approval commits the database decision before granting the signed reporter
   assert.deepEqual(calls, [
     ["approve"],
     ["claim", profileId],
-    ["role", profileId, "reporter"],
+    ["role", profileId, "reporter", 1],
     ["complete", {
       profileId,
       generation: 1,
@@ -173,7 +173,7 @@ test("suspension removes signed access after the atomic DB lock and never refund
   assert.deepEqual(calls, [
     ["suspend", "Editorial policy breach."],
     ["claim", profileId],
-    ["role", profileId, null],
+    ["role", profileId, null, 2],
     ["complete", {
       profileId,
       generation: 2,
@@ -313,6 +313,116 @@ test("a late expired-holder write reconciles the repair generation after newer s
   assert.deepEqual(writes, ["reporter", null]);
 });
 
+test("a trigger-rejected stale generation reconciles the current desired generation", async () => {
+  const claims = [
+    {
+      state: "claimed",
+      profileId,
+      operation: "approval",
+      desiredRole: "reporter",
+      generation: 4,
+      claimToken: "55555555-5555-4555-8555-555555555554",
+    },
+    {
+      state: "claimed",
+      profileId,
+      operation: "suspension",
+      desiredRole: "none",
+      generation: 5,
+      claimToken: "55555555-5555-4555-8555-555555555555",
+    },
+  ];
+  const calls = [];
+  const { service } = fixture({
+    repository: {
+      claimAccessSync: async () => claims.shift(),
+      completeAccessSync: async (input) => {
+        calls.push(["complete", input.generation, input.succeeded]);
+        return input.generation === 4
+          ? { state: "stale", generation: 5 }
+          : { state: "succeeded", generation: 5 };
+      },
+    },
+    setSignedRole: async (_id, role, generation) => {
+      calls.push(["role", role, generation]);
+      if (generation === 4) throw new Error("REPORTER_ACCESS_GENERATION_STALE");
+    },
+  });
+
+  await service.retryAccessSync(admin, profileId);
+
+  assert.deepEqual(calls, [
+    ["role", "reporter", 4],
+    ["complete", 4, false],
+    ["role", null, 5],
+    ["complete", 5, true],
+  ]);
+});
+
+test("an expired holder cannot overwrite a newer success and retry observes verified current state", async () => {
+  let releaseExpiredWrite;
+  const expiredWriteMayFinish = new Promise((resolve) => {
+    releaseExpiredWrite = resolve;
+  });
+  const claims = [
+    {
+      state: "claimed",
+      profileId,
+      operation: "approval",
+      desiredRole: "reporter",
+      generation: 4,
+      claimToken: "55555555-5555-4555-8555-555555555554",
+    },
+    {
+      state: "claimed",
+      profileId,
+      operation: "suspension",
+      desiredRole: "none",
+      generation: 5,
+      claimToken: "55555555-5555-4555-8555-555555555555",
+    },
+    { state: "succeeded", generation: 5 },
+  ];
+  const calls = [];
+  const { service } = fixture({
+    repository: {
+      claimAccessSync: async () => claims.shift(),
+      completeAccessSync: async (input) => {
+        calls.push(["complete", input.generation, input.succeeded]);
+        if (input.generation === 4) {
+          throw new Error("expired process died before recording completion");
+        }
+        return { state: "succeeded", generation: input.generation };
+      },
+    },
+    setSignedRole: async (_id, role, generation) => {
+      calls.push(["role-start", role, generation]);
+      if (generation === 4) {
+        await expiredWriteMayFinish;
+        calls.push(["role-rejected-stale", role, generation]);
+        throw new Error("REPORTER_ACCESS_GENERATION_STALE");
+      }
+      calls.push(["role-succeeded", role, generation]);
+    },
+  });
+
+  const expiredHolder = service.retryAccessSync(admin, profileId);
+  await new Promise((resolve) => setImmediate(resolve));
+  await service.retryAccessSync(admin, profileId);
+  releaseExpiredWrite();
+  await assert.rejects(expiredHolder, /expired process died/u);
+  await service.retryAccessSync(admin, profileId);
+
+  assert.deepEqual(calls, [
+    ["role-start", "reporter", 4],
+    ["role-start", null, 5],
+    ["role-succeeded", null, 5],
+    ["complete", 5, true],
+    ["role-rejected-stale", "reporter", 4],
+    ["complete", 4, false],
+  ]);
+});
+
 test("an active synchronization lease is not bypassed by a competing retry", async () => {
   let wrote = false;
   const { service } = fixture({
@@ -332,11 +442,19 @@ test("an active synchronization lease is not bypassed by a competing retry", asy
 
 test("signed role updates preserve unrelated app_metadata and never use user_metadata", () => {
   const existing = { provider: "phone", providers: ["phone"], tenant: "newsroom" };
-  assert.deepEqual(signedReporterMetadata(existing, "reporter"), {
+  assert.deepEqual(signedReporterMetadata(existing, "reporter", 7), {
     provider: "phone",
     providers: ["phone"],
     tenant: "newsroom",
     role: "reporter",
+    reporter_access_generation: 7,
   });
-  assert.deepEqual(signedReporterMetadata({ ...existing, role: "reporter" }, null), existing);
+  assert.deepEqual(
+    signedReporterMetadata(
+      { ...existing, role: "reporter", reporter_access_generation: 6 },
+      null,
+      7,
+    ),
+    { ...existing, reporter_access_generation: 7 },
+  );
 });

@@ -1,4 +1,5 @@
 export type ReporterAuthorizationFailure =
+  | "access-generation-mismatch"
   | "access-sync-pending"
   | "forbidden"
   | "profile-inactive"
@@ -8,6 +9,7 @@ export type ReporterAuthorizationFailure =
 type ReporterJwtIdentity = Readonly<{
   id: string;
   role: string | null;
+  accessGeneration: number | null;
 }>;
 
 type ReporterProfile = Readonly<{
@@ -15,6 +17,7 @@ type ReporterProfile = Readonly<{
   role: string;
   isActive: boolean;
   accessSyncStatus: string | null;
+  accessSyncGeneration: number | null;
 }>;
 
 export type ReporterAuthorizationResult =
@@ -48,6 +51,9 @@ export function authorizeReporterIdentity(
     }
     if (jwt.role !== "reporter") {
       return { ok: false, reason: "profile-mismatch" };
+    }
+    if (jwt.accessGeneration !== profile.accessSyncGeneration) {
+      return { ok: false, reason: "access-generation-mismatch" };
     }
     return { ok: true, state: "reporter", userId: jwt.id };
   }

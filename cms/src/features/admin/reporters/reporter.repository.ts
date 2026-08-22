@@ -272,7 +272,7 @@ async function claimAccessSync(profileId: string) {
   }
   if (result.state !== "claimed"
     || result.profile_id !== profileId
-    || !["approval", "suspension", "reinstatement"].includes(String(result.operation))
+    || !["approval", "reconciliation", "suspension", "reinstatement"].includes(String(result.operation))
     || !["none", "reporter"].includes(String(result.desired_role))
     || typeof result.claim_token !== "string") {
     throw new ReporterRepositoryError("Reporter access synchronization could not be reserved.");
@@ -280,7 +280,7 @@ async function claimAccessSync(profileId: string) {
   return {
     state: "claimed" as const,
     profileId,
-    operation: result.operation as "approval" | "suspension" | "reinstatement",
+    operation: result.operation as "approval" | "reconciliation" | "suspension" | "reinstatement",
     desiredRole: result.desired_role as "none" | "reporter",
     generation,
     claimToken: result.claim_token,
@@ -289,7 +289,7 @@ async function claimAccessSync(profileId: string) {
 
 async function completeAccessSync(input: Readonly<{
   profileId: string;
-  operation: "approval" | "suspension" | "reinstatement";
+  operation: "approval" | "reconciliation" | "suspension" | "reinstatement";
   desiredRole: "none" | "reporter";
   generation: number;
   claimToken: string;

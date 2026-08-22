@@ -9,7 +9,7 @@ import type {
   ReporterApplicationListItem,
 } from "./reporter.repository.ts";
 
-type AccessSyncOperation = "approval" | "suspension" | "reinstatement";
+type AccessSyncOperation = "approval" | "reconciliation" | "suspension" | "reinstatement";
 type AccessSyncDesiredRole = "none" | "reporter";
 type AccessSyncClaim = Readonly<{
   state: "claimed";
@@ -45,7 +45,7 @@ type ReporterRepository = Readonly<{
 
 type ReporterServiceDependencies = Readonly<{
   repository: ReporterRepository;
-  setSignedRole(profileId: string, role: "reporter" | null): Promise<void>;
+  setSignedRole(profileId: string, role: "reporter" | null, generation: number): Promise<void>;
   requestFullRefund(paymentId: string): Promise<unknown>;
 }>;
 
@@ -89,10 +89,18 @@ function requiredReason(value: string): string {
 export function signedReporterMetadata(
   metadata: Readonly<Record<string, unknown>>,
   role: "reporter" | null,
+  generation: number,
 ): Record<string, unknown> {
-  const { role: _currentRole, ...unrelated } = metadata;
+  const {
+    role: _currentRole,
+    reporter_access_generation: _currentGeneration,
+    ...unrelated
+  } = metadata;
   void _currentRole;
-  return role ? { ...unrelated, role } : unrelated;
+  void _currentGeneration;
+  return role
+    ? { ...unrelated, role, reporter_access_generation: generation }
+    : { ...unrelated, reporter_access_generation: generation };
 }
 
 export function createReporterService(dependencies: ReporterServiceDependencies) {
@@ -113,6 +121,7 @@ export function createReporterService(dependencies: ReporterServiceDependencies)
         await dependencies.setSignedRole(
           claim.profileId,
           claim.desiredRole === "reporter" ? "reporter" : null,
+          claim.generation,
         );
       } catch {
         const completion = await dependencies.repository.completeAccessSync({
@@ -213,12 +222,16 @@ export function createReporterService(dependencies: ReporterServiceDependencies)
   } as const;
 }
 
-async function setSignedRole(profileId: string, role: "reporter" | null): Promise<void> {
+async function setSignedRole(
+  profileId: string,
+  role: "reporter" | null,
+  generation: number,
+): Promise<void> {
   const { createAdminClient } = await import("../../../lib/supabase/admin.ts");
   const admin = createAdminClient();
   const { data, error } = await admin.auth.admin.getUserById(profileId);
   if (error || !data.user) throw new Error("Reporter auth account unavailable.");
-  const appMetadata = signedReporterMetadata(data.user.app_metadata, role);
+  const appMetadata = signedReporterMetadata(data.user.app_metadata, role, generation);
   const { error: updateError } = await admin.auth.admin.updateUserById(profileId, {
     app_metadata: appMetadata,
   });

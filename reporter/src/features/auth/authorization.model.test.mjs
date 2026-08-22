@@ -7,8 +7,8 @@ import {
   validateIndianPhone,
 } from "./authorization.model.ts";
 
-test("authorizes an applicant without a reporter role", () => {
-  assert.deepEqual(authorizeReporterIdentity({ id: "u1", role: null }, null), {
+test("authorizes an applicant without reporter role or generation", () => {
+  assert.deepEqual(authorizeReporterIdentity({ id: "u1", role: null, accessGeneration: null }, null), {
     ok: true,
     state: "applicant",
     userId: "u1",
@@ -18,22 +18,22 @@ test("authorizes an applicant without a reporter role", () => {
 test("authorizes an active reporter with matching signed and persisted roles", () => {
   assert.deepEqual(
     authorizeReporterIdentity(
-      { id: "u1", role: "reporter" },
-      { id: "u1", role: "reporter", isActive: true, accessSyncStatus: "succeeded" },
+      { id: "u1", role: "reporter", accessGeneration: 7 },
+      { id: "u1", role: "reporter", isActive: true, accessSyncStatus: "succeeded", accessSyncGeneration: 7 },
     ),
     { ok: true, state: "reporter", userId: "u1" },
   );
 });
 
 test("denies staff roles and inactive reporters", () => {
-  assert.deepEqual(authorizeReporterIdentity({ id: "u1", role: "admin" }, null), {
+  assert.deepEqual(authorizeReporterIdentity({ id: "u1", role: "admin", accessGeneration: null }, null), {
     ok: false,
     reason: "forbidden",
   });
   assert.deepEqual(
     authorizeReporterIdentity(
-      { id: "u1", role: "reporter" },
-      { id: "u1", role: "reporter", isActive: false, accessSyncStatus: "failed" },
+      { id: "u1", role: "reporter", accessGeneration: 7 },
+      { id: "u1", role: "reporter", isActive: false, accessSyncStatus: "failed", accessSyncGeneration: 7 },
     ),
     { ok: false, reason: "profile-inactive" },
   );
@@ -42,17 +42,27 @@ test("denies staff roles and inactive reporters", () => {
 test("denies old or newly signed reporter claims until database access sync succeeds", () => {
   assert.deepEqual(
     authorizeReporterIdentity(
-      { id: "u1", role: "reporter" },
-      { id: "u1", role: "reporter", isActive: true, accessSyncStatus: "pending" },
+      { id: "u1", role: "reporter", accessGeneration: 7 },
+      { id: "u1", role: "reporter", isActive: true, accessSyncStatus: "pending", accessSyncGeneration: 7 },
     ),
     { ok: false, reason: "access-sync-pending" },
   );
   assert.deepEqual(
     authorizeReporterIdentity(
-      { id: "u1", role: null },
-      { id: "u1", role: "reporter", isActive: true, accessSyncStatus: "failed" },
+      { id: "u1", role: null, accessGeneration: 7 },
+      { id: "u1", role: "reporter", isActive: true, accessSyncStatus: "failed", accessSyncGeneration: 7 },
     ),
     { ok: false, reason: "access-sync-pending" },
+  );
+});
+
+test("denies an old reporter JWT generation after the database advances", () => {
+  assert.deepEqual(
+    authorizeReporterIdentity(
+      { id: "u1", role: "reporter", accessGeneration: 6 },
+      { id: "u1", role: "reporter", isActive: true, accessSyncStatus: "succeeded", accessSyncGeneration: 7 },
+    ),
+    { ok: false, reason: "access-generation-mismatch" },
   );
 });
 

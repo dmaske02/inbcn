@@ -16,6 +16,13 @@ const coordination = await readFile(
   ),
   "utf8",
 ).catch(() => "");
+const fencing = await readFile(
+  new URL(
+    "../../../../../supabase/migrations/20260822130000_reporter_access_generation_fencing.sql",
+    import.meta.url,
+  ),
+  "utf8",
+).catch(() => "");
 
 function compact(value) {
   return value.replace(/\s+/gu, " ").trim();
@@ -222,4 +229,66 @@ test("suspension provenance prevents reactivating independently inactive profile
   assert.match(reinstatement, /reporter_suspension_token = null/u);
   assert.match(reinstatement, /suspension_token = null/u);
   assert.match(coordination, /revoke update on table public\.profiles from authenticated/u);
+});
+
+test("auth metadata trigger fences stale reporter generations without blocking unrelated metadata", () => {
+  const trigger = rpc("enforce_reporter_access_metadata_generation", "", fencing);
+  assert.match(trigger, /returns trigger/u);
+  assert.match(trigger, /old\.raw_app_meta_data ->> 'role'/u);
+  assert.match(trigger, /new\.raw_app_meta_data ->> 'role'/u);
+  assert.match(trigger, /old\.raw_app_meta_data -> 'reporter_access_generation'/u);
+  assert.match(trigger, /new\.raw_app_meta_data -> 'reporter_access_generation'/u);
+  assert.match(trigger, /old_role is not distinct from new_role[\s\S]*old_generation is not distinct from new_generation[\s\S]*return new/u);
+  assert.match(trigger, /from public\.reporter_profiles[\s\S]*for share/u);
+  assert.match(trigger, /new_generation is distinct from to_jsonb\(current_reporter\.access_sync_generation\)/u);
+  assert.match(trigger, /REPORTER_ACCESS_GENERATION_STALE/u);
+  assert.match(trigger, /current_reporter\.access_sync_desired_role = 'reporter'[\s\S]*new_role is distinct from 'reporter'/u);
+  assert.match(trigger, /current_reporter\.access_sync_desired_role = 'none'[\s\S]*new_role is not null/u);
+  assert.match(trigger, /REPORTER_ACCESS_ROLE_MISMATCH/u);
+  const sql = compact(fencing);
+  assert.match(sql, /create trigger enforce_reporter_access_metadata_generation before update of raw_app_meta_data on auth\.users/u);
+  assert.match(sql, /revoke all on function public\.enforce_reporter_access_metadata_generation\(\) from public, anon, authenticated, service_role/u);
+  assert.doesNotMatch(sql, /auth\.sessions|delete from auth\.users|ban_duration/u);
+});
+
+test("claim verifies signed Auth metadata before treating the current generation as succeeded", () => {
+  const claim = rpc("claim_reporter_access_sync", "p_profile_id uuid", fencing);
+  assert.match(claim, /from auth\.users/u);
+  assert.match(claim, /current_metadata ->> 'role'/u);
+  assert.match(claim, /current_metadata -> 'reporter_access_generation'/u);
+  assert.match(claim, /to_jsonb\(current_reporter\.access_sync_generation\)/u);
+  assert.match(claim, /access_sync_status = 'succeeded'[\s\S]*metadata_matches/u);
+  assert.match(claim, /access_sync_generation = current_reporter\.access_sync_generation \+ 1/u);
+  assert.match(claim, /access_sync_status = 'pending'/u);
+  assert.match(claim, /access_sync_operation = 'reconciliation'/u);
+  assert.match(claim, /reporter\.access_sync_drift_detected/u);
+});
+
+test("completion succeeds only after the database verifies current signed role and generation", () => {
+  const completion = rpc("complete_reporter_access_sync", "\n  p_profile_id uuid,", fencing);
+  assert.match(completion, /from auth\.users/u);
+  assert.match(completion, /current_metadata ->> 'role'/u);
+  assert.match(completion, /current_metadata -> 'reporter_access_generation'/u);
+  assert.match(completion, /to_jsonb\(p_generation\)/u);
+  assert.match(completion, /if p_succeeded and not metadata_matches then/u);
+  assert.match(completion, /access_sync_generation = current_reporter\.access_sync_generation \+ 1/u);
+  assert.match(completion, /access_sync_status = 'pending'/u);
+  assert.match(completion, /access_sync_operation = 'reconciliation'/u);
+  assert.match(completion, /reporter\.access_sync_verification_failed/u);
+});
+
+test("reporter RLS requires the current succeeded signed generation", () => {
+  for (const policy of [
+    "Applicants can read their own applications",
+    "Applicants can read their own payments",
+    "Applicants can read their own consent receipts",
+    "Reporters can read their own reporter profile",
+    "Reporters can read their own notifications",
+    "Reporters can mark their own notifications read",
+  ]) {
+    assert.match(fencing, new RegExp(`drop policy "${policy}"`, "u"));
+  }
+  assert.match(fencing, /auth\.jwt\(\) -> 'app_metadata' ->> 'role'\) = 'reporter'/u);
+  assert.match(fencing, /auth\.jwt\(\) -> 'app_metadata' -> 'reporter_access_generation'\)\s*= to_jsonb\(reporter_profiles\.access_sync_generation\)/u);
+  assert.match(fencing, /reporter_profiles\.access_sync_status = 'succeeded'/u);
 });
