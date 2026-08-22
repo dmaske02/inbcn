@@ -9,7 +9,8 @@ import {
 
 function serviceFixture(overrides = {}) {
   const calls = [];
-  const events = new Set();
+  const events = new Map();
+  let reservationToken = null;
   const application = {
     id: "11111111-1111-4111-8111-111111111111",
     profileId: "22222222-2222-4222-8222-222222222222",
@@ -17,18 +18,49 @@ function serviceFixture(overrides = {}) {
     kycStatus: "failed",
   };
   const repository = {
-    findOwnedApplication: async () => application,
-    markKycStarted: async (input) => { calls.push(["start", input]); return true; },
+    reserveKycStart: async (input) => {
+      calls.push(["reserve", input]);
+      if (reservationToken) return null;
+      reservationToken = "33333333-3333-4333-8333-333333333333";
+      return reservationToken;
+    },
+    completeKycStart: async (input) => {
+      calls.push(["start", input]);
+      if (input.reservationToken !== reservationToken) return false;
+      reservationToken = null;
+      return true;
+    },
+    releaseKycStart: async (input) => {
+      calls.push(["release", input]);
+      if (input.reservationToken !== reservationToken) return false;
+      reservationToken = null;
+      return true;
+    },
     claimKycWebhook: async (input) => {
       calls.push(["claim", input]);
-      if (events.has(input.eventId)) return "processed";
-      events.add(input.eventId);
-      return "claimed";
+      const existing = events.get(input.eventId);
+      if (existing?.status === "processed") return { state: "processed" };
+      if (existing?.status === "pending") return { state: "busy" };
+      const attemptCount = (existing?.attemptCount ?? 0) + 1;
+      const token = `44444444-4444-4444-8444-${String(attemptCount).padStart(12, "0")}`;
+      events.set(input.eventId, { status: "pending", token, attemptCount });
+      return { state: "claimed", token };
     },
-    findApplicationByKycReference: async () => application,
-    applyKycResult: async (input) => { calls.push(["transition", input]); return true; },
-    completeKycWebhook: async (input) => { calls.push(["complete", input]); },
-    failKycWebhook: async (input) => { calls.push(["fail", input]); },
+    completeKycWebhook: async (input) => {
+      calls.push(["transition", input]);
+      calls.push(["complete", input]);
+      const event = events.get(input.eventId);
+      if (!event || event.status !== "pending" || event.token !== input.processingToken) return false;
+      event.status = "processed";
+      return true;
+    },
+    failKycWebhook: async (input) => {
+      calls.push(["fail", input]);
+      const event = events.get(input.eventId);
+      if (!event || event.status !== "pending" || event.token !== input.processingToken) return false;
+      event.status = "failed";
+      return true;
+    },
     ...overrides.repository,
   };
   const provider = overrides.provider === undefined ? {
@@ -48,6 +80,8 @@ function serviceFixture(overrides = {}) {
   return {
     application,
     calls,
+    events,
+    repository,
     service: createApplicationService({
       repository,
       provider,
@@ -74,9 +108,56 @@ test("allows an owned failed KYC attempt to restart while the application remain
   );
 
   assert.deepEqual(session, { url: "https://kyc.example/session/opaque" });
-  assert.equal(calls[0][0], "start");
-  assert.equal(calls[0][1].reference, "opaque-reference");
-  assert.equal("rawBody" in calls[0][1], false);
+  assert.deepEqual(calls.map(([name]) => name), ["reserve", "start"]);
+  assert.equal(calls[1][1].reference, "opaque-reference");
+  assert.equal(calls[1][1].reservationToken, "33333333-3333-4333-8333-333333333333");
+  assert.equal("rawBody" in calls[1][1], false);
+});
+
+test("reserves KYC start before the provider call so concurrent starts create one session", async () => {
+  let createCount = 0;
+  let releaseProvider;
+  const providerReady = Promise.withResolvers();
+  const providerDone = new Promise((resolve) => { releaseProvider = resolve; });
+  const { service } = serviceFixture({
+    provider: {
+      createSession: async () => {
+        createCount += 1;
+        providerReady.resolve();
+        await providerDone;
+        return { url: "https://kyc.example/session/opaque", reference: "opaque-reference" };
+      },
+      verifyWebhook: () => { throw new Error("not used"); },
+    },
+  });
+  const profileId = "22222222-2222-4222-8222-222222222222";
+  const applicationId = "11111111-1111-4111-8111-111111111111";
+
+  const first = service.startKycSession(profileId, applicationId);
+  await providerReady.promise;
+  await assert.rejects(
+    service.startKycSession(profileId, applicationId),
+    (error) => error instanceof KycServiceError && error.code === "invalid-state",
+  );
+  releaseProvider();
+  await first;
+  assert.equal(createCount, 1);
+});
+
+test("releases the exact KYC start reservation when provider creation fails", async () => {
+  const { calls, service } = serviceFixture({
+    provider: {
+      createSession: async () => { throw new Error("provider secret detail"); },
+      verifyWebhook: () => { throw new Error("not used"); },
+    },
+  });
+
+  await assert.rejects(service.startKycSession(
+    "22222222-2222-4222-8222-222222222222",
+    "11111111-1111-4111-8111-111111111111",
+  ));
+  const release = calls.find(([name]) => name === "release")[1];
+  assert.equal(release.reservationToken, "33333333-3333-4333-8333-333333333333");
 });
 
 test("rejects invalid webhook signatures before any receipt or transition", async () => {
@@ -103,12 +184,51 @@ test("records a verified adult legal-name result once without persisting the raw
 
   const transitions = calls.filter(([name]) => name === "transition");
   assert.equal(transitions.length, 1);
-  assert.equal(transitions[0][1].applicationStatus, "under_review");
-  assert.equal(transitions[0][1].kycStatus, "verified");
+  assert.equal(transitions[0][1].verified, true);
   assert.equal(transitions[0][1].adult, true);
   assert.equal(transitions[0][1].legalName, "Ananya Patil");
-  assert.equal(transitions[0][1].processedAt, "2026-08-22T12:01:00.000Z");
+  assert.equal(transitions[0][1].verifiedAt, "2026-08-22T12:00:00.000Z");
+  assert.equal("processedAt" in transitions[0][1], false);
   assert.doesNotMatch(JSON.stringify(calls), /aadhaar|do-not-store|rawBody/iu);
+});
+
+test("marks unexpected post-claim failures failed so a valid retry can reclaim them", async () => {
+  let applyAttempts = 0;
+  const { calls, events, service } = serviceFixture({
+    repository: {
+      completeKycWebhook: async (input) => {
+        calls.push(["transition", input]);
+        applyAttempts += 1;
+        if (applyAttempts === 1) throw new Error("database temporarily unavailable");
+        const event = events.get(input.eventId);
+        if (!event || event.status !== "pending" || event.token !== input.processingToken) return false;
+        event.status = "processed";
+        return true;
+      },
+    },
+  });
+  const input = { rawBody: "{}", signature: "valid" };
+
+  await assert.rejects(service.processKycWebhook(input));
+  assert.equal(events.get("evt-1").status, "failed");
+  assert.deepEqual(await service.processKycWebhook(input), { duplicate: false, status: "verified" });
+  assert.equal(events.get("evt-1").status, "processed");
+  assert.equal(events.get("evt-1").attemptCount, 2);
+  assert.equal(calls.filter(([name]) => name === "transition").length, 2);
+});
+
+test("acknowledges an actively processed webhook without running a second processor", async () => {
+  const { calls, service } = serviceFixture({
+    repository: {
+      claimKycWebhook: async () => ({ state: "busy" }),
+    },
+  });
+
+  assert.deepEqual(await service.processKycWebhook({ rawBody: "{}", signature: "valid" }), {
+    duplicate: true,
+    status: "processing",
+  });
+  assert.equal(calls.some(([name]) => name === "transition"), false);
 });
 
 test("keeps the application KYC-pending when adult or legal-name verification is absent", async () => {
@@ -127,8 +247,7 @@ test("keeps the application KYC-pending when adult or legal-name verification is
       status: "failed",
     });
     const transition = calls.find(([name]) => name === "transition")[1];
-    assert.equal(transition.applicationStatus, "kyc_pending");
-    assert.equal(transition.kycStatus, "failed");
+    assert.equal(transition.verified, false);
     assert.equal(transition.legalName, null);
   }
 });
@@ -143,6 +262,7 @@ test("stores a separately uploaded portrait and all consent receipts on the draf
     },
     insertConsents: async (_applicationId, _profileId, receipts) => { state.receipts.push(...receipts); },
     destroyPortrait: async () => {},
+    reportCleanupFailure: () => {},
   });
   const fields = {
     legalName: "Ananya Patil",
@@ -164,4 +284,26 @@ test("stores a separately uploaded portrait and all consent receipts on the draf
   assert.equal(state.application.publicPhotoId, "inbcn/reporter/portrait/generated");
   assert.equal(state.application.fields, fields);
   assert.deepEqual(state.receipts, receipts);
+});
+
+test("reports failed portrait cleanup with only the generated public ID", async () => {
+  const alerts = [];
+  const save = createApplicationDraftService({
+    uploadPortrait: async () => ({
+      publicId: "inbcn/reporter/portrait/generated",
+      secureUrl: "https://res.cloudinary.com/demo/portrait.jpg",
+    }),
+    insertApplication: async () => { throw new Error("database secret detail"); },
+    insertConsents: async () => {},
+    destroyPortrait: async () => { throw new Error("cloud provider secret detail"); },
+    reportCleanupFailure: (publicId) => { alerts.push(publicId); },
+  });
+
+  await assert.rejects(save({
+    profileId: "22222222-2222-4222-8222-222222222222",
+    fields: {},
+    receipts: [],
+    portrait: {},
+  }));
+  assert.deepEqual(alerts, ["inbcn/reporter/portrait/generated"]);
 });

@@ -1,3 +1,5 @@
+import { ApplicationInputError } from "./application.error.ts";
+
 export const CONSENT_NOTICE_KEYS = [
   "payment_refund",
   "kyc",
@@ -75,11 +77,11 @@ export function createConsentReceipts(
   consentedAt: string,
 ): readonly ConsentReceipt[] {
   if (!(input.locale in copy) || Number.isNaN(Date.parse(consentedAt))) {
-    throw new TypeError("Invalid consent receipt.");
+    throw new ApplicationInputError("Invalid consent receipt.");
   }
   const accepted = new Set(input.acceptedKeys);
   if (!CONSENT_NOTICE_KEYS.every((key) => accepted.has(key))) {
-    throw new TypeError("Accept every consent notice separately before payment.");
+    throw new ApplicationInputError("Accept every consent notice separately before payment.");
   }
   return CONSENT_NOTICE_KEYS.map((key) => ({
     key,

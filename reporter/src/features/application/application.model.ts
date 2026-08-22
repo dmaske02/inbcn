@@ -9,6 +9,17 @@ export {
   type ReporterApplicationStatus,
 } from "@inbcn/domain";
 
+export const REPORTER_BEATS = [
+  "civic",
+  "crime",
+  "education",
+  "environment",
+  "health",
+  "business",
+  "culture",
+  "sports",
+] as const;
+
 const applicationSchema = z.object({
   legalName: z.string().trim().min(2).max(120),
   legalNameDeclared: z.literal(true),
@@ -18,7 +29,7 @@ const applicationSchema = z.object({
   homeDistrict: z.string().trim().min(2).max(100),
   homeState: z.string().trim().min(2).max(100),
   bio: z.string().trim().max(500),
-  beats: z.array(z.string().trim().min(1).max(50)).min(1).max(12)
+  beats: z.array(z.enum(REPORTER_BEATS)).min(1).max(REPORTER_BEATS.length)
     .transform((beats) => [...new Set(beats)]),
 });
 

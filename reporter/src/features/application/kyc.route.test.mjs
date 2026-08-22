@@ -5,6 +5,8 @@ import { KycServiceError } from "./application.service.ts";
 import { createKycCallbackHandler } from "../../app/api/kyc/callback/route.ts";
 import { createKycStartHandler } from "../../app/api/kyc/start/route.ts";
 
+const MAX_BODY_SIZE = 1024 * 1024;
+
 test("the authenticated KYC start route returns the disabled 503 gate", async () => {
   const handler = createKycStartHandler({
     authorize: async () => ({ ok: true, state: "applicant", userId: "22222222-2222-4222-8222-222222222222" }),
@@ -48,4 +50,59 @@ test("the signed callback route maps invalid signatures to 401", async () => {
 
   assert.equal(response.status, 401);
   assert.deepEqual(await response.json(), { code: "invalid-kyc-signature" });
+});
+
+test("the callback rejects an oversized declared body before reading its stream", async () => {
+  let bodyAccesses = 0;
+  const handler = createKycCallbackHandler({
+    process: async () => { throw new Error("must not process"); },
+  });
+  const response = await handler({
+    headers: new Headers({
+      "content-length": String(MAX_BODY_SIZE + 1),
+      "x-kyc-signature": "valid",
+    }),
+    get body() {
+      bodyAccesses += 1;
+      throw new Error("body must not be accessed");
+    },
+  });
+
+  assert.equal(response.status, 413);
+  assert.equal(bodyAccesses, 0);
+});
+
+test("the callback accepts exactly one MiB and rejects a chunked body one byte larger", async () => {
+  let processedBytes = 0;
+  const handler = createKycCallbackHandler({
+    process: async ({ rawBody }) => {
+      processedBytes = new TextEncoder().encode(rawBody).byteLength;
+      return { status: "processed" };
+    },
+  });
+  const boundary = await handler(new Request("https://reporter.inbcn.com/api/kyc/callback", {
+    method: "POST",
+    headers: { "x-kyc-signature": "valid" },
+    body: "a".repeat(MAX_BODY_SIZE),
+  }));
+  assert.equal(boundary.status, 200);
+  assert.equal(processedBytes, MAX_BODY_SIZE);
+
+  let cancelled = false;
+  const oversized = await handler(new Request("https://reporter.inbcn.com/api/kyc/callback", {
+    method: "POST",
+    headers: { "x-kyc-signature": "valid" },
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array(MAX_BODY_SIZE));
+        controller.enqueue(new Uint8Array([1]));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    }),
+    duplex: "half",
+  }));
+  assert.equal(oversized.status, 413);
+  assert.equal(cancelled, true);
 });

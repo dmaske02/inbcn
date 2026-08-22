@@ -24,6 +24,8 @@ create table public.reporter_applications (
   kyc_reference text,
   kyc_status text not null default 'not_started'
     check (kyc_status in ('not_started', 'pending', 'verified', 'failed')),
+  kyc_start_token uuid,
+  kyc_start_reserved_at timestamptz,
   kyc_started_at timestamptz,
   kyc_completed_at timestamptz,
   verified_legal_name text,
@@ -65,6 +67,10 @@ create table public.reporter_applications (
       and length(btrim(verified_legal_name)) > 0
       and verified_adult is not null
     )
+  ),
+  constraint reporter_applications_kyc_start_reservation_check check (
+    (kyc_start_token is null and kyc_start_reserved_at is null)
+    or (kyc_start_token is not null and kyc_start_reserved_at is not null)
   ),
   constraint reporter_applications_photo_verification_check check (
     (public_photo_verified_by is null and public_photo_verified_at is null)
@@ -291,6 +297,7 @@ create table public.webhook_events (
   processing_status text not null default 'pending'
     check (processing_status in ('pending', 'processed', 'failed')),
   attempt_count integer not null default 0 check (attempt_count >= 0),
+  processing_token uuid,
   failure_detail text,
   subject_type text,
   subject_id uuid,
@@ -305,7 +312,7 @@ create table public.webhook_events (
 );
 
 create index webhook_events_processing_queue_idx
-  on public.webhook_events (processing_status, created_at, id)
+  on public.webhook_events (processing_status, updated_at, id)
   where processing_status in ('pending', 'failed');
 
 create table public.reporter_notifications (
@@ -961,6 +968,343 @@ begin
 end;
 $$;
 
+create or replace function public.reserve_reporter_kyc_start(
+  p_application_id uuid,
+  p_profile_id uuid
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  current_application public.reporter_applications%rowtype;
+  reservation_time timestamptz := clock_timestamp();
+  reservation_token uuid := gen_random_uuid();
+begin
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
+    raise exception using errcode = '42501', message = 'REPORTER_KYC_START_FORBIDDEN';
+  end if;
+
+  select * into current_application
+  from public.reporter_applications
+  where id = p_application_id and profile_id = p_profile_id
+  for update;
+
+  if not found
+    or current_application.status <> 'kyc_pending'
+    or current_application.kyc_status not in ('not_started', 'pending', 'failed') then
+    return null;
+  end if;
+  if current_application.kyc_start_token is not null
+    and current_application.kyc_start_reserved_at > reservation_time - interval '5 minutes' then
+    return null;
+  end if;
+
+  update public.reporter_applications
+  set kyc_start_token = reservation_token,
+      kyc_start_reserved_at = reservation_time,
+      updated_at = reservation_time
+  where id = current_application.id;
+
+  return reservation_token;
+end;
+$$;
+
+create or replace function public.complete_reporter_kyc_start(
+  p_application_id uuid,
+  p_profile_id uuid,
+  p_reservation_token uuid,
+  p_provider text,
+  p_reference text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  started_time timestamptz := clock_timestamp();
+  updated_count integer;
+begin
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
+    raise exception using errcode = '42501', message = 'REPORTER_KYC_START_FORBIDDEN';
+  end if;
+  if p_reservation_token is null
+    or p_provider is null or length(btrim(p_provider)) = 0 or length(btrim(p_provider)) > 100
+    or p_reference is null or length(btrim(p_reference)) = 0
+    or length(btrim(p_reference)) > 512 then
+    raise exception using errcode = '22023', message = 'REPORTER_KYC_SESSION_INVALID';
+  end if;
+
+  update public.reporter_applications
+  set kyc_provider = btrim(p_provider),
+      kyc_reference = btrim(p_reference),
+      kyc_status = 'pending',
+      kyc_start_token = null,
+      kyc_start_reserved_at = null,
+      kyc_started_at = started_time,
+      kyc_completed_at = null,
+      verified_legal_name = null,
+      verified_adult = null,
+      updated_at = started_time
+  where id = p_application_id
+    and profile_id = p_profile_id
+    and status = 'kyc_pending'
+    and kyc_status in ('not_started', 'pending', 'failed')
+    and kyc_start_token = p_reservation_token;
+  get diagnostics updated_count = row_count;
+
+  return updated_count = 1;
+end;
+$$;
+
+create or replace function public.release_reporter_kyc_start(
+  p_application_id uuid,
+  p_profile_id uuid,
+  p_reservation_token uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  updated_count integer;
+begin
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
+    raise exception using errcode = '42501', message = 'REPORTER_KYC_START_FORBIDDEN';
+  end if;
+
+  update public.reporter_applications
+  set kyc_start_token = null,
+      kyc_start_reserved_at = null,
+      updated_at = clock_timestamp()
+  where id = p_application_id
+    and profile_id = p_profile_id
+    and status = 'kyc_pending'
+    and kyc_start_token = p_reservation_token;
+  get diagnostics updated_count = row_count;
+
+  return updated_count = 1;
+end;
+$$;
+
+create or replace function public.claim_kyc_webhook_event(
+  p_event_id text,
+  p_event_type text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  current_event public.webhook_events%rowtype;
+  claim_time timestamptz := clock_timestamp();
+  claim_token uuid := gen_random_uuid();
+  inserted_count integer;
+begin
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
+    raise exception using errcode = '42501', message = 'REPORTER_KYC_WEBHOOK_FORBIDDEN';
+  end if;
+  if p_event_id is null or length(btrim(p_event_id)) = 0 or length(btrim(p_event_id)) > 256
+    or p_event_type is null or length(btrim(p_event_type)) = 0 or length(btrim(p_event_type)) > 256 then
+    raise exception using errcode = '22023', message = 'REPORTER_KYC_WEBHOOK_INVALID';
+  end if;
+
+  insert into public.webhook_events (
+    provider,
+    provider_event_id,
+    event_type,
+    signature_verified_at,
+    processing_status,
+    attempt_count,
+    processing_token,
+    created_at,
+    updated_at
+  ) values (
+    'kyc',
+    btrim(p_event_id),
+    btrim(p_event_type),
+    claim_time,
+    'pending',
+    1,
+    claim_token,
+    claim_time,
+    claim_time
+  )
+  on conflict (provider, provider_event_id) do nothing;
+  get diagnostics inserted_count = row_count;
+
+  if inserted_count = 1 then
+    return jsonb_build_object('state', 'claimed', 'token', claim_token);
+  end if;
+
+  select * into current_event
+  from public.webhook_events
+  where provider = 'kyc' and provider_event_id = btrim(p_event_id)
+  for update;
+
+  if current_event.event_type <> btrim(p_event_type) then
+    raise exception using errcode = '22023', message = 'REPORTER_KYC_WEBHOOK_EVENT_MISMATCH';
+  end if;
+  if current_event.processing_status = 'processed' then
+    return jsonb_build_object('state', 'processed');
+  end if;
+  if current_event.processing_status = 'pending'
+    and current_event.processing_token is not null
+    and current_event.updated_at > claim_time - interval '5 minutes' then
+    return jsonb_build_object('state', 'busy');
+  end if;
+
+  update public.webhook_events
+  set processing_status = 'pending',
+      attempt_count = current_event.attempt_count + 1,
+      processing_token = claim_token,
+      signature_verified_at = claim_time,
+      failure_detail = null,
+      subject_type = null,
+      subject_id = null,
+      processed_at = null,
+      updated_at = claim_time
+  where id = current_event.id;
+
+  return jsonb_build_object('state', 'claimed', 'token', claim_token);
+end;
+$$;
+
+create or replace function public.complete_kyc_webhook_event(
+  p_event_id text,
+  p_processing_token uuid,
+  p_provider text,
+  p_reference text,
+  p_verified boolean,
+  p_legal_name text,
+  p_adult boolean,
+  p_verified_at timestamptz
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  current_event public.webhook_events%rowtype;
+  current_application public.reporter_applications%rowtype;
+  processing_time timestamptz := clock_timestamp();
+  updated_count integer;
+begin
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
+    raise exception using errcode = '42501', message = 'REPORTER_KYC_WEBHOOK_FORBIDDEN';
+  end if;
+  if p_processing_token is null or p_verified is null or p_verified_at is null
+    or p_provider is null or length(btrim(p_provider)) = 0 or length(btrim(p_provider)) > 100
+    or p_reference is null or length(btrim(p_reference)) = 0 or length(btrim(p_reference)) > 512
+    or (p_verified and (
+      p_adult is distinct from true
+      or p_legal_name is null
+      or length(btrim(p_legal_name)) = 0
+      or length(btrim(p_legal_name)) > 120
+    )) then
+    raise exception using errcode = '22023', message = 'REPORTER_KYC_RESULT_INVALID';
+  end if;
+
+  select * into current_event
+  from public.webhook_events
+  where provider = 'kyc' and provider_event_id = btrim(p_event_id)
+  for update;
+
+  if not found
+    or current_event.processing_token <> p_processing_token
+    or current_event.processing_status <> 'pending' then
+    return false;
+  end if;
+
+  select * into current_application
+  from public.reporter_applications
+  where kyc_provider = btrim(p_provider) and kyc_reference = btrim(p_reference)
+  for update;
+
+  if not found
+    or current_application.status <> 'kyc_pending'
+    or current_application.kyc_status not in ('pending', 'failed') then
+    return false;
+  end if;
+  if current_application.kyc_start_token is not null
+    and current_application.kyc_start_reserved_at > processing_time - interval '5 minutes' then
+    return false;
+  end if;
+
+  update public.reporter_applications
+  set status = case when p_verified then 'under_review' else 'kyc_pending' end,
+      kyc_status = case when p_verified then 'verified' else 'failed' end,
+      kyc_completed_at = p_verified_at,
+      kyc_start_token = null,
+      kyc_start_reserved_at = null,
+      verified_legal_name = case when p_verified then btrim(p_legal_name) else null end,
+      verified_adult = case when p_verified then true else p_adult end,
+      submitted_at = case when p_verified then processing_time else null end,
+      updated_at = processing_time
+  where id = current_application.id;
+
+  update public.webhook_events
+  set processing_status = 'processed',
+      processing_token = null,
+      failure_detail = null,
+      subject_type = 'reporter_application',
+      subject_id = current_application.id,
+      processed_at = processing_time,
+      updated_at = processing_time
+  where id = current_event.id
+    and processing_token = p_processing_token
+    and processing_status = 'pending';
+  get diagnostics updated_count = row_count;
+  if updated_count <> 1 then
+    raise exception using errcode = '40001', message = 'REPORTER_KYC_WEBHOOK_LEASE_LOST';
+  end if;
+
+  return true;
+end;
+$$;
+
+create or replace function public.fail_kyc_webhook_event(
+  p_event_id text,
+  p_processing_token uuid,
+  p_failure_detail text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  updated_count integer;
+begin
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
+    raise exception using errcode = '42501', message = 'REPORTER_KYC_WEBHOOK_FORBIDDEN';
+  end if;
+  if p_processing_token is null
+    or p_failure_detail is null or length(btrim(p_failure_detail)) = 0
+    or length(btrim(p_failure_detail)) > 100 then
+    raise exception using errcode = '22023', message = 'REPORTER_KYC_WEBHOOK_FAILURE_INVALID';
+  end if;
+
+  update public.webhook_events
+  set processing_status = 'failed',
+      processing_token = null,
+      failure_detail = btrim(p_failure_detail),
+      updated_at = clock_timestamp()
+  where provider = 'kyc'
+    and provider_event_id = btrim(p_event_id)
+    and processing_token = p_processing_token
+    and processing_status = 'pending';
+  get diagnostics updated_count = row_count;
+
+  return updated_count = 1;
+end;
+$$;
+
 revoke all on function public.apply_reporter_payment(text, text, integer, text, timestamptz)
 from public, anon, authenticated;
 revoke all on function public.mark_overdue_reporter_application(uuid)
@@ -969,6 +1313,18 @@ revoke all on function public.approve_reporter_application(uuid)
 from public, anon, authenticated;
 revoke all on function public.reject_reporter_application(uuid, text)
 from public, anon, authenticated;
+revoke all on function public.reserve_reporter_kyc_start(uuid, uuid)
+from public, anon, authenticated, service_role;
+revoke all on function public.complete_reporter_kyc_start(uuid, uuid, uuid, text, text)
+from public, anon, authenticated, service_role;
+revoke all on function public.release_reporter_kyc_start(uuid, uuid, uuid)
+from public, anon, authenticated, service_role;
+revoke all on function public.claim_kyc_webhook_event(text, text)
+from public, anon, authenticated, service_role;
+revoke all on function public.complete_kyc_webhook_event(text, uuid, text, text, boolean, text, boolean, timestamptz)
+from public, anon, authenticated, service_role;
+revoke all on function public.fail_kyc_webhook_event(text, uuid, text)
+from public, anon, authenticated, service_role;
 
 grant execute on function public.apply_reporter_payment(text, text, integer, text, timestamptz)
 to service_role;
@@ -978,6 +1334,18 @@ grant execute on function public.approve_reporter_application(uuid)
 to authenticated;
 grant execute on function public.reject_reporter_application(uuid, text)
 to authenticated;
+grant execute on function public.reserve_reporter_kyc_start(uuid, uuid)
+to service_role;
+grant execute on function public.complete_reporter_kyc_start(uuid, uuid, uuid, text, text)
+to service_role;
+grant execute on function public.release_reporter_kyc_start(uuid, uuid, uuid)
+to service_role;
+grant execute on function public.claim_kyc_webhook_event(text, text)
+to service_role;
+grant execute on function public.complete_kyc_webhook_event(text, uuid, text, text, boolean, text, boolean, timestamptz)
+to service_role;
+grant execute on function public.fail_kyc_webhook_event(text, uuid, text)
+to service_role;
 
 comment on view public.public_reporter_profiles is
   'Public reporter projection: no date of birth, KYC, payment, consent, or review data.';

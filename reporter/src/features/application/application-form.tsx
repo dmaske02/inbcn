@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 
 import { saveApplicationAction, type ApplicationActionState } from "./application.actions";
+import { REPORTER_BEATS } from "./application.model";
 import { ConsentForm } from "./consent-form";
 import type { ConsentLocale } from "./consent.model";
 import { ProfilePhotoField } from "./profile-photo-field";
@@ -47,9 +48,9 @@ export function ApplicationForm() {
         <div className="space-y-2 sm:col-span-2">
           <p className="text-sm font-medium">Reporting beats</p>
           <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-            {["Civic", "Crime", "Education", "Environment", "Health", "Business", "Culture", "Sports"].map((beat) => (
+            {REPORTER_BEATS.map((beat) => (
               <label className="flex gap-2" key={beat}>
-                <input name="beats" type="checkbox" value={beat.toLocaleLowerCase("en")} /> {beat}
+                <input name="beats" type="checkbox" value={beat} /> {beat[0].toLocaleUpperCase("en")}{beat.slice(1)}
               </label>
             ))}
           </div>

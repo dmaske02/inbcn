@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { authorizeCurrentReporter } from "../auth/server";
+import { applicationInputErrorMessage } from "./application.error";
 import { validateReporterApplication } from "./application.model";
 import { getCurrentApplication, insertConsentReceipts } from "./application.repository";
 import {
@@ -12,7 +13,6 @@ import {
   type ConsentLocale,
 } from "./consent.model";
 import { saveApplicationDraft } from "./application.service";
-import { ProfilePhotoError } from "./profile-photo.service";
 
 export type ApplicationActionState = Readonly<{
   status: "idle" | "success" | "error";
@@ -86,10 +86,11 @@ export async function saveApplicationAction(
     revalidatePath("/application");
     return { status: "success", message: "Application details and consent receipts saved." };
   } catch (error) {
-    if (error instanceof ProfilePhotoError || error instanceof TypeError) {
-      return { status: "error", message: error.message };
-    }
-    return { status: "error", message: "The application could not be saved. Please try again." };
+    return {
+      status: "error",
+      message: applicationInputErrorMessage(error)
+        ?? "The application could not be saved. Please try again.",
+    };
   }
 }
 
@@ -122,9 +123,8 @@ export async function completeConsentReceiptsAction(
   } catch (error) {
     return {
       status: "error",
-      message: error instanceof TypeError
-        ? error.message
-        : "Consent receipts could not be saved. Please try again.",
+      message: applicationInputErrorMessage(error)
+        ?? "Consent receipts could not be saved. Please try again.",
     };
   }
 }

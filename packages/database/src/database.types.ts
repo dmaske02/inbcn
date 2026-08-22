@@ -42,6 +42,8 @@ export type Database = {
           kyc_provider: string | null
           kyc_reference: string | null
           kyc_status: string
+          kyc_start_token: string | null
+          kyc_start_reserved_at: string | null
           kyc_started_at: string | null
           kyc_completed_at: string | null
           verified_legal_name: string | null
@@ -76,6 +78,8 @@ export type Database = {
           kyc_provider?: string | null
           kyc_reference?: string | null
           kyc_status?: string
+          kyc_start_token?: string | null
+          kyc_start_reserved_at?: string | null
           kyc_started_at?: string | null
           kyc_completed_at?: string | null
           verified_legal_name?: string | null
@@ -110,6 +114,8 @@ export type Database = {
           kyc_provider?: string | null
           kyc_reference?: string | null
           kyc_status?: string
+          kyc_start_token?: string | null
+          kyc_start_reserved_at?: string | null
           kyc_started_at?: string | null
           kyc_completed_at?: string | null
           verified_legal_name?: string | null
@@ -328,9 +334,9 @@ export type Database = {
         ]
       }
       webhook_events: {
-        Row: { id: string; provider: string; provider_event_id: string; event_type: string; signature_verified_at: string; processing_status: string; attempt_count: number; failure_detail: string | null; subject_type: string | null; subject_id: string | null; processed_at: string | null; created_at: string; updated_at: string }
-        Insert: { id?: string; provider: string; provider_event_id: string; event_type: string; signature_verified_at: string; processing_status?: string; attempt_count?: number; failure_detail?: string | null; subject_type?: string | null; subject_id?: string | null; processed_at?: string | null; created_at?: string; updated_at?: string }
-        Update: { id?: string; provider?: string; provider_event_id?: string; event_type?: string; signature_verified_at?: string; processing_status?: string; attempt_count?: number; failure_detail?: string | null; subject_type?: string | null; subject_id?: string | null; processed_at?: string | null; created_at?: string; updated_at?: string }
+        Row: { id: string; provider: string; provider_event_id: string; event_type: string; signature_verified_at: string; processing_status: string; attempt_count: number; processing_token: string | null; failure_detail: string | null; subject_type: string | null; subject_id: string | null; processed_at: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; provider: string; provider_event_id: string; event_type: string; signature_verified_at: string; processing_status?: string; attempt_count?: number; processing_token?: string | null; failure_detail?: string | null; subject_type?: string | null; subject_id?: string | null; processed_at?: string | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; provider?: string; provider_event_id?: string; event_type?: string; signature_verified_at?: string; processing_status?: string; attempt_count?: number; processing_token?: string | null; failure_detail?: string | null; subject_type?: string | null; subject_id?: string | null; processed_at?: string | null; created_at?: string; updated_at?: string }
         Relationships: []
       }
       breaking_alerts: {
@@ -1102,6 +1108,7 @@ export type Database = {
         Returns: string
       }
       approve_reporter_application: { Args: { p_application_id: string }; Returns: string }
+      claim_kyc_webhook_event: { Args: { p_event_id: string; p_event_type: string }; Returns: Json }
       claim_auto_import_batch: {
         Args: { p_started_at: string; p_lock_expires_at: string; p_queue_size: number; p_force?: boolean }
         Returns: Json
@@ -1109,12 +1116,20 @@ export type Database = {
       delete_homepage_section: { Args: { section_id: string }; Returns: undefined }
       delete_homepage_section_if_current: { Args: { section_id: string; expected_updated_at: string; expected_order: string[] }; Returns: boolean }
       duplicate_homepage_section_after: { Args: { source_section_id: string; expected_updated_at: string; expected_order: string[]; new_block_id: string; new_title: string }; Returns: string | null }
+      complete_kyc_webhook_event: {
+        Args: { p_event_id: string; p_processing_token: string; p_provider: string; p_reference: string; p_verified: boolean; p_legal_name: string | null; p_adult: boolean | null; p_verified_at: string }
+        Returns: boolean
+      }
+      complete_reporter_kyc_start: { Args: { p_application_id: string; p_profile_id: string; p_reservation_token: string; p_provider: string; p_reference: string }; Returns: boolean }
+      fail_kyc_webhook_event: { Args: { p_event_id: string; p_processing_token: string; p_failure_detail: string }; Returns: boolean }
       mark_overdue_reporter_application: { Args: { p_application_id: string }; Returns: string }
       move_homepage_section: { Args: { section_id: string; direction: string }; Returns: undefined }
       move_homepage_section_to: { Args: { section_id: string; target_position: number }; Returns: undefined }
       retire_media_asset: { Args: { media_id: string; expected_updated_at: string }; Returns: string }
       restore_media_asset: { Args: { media_id: string; expected_updated_at: string }; Returns: string }
       reject_reporter_application: { Args: { p_application_id: string; p_decision_reason: string }; Returns: string }
+      release_reporter_kyc_start: { Args: { p_application_id: string; p_profile_id: string; p_reservation_token: string }; Returns: boolean }
+      reserve_reporter_kyc_start: { Args: { p_application_id: string; p_profile_id: string }; Returns: string | null }
     }
     Enums: {
       media_type: "image" | "video" | "audio" | "document"

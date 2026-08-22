@@ -145,6 +145,50 @@ test("KYC references are unique and required once processing starts", () => {
   );
 });
 
+test("KYC webhook claims use an atomic lease and token-CAS completion", () => {
+  const claim = sqlFunction("claim_kyc_webhook_event");
+  const complete = sqlFunction("complete_kyc_webhook_event");
+  const fail = sqlFunction("fail_kyc_webhook_event");
+  const sql = compact(migration);
+
+  assert.match(sql, /processing_token uuid/u);
+  assert.match(claim, /from public\.webhook_events .* for update/u);
+  assert.match(claim, /processing_status = 'processed'/u);
+  assert.match(claim, /processing_status = 'pending'.*interval '5 minutes'/u);
+  assert.match(claim, /attempt_count = current_event\.attempt_count \+ 1/u);
+  assert.match(claim, /processing_token = claim_token/u);
+  assert.match(claim, /'state', 'busy'/u);
+  assert.match(claim, /'state', 'claimed'.*'token', claim_token/u);
+  for (const transition of [complete, fail]) {
+    assert.match(transition, /processing_token = p_processing_token/u);
+    assert.match(transition, /processing_status = 'pending'/u);
+  }
+  assert.match(complete, /processing_status = 'processed'/u);
+  assert.match(fail, /processing_status = 'failed'/u);
+  assert.match(
+    compact(databaseTypes),
+    /claim_kyc_webhook_event: \{ Args: \{ p_event_id: string; p_event_type: string \}; Returns: Json \}/u,
+  );
+});
+
+test("KYC session creation is serialized by a stale-safe reservation token", () => {
+  const reserve = sqlFunction("reserve_reporter_kyc_start");
+  const complete = sqlFunction("complete_reporter_kyc_start");
+  const release = sqlFunction("release_reporter_kyc_start");
+
+  assert.match(reserve, /from public\.reporter_applications .* for update/u);
+  assert.match(reserve, /status <> 'kyc_pending'/u);
+  assert.match(reserve, /kyc_start_reserved_at > reservation_time - interval '5 minutes'/u);
+  assert.match(reserve, /kyc_start_token = reservation_token/u);
+  for (const transition of [complete, release]) {
+    assert.match(transition, /kyc_start_token = p_reservation_token/u);
+    assert.match(transition, /status = 'kyc_pending'/u);
+  }
+  assert.match(complete, /kyc_reference = btrim\(p_reference\)/u);
+  assert.match(complete, /kyc_start_token = null/u);
+  assert.match(release, /kyc_start_token = null/u);
+});
+
 test("public reporter view contains only the approved projection", () => {
   const view = sqlSection(
     "create view public.public_reporter_profiles",

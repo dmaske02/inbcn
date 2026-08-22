@@ -19,48 +19,52 @@ export interface HostedKycProvider {
   verifyWebhook(rawBody: string, signature: string): KycWebhookResult;
 }
 
-type KycApplication = Readonly<{
-  id: string;
-  profileId: string;
-  status: string;
-  kycStatus: string;
-}>;
-
 type KycRepository = Readonly<{
-  findOwnedApplication(profileId: string, applicationId: string): Promise<KycApplication | null>;
-  markKycStarted(input: Readonly<{
+  reserveKycStart(input: Readonly<{
     applicationId: string;
     profileId: string;
+  }>): Promise<string | null>;
+  completeKycStart(input: Readonly<{
+    applicationId: string;
+    profileId: string;
+    reservationToken: string;
     provider: string;
     reference: string;
-    startedAt: string;
+  }>): Promise<boolean>;
+  releaseKycStart(input: Readonly<{
+    applicationId: string;
+    profileId: string;
+    reservationToken: string;
   }>): Promise<boolean>;
   claimKycWebhook(input: Readonly<{
     eventId: string;
     eventType: string;
-    signatureVerifiedAt: string;
-  }>): Promise<"claimed" | "processed" | "retry">;
-  findApplicationByKycReference(provider: string, reference: string): Promise<KycApplication | null>;
-  applyKycResult(input: Readonly<{
-    applicationId: string;
+  }>): Promise<
+    | Readonly<{ state: "claimed"; token: string }>
+    | Readonly<{ state: "busy" }>
+    | Readonly<{ state: "processed" }>
+  >;
+  completeKycWebhook(input: Readonly<{
+    eventId: string;
+    processingToken: string;
     provider: string;
     reference: string;
-    applicationStatus: "kyc_pending" | "under_review";
-    kycStatus: "failed" | "verified";
+    verified: boolean;
     legalName: string | null;
     adult: boolean | null;
-    completedAt: string;
-    processedAt: string;
+    verifiedAt: string;
   }>): Promise<boolean>;
-  completeKycWebhook(input: Readonly<{ eventId: string; applicationId: string | null; processedAt: string }>): Promise<void>;
-  failKycWebhook(input: Readonly<{ eventId: string; failureDetail: string }>): Promise<void>;
+  failKycWebhook(input: Readonly<{
+    eventId: string;
+    processingToken: string;
+    failureDetail: string;
+  }>): Promise<boolean>;
 }>;
 
 type ApplicationServiceDependencies = Readonly<{
   repository: KycRepository;
   provider: HostedKycProvider | null;
   providerName: string;
-  now(): string;
   returnUrl: string;
 }>;
 
@@ -74,6 +78,7 @@ type ApplicationDraftDependencies = Readonly<{
   }>): Promise<Readonly<{ id: string; status: string }>>;
   insertConsents(applicationId: string, profileId: string, receipts: readonly ConsentReceipt[]): Promise<void>;
   destroyPortrait(publicId: string): Promise<void>;
+  reportCleanupFailure(publicId: string): void;
 }>;
 
 export type KycServiceErrorCode =
@@ -130,7 +135,7 @@ export function createApplicationDraftService(dependencies: ApplicationDraftDepe
       try {
         await dependencies.destroyPortrait(portrait.publicId);
       } catch {
-        // The database failure is actionable; remote cleanup remains best effort.
+        dependencies.reportCleanupFailure(portrait.publicId);
       }
       throw error;
     }
@@ -154,34 +159,49 @@ export function createApplicationService(dependencies: ApplicationServiceDepende
   return {
     async startKycSession(profileId: string, applicationId: string) {
       const hostedProvider = provider();
-      const application = await dependencies.repository.findOwnedApplication(profileId, applicationId);
-      if (!application) throw new KycServiceError("not-found", 404, "Application not found.");
-      if (application.status !== "kyc_pending") {
-        throw new KycServiceError("invalid-state", 409, "The application is not ready for identity verification.");
-      }
-      const session = await hostedProvider.createSession({
-        applicationId,
-        returnUrl: dependencies.returnUrl,
-      });
-      let url: URL;
-      try {
-        url = new URL(session.url);
-      } catch {
-        throw new KycServiceError("provider-result-invalid", 502, "The identity provider returned an invalid session.");
-      }
-      const reference = session.reference.trim();
-      if (url.protocol !== "https:" || !reference || reference.length > 512) {
-        throw new KycServiceError("provider-result-invalid", 502, "The identity provider returned an invalid session.");
-      }
-      const saved = await dependencies.repository.markKycStarted({
+      const reservationToken = await dependencies.repository.reserveKycStart({
         applicationId,
         profileId,
-        provider: dependencies.providerName,
-        reference,
-        startedAt: dependencies.now(),
       });
-      if (!saved) throw new KycServiceError("invalid-state", 409, "The application changed before verification could start.");
-      return { url: url.toString() } as const;
+      if (!reservationToken) {
+        throw new KycServiceError("invalid-state", 409, "The application is not ready for identity verification.");
+      }
+      try {
+        const session = await hostedProvider.createSession({
+          applicationId,
+          returnUrl: dependencies.returnUrl,
+        });
+        const reference = session.reference.trim();
+        const url = new URL(session.url);
+        if (url.protocol !== "https:" || !reference || reference.length > 512) {
+          throw new KycServiceError("provider-result-invalid", 502, "The identity provider returned an invalid session.");
+        }
+        const saved = await dependencies.repository.completeKycStart({
+          applicationId,
+          profileId,
+          reservationToken,
+          provider: dependencies.providerName,
+          reference,
+        });
+        if (!saved) {
+          throw new KycServiceError("invalid-state", 409, "The application changed before verification could start.");
+        }
+        return { url: url.toString() } as const;
+      } catch (error) {
+        try {
+          await dependencies.repository.releaseKycStart({
+            applicationId,
+            profileId,
+            reservationToken,
+          });
+        } catch {
+          // The five-minute database lease permits safe recovery.
+        }
+        if (error instanceof TypeError) {
+          throw new KycServiceError("provider-result-invalid", 502, "The identity provider returned an invalid session.");
+        }
+        throw error;
+      }
     },
 
     async processKycWebhook(input: Readonly<{ rawBody: string; signature: string }>) {
@@ -203,50 +223,45 @@ export function createApplicationService(dependencies: ApplicationServiceDepende
       const receipt = await dependencies.repository.claimKycWebhook({
         eventId: result.eventId,
         eventType: `identity.${result.status}`,
-        signatureVerifiedAt: dependencies.now(),
       });
-      if (receipt === "processed") return { duplicate: true, status: "processed" } as const;
-
-      const application = await dependencies.repository.findApplicationByKycReference(
-        dependencies.providerName,
-        result.reference,
-      );
-      if (!application || application.status !== "kyc_pending") {
-        await dependencies.repository.failKycWebhook({
-          eventId: result.eventId,
-          failureDetail: "application-not-pending",
-        });
-        return { duplicate: false, status: "ignored" } as const;
-      }
+      if (receipt.state === "processed") return { duplicate: true, status: "processed" } as const;
+      if (receipt.state === "busy") return { duplicate: true, status: "processing" } as const;
 
       const verified = result.status === "verified"
         && result.adult === true
         && Boolean(result.legalName?.trim());
-      const processedAt = dependencies.now();
-      const updated = await dependencies.repository.applyKycResult({
-        applicationId: application.id,
-        provider: dependencies.providerName,
-        reference: result.reference,
-        applicationStatus: verified ? "under_review" : "kyc_pending",
-        kycStatus: verified ? "verified" : "failed",
-        legalName: verified ? result.legalName!.trim() : null,
-        adult: result.adult ?? null,
-        completedAt: result.verifiedAt,
-        processedAt,
-      });
-      if (!updated) {
-        await dependencies.repository.failKycWebhook({
+      try {
+        const completed = await dependencies.repository.completeKycWebhook({
           eventId: result.eventId,
-          failureDetail: "application-state-conflict",
+          processingToken: receipt.token,
+          provider: dependencies.providerName,
+          reference: result.reference,
+          verified,
+          legalName: verified ? result.legalName!.trim() : null,
+          adult: result.adult ?? null,
+          verifiedAt: result.verifiedAt,
         });
-        return { duplicate: false, status: "ignored" } as const;
+        if (!completed) {
+          await dependencies.repository.failKycWebhook({
+            eventId: result.eventId,
+            processingToken: receipt.token,
+            failureDetail: "application-state-conflict",
+          });
+          return { duplicate: false, status: "ignored" } as const;
+        }
+        return { duplicate: false, status: verified ? "verified" : "failed" } as const;
+      } catch (error) {
+        try {
+          await dependencies.repository.failKycWebhook({
+            eventId: result.eventId,
+            processingToken: receipt.token,
+            failureDetail: "processing-failed",
+          });
+        } catch {
+          // A failed write remains stale-lease reclaimable by a valid retry.
+        }
+        throw error;
       }
-      await dependencies.repository.completeKycWebhook({
-        eventId: result.eventId,
-        applicationId: application.id,
-        processedAt,
-      });
-      return { duplicate: false, status: verified ? "verified" : "failed" } as const;
     },
   } as const;
 }
@@ -261,7 +276,6 @@ async function runtimeService() {
     // No provider adapter exists until the client approves and contracts one.
     provider: null,
     providerName: env.server.kyc.provider ?? "",
-    now: () => new Date().toISOString(),
     returnUrl: env.public.appUrl ? new URL("/application", env.public.appUrl).toString() : "",
   });
 }
@@ -294,6 +308,9 @@ export async function saveApplicationDraft(input: Readonly<{
     insertApplication: repository.insertApplicationDraft,
     insertConsents: repository.insertConsentReceipts,
     destroyPortrait: portraits.destroyProfilePhoto,
+    reportCleanupFailure: (publicId) => {
+      console.error("Profile portrait cleanup failed.", { publicId });
+    },
   })(input);
 }
 

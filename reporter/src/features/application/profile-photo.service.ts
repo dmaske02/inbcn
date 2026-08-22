@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { v2 as cloudinary, type UploadApiResponse } from "cloudinary";
 
 import { env } from "../../config/env.ts";
+import { ApplicationInputError } from "./application.error.ts";
 
 export const MAX_PROFILE_PHOTO_SIZE = 10 * 1024 * 1024;
 
@@ -81,7 +82,7 @@ export function createProfilePhotoUploader(dependencies: ProfilePhotoUploadDepen
   return async (input: ProfilePhotoInput): Promise<Readonly<{ publicId: string; secureUrl: string }>> => {
     const inspection = inspectProfilePhoto(input);
     if (!inspection.ok) {
-      throw new ProfilePhotoError(
+      throw new ApplicationInputError(
         inspection.code === "file-too-large"
           ? "Portraits must be 10 MiB or smaller."
           : "Upload a valid JPEG, PNG, or WebP portrait.",

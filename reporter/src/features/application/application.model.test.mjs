@@ -2,11 +2,25 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  REPORTER_BEATS,
   canTransitionApplication,
   getApplicationDeadline,
   isAtLeast18,
   validateReporterApplication,
 } from "./application.model.ts";
+
+test("exports the exact eight supported reporting beats", () => {
+  assert.deepEqual(REPORTER_BEATS, [
+    "civic",
+    "crime",
+    "education",
+    "environment",
+    "health",
+    "business",
+    "culture",
+    "sports",
+  ]);
+});
 
 test("allows only valid reporter application transitions", () => {
   assert.equal(canTransitionApplication("draft", "payment_pending"), true);
@@ -78,4 +92,24 @@ test("rejects underage or undeclared applicants using the server calendar", () =
   assert.equal(validateReporterApplication(base, "2026-08-22").ok, false);
   assert.equal(validateReporterApplication({ ...base, dateOfBirth: "2000-01-01", legalNameDeclared: false }, "2026-08-22").ok, false);
   assert.equal(validateReporterApplication({ ...base, dateOfBirth: "2000-01-01", age18Declared: false }, "2026-08-22").ok, false);
+});
+
+test("accepts every supported beat and rejects arbitrary beat values", () => {
+  const base = {
+    legalName: "Ananya Patil",
+    legalNameDeclared: true,
+    dateOfBirth: "2000-01-01",
+    age18Declared: true,
+    homeCity: "Pune",
+    homeDistrict: "Pune",
+    homeState: "Maharashtra",
+    bio: "",
+  };
+
+  const accepted = validateReporterApplication({ ...base, beats: REPORTER_BEATS }, "2026-08-22");
+  assert.equal(accepted.ok, true);
+  assert.equal(
+    validateReporterApplication({ ...base, beats: ["civic", "politics"] }, "2026-08-22").ok,
+    false,
+  );
 });
