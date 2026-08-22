@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import type { SubmissionActionState } from "./submission.actions.ts";
@@ -127,6 +127,16 @@ export function StoryEditor({
     };
   }, [isPersisted, storageStoryId, story.updatedAt, userId]);
 
+  const reportStorageFailure = useCallback((message: string) => {
+    window.setTimeout(() => setStorageMessage(message), 0);
+  }, []);
+
+  const clearRecovery = useCallback((): boolean => {
+    const cleared = persistence.current?.clear(userId, storageStoryId) ?? false;
+    if (!cleared) reportStorageFailure("This browser could not safely clear local recovery. Keep this page open and save again.");
+    return cleared;
+  }, [reportStorageFailure, storageStoryId, userId]);
+
   useEffect(() => {
     if (!Number.isSafeInteger(saveState.draftSaveAttempt) || !Number.isSafeInteger(saveState.draftSaveGeneration)) return;
     const acknowledgement = saveTracker.current.acknowledge({
@@ -137,26 +147,30 @@ export function StoryEditor({
     if (saveState.status !== "success" || !saveState.storyId) return;
     if (saveState.redirectToEditor) {
       if (acknowledgement.clear) {
-        persistence.current?.clear(userId, storageStoryId);
+        if (!clearRecovery()) return;
       } else if (acknowledgement.stale) {
         const migrated = migrateLocalDraft(window.localStorage, userId, storageStoryId, saveState.storyId, fields, saveState.updatedAt);
-        if (migrated) persistence.current?.clear(userId, storageStoryId);
+        if (!migrated) {
+          reportStorageFailure("This browser could not safely move newer local recovery. Keep this page open and save again.");
+          return;
+        }
+        if (!clearRecovery()) return;
       }
       router.replace(`/stories/${saveState.storyId}`);
       return;
     }
     if (!acknowledgement.clear) return;
-    persistence.current?.clear(userId, storageStoryId);
+    if (!clearRecovery()) return;
     const savedGeneration = saveState.draftSaveGeneration ?? 0;
     const cleanTimer = window.setTimeout(() => {
       if (saveTracker.current.isCurrentGeneration(savedGeneration)) setDirty(false);
     }, 0);
     return () => window.clearTimeout(cleanTimer);
-  }, [fields, router, saveState, storageStoryId, userId]);
+  }, [clearRecovery, fields, reportStorageFailure, router, saveState, storageStoryId, userId]);
 
   useEffect(() => {
-    if (transitionState?.status === "success") persistence.current?.clear(userId, storageStoryId);
-  }, [storageStoryId, transitionState?.status, userId]);
+    if (transitionState?.status === "success") clearRecovery();
+  }, [clearRecovery, transitionState?.status]);
 
   function updateFields(update: (current: LocalDraftFields) => LocalDraftFields) {
     saveTracker.current.edit();
@@ -178,8 +192,7 @@ export function StoryEditor({
   }
 
   function discardDraft() {
-    persistence.current?.clear(userId, storageStoryId);
-    setRestore(null);
+    if (clearRecovery()) setRestore(null);
   }
 
   async function captureLocation() {

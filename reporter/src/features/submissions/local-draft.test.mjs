@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   NEW_REPORTER_DRAFT_ID,
+  clearLocalDraft,
   chooseLocalDraft,
   createDraftPersistence,
   createDraftSaveTracker,
@@ -65,24 +66,51 @@ test("offers a new-draft alias after an ordinary refresh without comparing the s
   assert.equal(shouldOfferLocalDraft(saved, true, "2026-08-23T12:00:00.000Z"), false);
 });
 
-test("migrates a newer new-draft snapshot to the returned persisted ID before clearing only the alias", () => {
+test("migrates only when its deterministic timestamp is newer than the validated target", () => {
+  const alias = { ...local, storyId: NEW_REPORTER_DRAFT_ID };
+  const newerFields = { ...alias.fields, title: "Edited while first save was pending" };
+  const serverUpdatedAt = "2027-01-01T00:00:00.000Z";
+  const clientNow = "2027-01-01T00:00:00.001Z";
+  const attempt = (target) => {
+    const storage = memoryStorage();
+    assert.equal(saveLocalDraft(storage, alias), true);
+    if (target) assert.equal(saveLocalDraft(storage, target), true);
+    assert.equal(migrateLocalDraft(storage, userId, NEW_REPORTER_DRAFT_ID, storyId, newerFields, serverUpdatedAt, clientNow), true);
+    assert.equal(loadLocalDraft(storage, userId, NEW_REPORTER_DRAFT_ID), null);
+    return loadLocalDraft(storage, userId, storyId);
+  };
+
+  assert.equal(attempt({ ...local, updatedAt: clientNow, fields: { ...local.fields, title: "Equal target wins" } })?.fields.title, "Equal target wins");
+  assert.equal(attempt({ ...local, updatedAt: "2027-01-01T00:00:00.002Z", fields: { ...local.fields, title: "Newer target wins" } })?.fields.title, "Newer target wins");
+  const migrated = attempt({ ...local, updatedAt: serverUpdatedAt, fields: { ...local.fields, title: "Older target" } });
+  assert.equal(migrated?.fields.title, newerFields.title);
+  assert.equal(migrated?.updatedAt, clientNow);
+});
+
+test("reports local removal truthfully and never destroys the only restorable alias when a move cannot finish", () => {
   const alias = { ...local, storyId: NEW_REPORTER_DRAFT_ID };
   const newerFields = { ...alias.fields, title: "Edited while first save was pending" };
   const storage = memoryStorage();
   assert.equal(saveLocalDraft(storage, alias), true);
-  assert.equal(migrateLocalDraft(storage, userId, NEW_REPORTER_DRAFT_ID, storyId, newerFields, "2027-01-01T00:00:00.000Z"), true);
-  assert.equal(loadLocalDraft(storage, userId, NEW_REPORTER_DRAFT_ID), null);
-  assert.equal(loadLocalDraft(storage, userId, storyId)?.fields.title, newerFields.title);
-  assert.ok(Date.parse(loadLocalDraft(storage, userId, storyId)?.updatedAt ?? "") > Date.parse("2027-01-01T00:00:00.000Z"));
-
-  const blocked = {
+  const stuckRemove = {
     getItem(key) { return storage.getItem(key); },
-    setItem() { throw new Error("quota"); },
-    removeItem(key) { storage.removeItem(key); },
+    setItem(key, value) { storage.setItem(key, value); },
+    removeItem() {},
   };
-  assert.equal(saveLocalDraft(storage, alias), true);
-  assert.equal(migrateLocalDraft(blocked, userId, NEW_REPORTER_DRAFT_ID, storyId, newerFields), false);
+  assert.equal(clearLocalDraft(stuckRemove, userId, NEW_REPORTER_DRAFT_ID), false);
   assert.deepEqual(loadLocalDraft(storage, userId, NEW_REPORTER_DRAFT_ID), alias);
+  assert.equal(migrateLocalDraft(stuckRemove, userId, NEW_REPORTER_DRAFT_ID, storyId, newerFields, "2027-01-01T00:00:00.000Z", "2027-01-01T00:00:00.001Z"), false);
+  assert.deepEqual(loadLocalDraft(storage, userId, NEW_REPORTER_DRAFT_ID), alias);
+
+  const quotaStorage = memoryStorage();
+  assert.equal(saveLocalDraft(quotaStorage, alias), true);
+  const blocked = {
+    getItem(key) { return quotaStorage.getItem(key); },
+    setItem() { throw new Error("quota"); },
+    removeItem(key) { quotaStorage.removeItem(key); },
+  };
+  assert.equal(migrateLocalDraft(blocked, userId, NEW_REPORTER_DRAFT_ID, storyId, newerFields), false);
+  assert.deepEqual(loadLocalDraft(quotaStorage, userId, NEW_REPORTER_DRAFT_ID), alias);
 });
 
 test("loads only bounded current-version drafts for their matching owner and story", () => {
@@ -147,7 +175,7 @@ test("debounces edits, flushes on blur, and clears only when asked after a confi
   persistence.schedule(local);
   persistence.flush();
   assert.equal(loadLocalDraft(storage, userId, storyId)?.updatedAt, local.updatedAt);
-  persistence.clear(userId, storyId);
+  assert.equal(persistence.clear(userId, storyId), true);
   assert.equal(loadLocalDraft(storage, userId, storyId), null);
 });
 

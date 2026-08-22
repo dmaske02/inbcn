@@ -109,11 +109,14 @@ export async function saveReporterDraftAction(
   } catch (error) {
     return safeError(error);
   }
-  revalidateStories(saved.id);
+  if (saved.id !== target.storyId) {
+    return { status: "error", message: "The story could not be saved. Please try again." };
+  }
+  revalidateStories(target.storyId);
   return {
     status: "success",
     message: "Draft saved.",
-    storyId: saved.id,
+    storyId: target.storyId,
     ...(saved.updatedAt ? { updatedAt: saved.updatedAt } : {}),
     redirectToEditor: target.redirectToEditor,
   };

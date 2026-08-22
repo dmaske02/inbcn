@@ -41,13 +41,16 @@ test("editor tracks save attempts against edit generations and uses the new-draf
 test("new-story save migrates a stale local snapshot, clears its alias, and always routes to the returned editor", () => {
   assert.match(source, /migrateLocalDraft/u);
   assert.match(source, /acknowledgement\.stale/u);
+  assert.match(source, /if \(!migrated\)/u);
+  assert.match(source, /reportStorageFailure/u);
   assert.match(source, /router\.replace\(`\/stories\/\$\{saveState\.storyId\}`\)/u);
   assert.match(newPage, /createNewReporterDraftTarget\(randomUUID\)/u);
   assert.match(newPage, /storageStoryId="new"/u);
-  assert.match(actions, /revalidateStories\(saved\.id\)/u);
+  assert.match(actions, /revalidateStories\(target\.storyId\)/u);
   assert.match(actions, /revalidatePath\("\/stories\/new"\)/u);
   assert.match(actions, /revalidatePath\(`\/stories\/\$\{id\}`\)/u);
   assert.match(actions, /updatedAt: saved\.updatedAt/u);
+  assert.match(actions, /saved\.id !== target\.storyId/u);
 });
 
 test("mobile editor preserves the server language value contract and renders ISO-Z event times for native inputs", () => {

@@ -95,3 +95,26 @@ GREEN focused coverage is 26/26. Full root tests passed (website 213, CMS 587,
 reporter 200), as did root and reporter typecheck/lint and `git diff --check`.
 The fresh reviewer bundled-Node production build remains the recorded passing
 build verification.
+
+## Storage-safety follow-up
+
+Local moves now read and validate the destination before writing. Their
+deterministic candidate timestamp is the later of client time and one
+millisecond after the server save time; an equal-or-newer validated destination
+wins, while only an older destination is replaced. A copied destination is
+reread before removal, and removal reports success only when the source key is
+actually absent. Consequently a quota/write failure keeps the source alias,
+and a failed removal leaves at least one restorable copy rather than reporting
+a completed move.
+
+The editor checks every initial-save migration or recovery-clear result. A
+failure leaves its live fields mounted, announces an accessible recovery error,
+and avoids navigation. Save responses must match the preallocated server action
+target; retries therefore remain bound to that already-created UUID rather than
+creating a second draft.
+
+RED runtime probes covered equal/newer/older destination timestamps, no-op
+removal, quota failure, and persistence clear results. GREEN focused coverage
+is 27/27. Full root tests passed (website 213, CMS 587, reporter 201), as did
+root and reporter typecheck/lint and `git diff --check`. The fresh reviewer
+bundled-Node production build remains the recorded passing build verification.

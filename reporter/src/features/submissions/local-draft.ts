@@ -109,11 +109,12 @@ export function saveLocalDraft(storage: SafeStorage, value: unknown): boolean {
   }
 }
 
-export function clearLocalDraft(storage: SafeStorage, userId: string, storyId: string): void {
+export function clearLocalDraft(storage: SafeStorage, userId: string, storyId: string): boolean {
   try {
     storage.removeItem(draftStorageKey(userId, storyId));
+    return storage.getItem(draftStorageKey(userId, storyId)) === null;
   } catch {
-    // Local recovery must never block the editor.
+    return false;
   }
 }
 
@@ -136,18 +137,30 @@ export function migrateLocalDraft(
   toStoryId: string,
   fields: LocalDraftFields,
   serverUpdatedAt?: string,
+  clientNow?: string,
 ): boolean {
+  if (fromStoryId === toStoryId) return false;
+  const target = loadLocalDraft(storage, userId, toStoryId);
   const serverMilliseconds = Date.parse(serverUpdatedAt ?? "");
-  const updatedAt = new Date(Math.max(Date.now(), Number.isFinite(serverMilliseconds) ? serverMilliseconds + 1 : 0)).toISOString();
-  const persisted = saveLocalDraft(storage, {
+  const clientMilliseconds = Date.parse(clientNow ?? "");
+  const updatedAt = new Date(Math.max(
+    Number.isFinite(clientMilliseconds) ? clientMilliseconds : Date.now(),
+    Number.isFinite(serverMilliseconds) ? serverMilliseconds + 1 : 0,
+  )).toISOString();
+  if (target && Date.parse(target.updatedAt) >= Date.parse(updatedAt)) {
+    return clearLocalDraft(storage, userId, fromStoryId);
+  }
+  const candidate: LocalDraft = {
     version: LOCAL_DRAFT_VERSION,
     userId,
     storyId: toStoryId,
     updatedAt,
     fields,
-  });
-  if (persisted) clearLocalDraft(storage, userId, fromStoryId);
-  return persisted;
+  };
+  if (!saveLocalDraft(storage, candidate)) return false;
+  const copied = loadLocalDraft(storage, userId, toStoryId);
+  if (!copied || copied.updatedAt !== candidate.updatedAt) return false;
+  return clearLocalDraft(storage, userId, fromStoryId);
 }
 
 export function createDraftPersistence(
@@ -157,7 +170,7 @@ export function createDraftPersistence(
 ): Readonly<{
   schedule(draft: LocalDraft): void;
   flush(): void;
-  clear(userId: string, storyId: string): void;
+  clear(userId: string, storyId: string): boolean;
 }> {
   let pending: LocalDraft | null = null;
   let timeout: number | null = null;
@@ -178,7 +191,7 @@ export function createDraftPersistence(
       pending = null;
       if (timeout !== null) timer.clearTimeout(timeout);
       timeout = null;
-      clearLocalDraft(storage, userId, storyId);
+      return clearLocalDraft(storage, userId, storyId);
     },
   };
 }
