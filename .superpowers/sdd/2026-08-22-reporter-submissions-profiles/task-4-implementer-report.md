@@ -118,3 +118,22 @@ removal, quota failure, and persistence clear results. GREEN focused coverage
 is 27/27. Full root tests passed (website 213, CMS 587, reporter 201), as did
 root and reporter typecheck/lint and `git diff --check`. The fresh reviewer
 bundled-Node production build remains the recorded passing build verification.
+
+## Stable new-story target follow-up
+
+The new-story server page now establishes its preallocated target once in an
+opaque `draft` UUID query parameter. A missing, malformed, or repeated value
+redirects once to a freshly generated validated UUID; a valid value is reused
+on every server rerender, refresh, and `/stories/new` revalidation. The URL
+contains no draft fields, location data, or user data. The action remains bound
+to that exact target UUID and rejects an unexpected persistence result.
+
+Save results are handled once per action attempt. If a storage clear or
+migration fails, a later field edit cannot reprocess the old success result and
+navigate away from the live newer fields; only a new save attempt can proceed.
+
+RED covered stable target reuse across retry/revalidation, malformed query
+replacement, and the failed-cleanup/edit interleaving. GREEN focused coverage
+is 28/28. Full root tests passed (website 213, CMS 587, reporter 202), as did
+root and reporter typecheck/lint and `git diff --check`. The fresh reviewer
+bundled-Node production build remains the recorded passing build verification.

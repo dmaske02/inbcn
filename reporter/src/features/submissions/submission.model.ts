@@ -110,6 +110,16 @@ export function createNewReporterDraftTarget(randomId: () => string): ReporterDr
   return { storyId, redirectToEditor: true };
 }
 
+export function resolveNewReporterDraftTarget(
+  value: unknown,
+  randomId: () => string,
+): Readonly<{ storyId: string; fromSearchParam: boolean }> {
+  if (typeof value === "string" && z.uuid().safeParse(value).success) {
+    return { storyId: value, fromSearchParam: true };
+  }
+  return { storyId: createNewReporterDraftTarget(randomId).storyId, fromSearchParam: false };
+}
+
 function fieldErrors(error: z.ZodError): Readonly<Record<string, string[]>> {
   const flattened = error.flatten().fieldErrors;
   return Object.fromEntries(Object.entries(flattened).filter((entry): entry is [string, string[]] => Boolean(entry[1])));

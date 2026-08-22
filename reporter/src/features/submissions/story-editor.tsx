@@ -146,6 +146,7 @@ export function StoryEditor({
     });
     if (saveState.status !== "success" || !saveState.storyId) return;
     if (saveState.redirectToEditor) {
+      if (!acknowledgement.clear && !acknowledgement.stale) return;
       if (acknowledgement.clear) {
         if (!clearRecovery()) return;
       } else if (acknowledgement.stale) {

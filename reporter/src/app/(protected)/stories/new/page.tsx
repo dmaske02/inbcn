@@ -1,18 +1,23 @@
 import { randomUUID } from "node:crypto";
+import { redirect } from "next/navigation";
 
 import { requireReporterSession } from "@/features/auth/server";
 import { saveReporterDraftAction } from "@/features/submissions/submission.actions";
-import { createNewReporterDraftTarget } from "@/features/submissions/submission.model";
+import { createNewReporterDraftTarget, resolveNewReporterDraftTarget } from "@/features/submissions/submission.model";
 import { getReporterStoryReferences } from "@/features/submissions/submission.repository";
 import { StoryEditor } from "@/features/submissions/story-editor";
 
-export default async function NewReporterStoryPage() {
+export default async function NewReporterStoryPage({
+  searchParams,
+}: Readonly<{ searchParams: Promise<{ draft?: string | string[] }> }>) {
   const actor = await requireReporterSession();
   if (actor.state !== "reporter") {
     return <p className="text-sm text-muted-foreground">Story tools become available after reporter approval.</p>;
   }
+  const resolved = resolveNewReporterDraftTarget((await searchParams).draft, randomUUID);
+  const draftTarget = createNewReporterDraftTarget(() => resolved.storyId);
+  if (!resolved.fromSearchParam) redirect(`/stories/new?draft=${draftTarget.storyId}`);
   const references = await getReporterStoryReferences();
-  const draftTarget = createNewReporterDraftTarget(randomUUID);
   return (
     <div className="space-y-6">
       <header>
