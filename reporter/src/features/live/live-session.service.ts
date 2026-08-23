@@ -116,13 +116,14 @@ const ROOM_OPTIONS = Object.freeze({
   departureTimeout: 60,
   maxParticipants: 4,
 });
+const MAX_INITIAL_PUBLISHER_TTL_SECONDS = 120;
 
 function ttlSeconds(endsAt: string, now: string): number {
   const remaining = Date.parse(endsAt) - Date.parse(now);
   if (!Number.isFinite(remaining) || remaining <= 0) {
     throw new LiveSessionError("FORBIDDEN", 403);
   }
-  return Math.ceil(remaining / 1_000) + 60;
+  return Math.min(Math.ceil(remaining / 1_000) + 60, MAX_INITIAL_PUBLISHER_TTL_SECONDS);
 }
 
 function validEgressId(value: unknown): value is string {

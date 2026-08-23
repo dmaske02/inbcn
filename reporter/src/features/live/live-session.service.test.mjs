@@ -228,7 +228,7 @@ test("new reservation creates one bounded room and starts one private recording"
   assert.equal(JSON.stringify(result).includes(recordingId), false);
 });
 
-test("publisher TTL is calculated at token issuance after provider startup", async () => {
+test("publisher TTL is capped at 120 seconds when the approved window remains longer", async () => {
   let clock = now;
   let issuedTtl = null;
   const setup = dependencies({
@@ -242,7 +242,7 @@ test("publisher TTL is calculated at token issuance after provider startup", asy
 
   await createLiveSessionService(setup.value).request({ profileId, accessGeneration: 7, requestId });
 
-  assert.equal(issuedTtl, 1_260);
+  assert.equal(issuedTtl, 120);
 });
 
 test("sequential duplicate reuses recording and issues a fresh token without provider work", async () => {
@@ -284,6 +284,26 @@ test("active duplicate issues no token when final DB authorization is revoked", 
   );
   assert.equal(tokenCalls, 0);
   assert.equal(setup.calls.start, 0);
+});
+
+test("a terminated existing reservation cannot mint a cached-token refresh", async () => {
+  let tokenCalls = 0;
+  const setup = dependencies({
+    reserve: async () => reservation({
+      state: "existing",
+      recordingState: "recording",
+      claimToken: undefined,
+      reclaimed: undefined,
+    }),
+    authorizeFinal: async () => { throw new LiveSessionError("FORBIDDEN", 403); },
+    generateToken: async () => { tokenCalls += 1; return "must-not-return"; },
+  });
+
+  await assert.rejects(
+    () => createLiveSessionService(setup.value).request({ profileId, accessGeneration: 7, requestId }),
+    (error) => error instanceof LiveSessionError && error.code === "FORBIDDEN",
+  );
+  assert.equal(tokenCalls, 0);
 });
 
 test("fresh concurrent reservation is retryable and starts no provider work", async () => {

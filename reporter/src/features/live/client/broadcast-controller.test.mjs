@@ -44,6 +44,12 @@ function setup(options = {}) {
   return { calls, controller, events: () => events, preview };
 }
 
+function deferred() {
+  let resolve;
+  const promise = new Promise((next) => { resolve = next; });
+  return { promise, resolve };
+}
+
 test("permissions-granted enters preview and recording status has a fixed disclosure", () => {
   assert.equal(reduceBroadcast(initialBroadcastState, { type: "permissions-granted" }).phase, "preview");
   assert.equal(recordingAnnouncement("recording"), "This live broadcast is being recorded.");
@@ -118,4 +124,106 @@ test("unrecoverable non-admin disconnect releases preview without minting anothe
   assert.equal(controller.getSnapshot().phase, "idle");
   assert.equal(controller.getSnapshot().preview, null);
   assert.equal(sessions, 1);
+});
+
+test("only one preview operation is in flight and stale preview media is released after cleanup", async () => {
+  const gate = deferred();
+  const calls = [];
+  const preview = { camera: { id: "camera" }, microphone: { id: "microphone" } };
+  const controller = createBroadcastController({
+    media: {
+      async createPreview() { calls.push("preview"); return gate.promise; },
+      stopPreview(value) { calls.push(["stop", value]); },
+    },
+    livekit: { async connect() {}, async disconnect() { calls.push("disconnect"); } },
+    requestSession: async () => ({ ok: false, error: { code: "unused", message: "unused" } }),
+  });
+  const first = controller.startPreview();
+  const second = controller.startPreview();
+  await controller.cleanup();
+  gate.resolve(preview);
+  await Promise.all([first, second]);
+  assert.deepEqual(calls, ["preview", "disconnect", ["stop", preview]]);
+  assert.equal(controller.getSnapshot().preview, null);
+  assert.equal(controller.getSnapshot().phase, "idle");
+});
+
+test("leave invalidates a pending session request before it can connect", async () => {
+  const session = deferred();
+  let connects = 0;
+  const preview = { camera: { id: "camera" }, microphone: { id: "microphone" } };
+  const controller = createBroadcastController({
+    media: { async createPreview() { return preview; }, stopPreview() {} },
+    livekit: { async connect() { connects += 1; }, async disconnect() {} },
+    requestSession: async () => session.promise,
+  });
+  await controller.startPreview();
+  const start = controller.startBroadcast();
+  await controller.leave();
+  session.resolve({ ok: true, credentials: { serverUrl: "wss://livekit.example.test", token: "token", roomName: "room", startsAt: "start", endsAt: "end", recordingState: "recording" } });
+  await start;
+  assert.equal(connects, 0);
+  assert.equal(controller.getSnapshot().phase, "idle");
+});
+
+test("leave during an in-flight connect disconnects the stale room without restoring live state", async () => {
+  const connect = deferred();
+  const calls = [];
+  const preview = { camera: { id: "camera" }, microphone: { id: "microphone" } };
+  const controller = createBroadcastController({
+    media: { async createPreview() { return preview; }, stopPreview(value) { calls.push(["stop", value]); } },
+    livekit: { async connect() { calls.push("connect"); await connect.promise; }, async disconnect() { calls.push("disconnect"); } },
+    requestSession: async () => ({ ok: true, credentials: { serverUrl: "wss://livekit.example.test", token: "token", roomName: "room", startsAt: "start", endsAt: "end", recordingState: "recording" } }),
+  });
+  await controller.startPreview();
+  const start = controller.startBroadcast();
+  await Promise.resolve();
+  await controller.leave();
+  connect.resolve();
+  await start;
+  assert.deepEqual(calls, ["connect", "disconnect", ["stop", preview], "disconnect"]);
+  assert.equal(controller.getSnapshot().phase, "idle");
+});
+
+test("a session failure preserves preview and permits an actual retry", async () => {
+  let attempts = 0;
+  const { controller } = setup({ requestSession: async () => {
+    attempts += 1;
+    return attempts === 1
+      ? { ok: false, error: { code: "session-unavailable", message: "Retry now." } }
+      : { ok: true, credentials: { serverUrl: "wss://livekit.example.test", token: "token", roomName: "room", startsAt: "start", endsAt: "end", recordingState: "recording" } };
+  } });
+  await controller.startPreview();
+  await controller.startBroadcast();
+  assert.equal(controller.getSnapshot().phase, "preview");
+  assert.equal(controller.getSnapshot().error?.message, "Retry now.");
+  await controller.startBroadcast();
+  assert.equal(attempts, 2);
+  assert.equal(controller.getSnapshot().phase, "live");
+});
+
+test("a thrown session failure also permits a retry", async () => {
+  let attempts = 0;
+  const { controller } = setup({ requestSession: async () => {
+    attempts += 1;
+    if (attempts === 1) throw new Error("transport failure");
+    return { ok: true, credentials: { serverUrl: "wss://livekit.example.test", token: "token", roomName: "room", startsAt: "start", endsAt: "end", recordingState: "recording" } };
+  } });
+  await controller.startPreview();
+  await controller.startBroadcast();
+  assert.equal(controller.getSnapshot().phase, "preview");
+  await controller.startBroadcast();
+  assert.equal(attempts, 2);
+});
+
+test("recording status events update the indicator and disconnect clears it", async () => {
+  const { controller, events } = setup();
+  await controller.startPreview();
+  await controller.startBroadcast();
+  events().onRecordingStatusChanged(true);
+  assert.equal(controller.getSnapshot().recordingState, "recording");
+  events().onRecordingStatusChanged(false);
+  assert.equal(controller.getSnapshot().recordingState, "failed");
+  events().onDisconnected("admin-terminated");
+  assert.equal(controller.getSnapshot().recordingState, null);
 });

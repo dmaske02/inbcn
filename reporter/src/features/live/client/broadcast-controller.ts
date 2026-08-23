@@ -17,6 +17,7 @@ export type BroadcastEvent =
   | Readonly<{ type: "permissions-granted" }>
   | Readonly<{ type: "connecting" }>
   | Readonly<{ type: "connected"; recordingState: "recording" | "failed" }>
+  | Readonly<{ type: "recording-status"; recordingState: "recording" | "failed" }>
   | Readonly<{ type: "reconnecting" }>
   | Readonly<{ type: "reconnected" }>
   | Readonly<{ type: "room-disconnected"; reason: "admin-terminated" | "disconnected" }>
@@ -35,10 +36,11 @@ export function reduceBroadcast(state: BroadcastState, event: BroadcastEvent): B
     case "reconnecting": return { ...state, phase: "reconnecting", error: null };
     case "reconnected": return { ...state, phase: "live", error: null };
     case "room-disconnected": return event.reason === "admin-terminated"
-      ? { ...state, phase: "ended", preview: null, message: "This broadcast was ended by the newsroom." }
-      : { ...state, phase: "idle", preview: null, message: "The broadcast connection ended. Rejoin only if your approved window is still active." };
+      ? { ...state, phase: "ended", preview: null, recordingState: null, message: "This broadcast was ended by the newsroom." }
+      : { ...state, phase: "idle", preview: null, recordingState: null, message: "The broadcast connection ended. Rejoin only if your approved window is still active." };
+    case "recording-status": return { ...state, recordingState: event.recordingState };
     case "left": return initialBroadcastState;
-    case "failed": return { ...state, phase: "error", error: event.error, message: null };
+    case "failed": return { ...state, phase: state.preview ? "preview" : "error", error: event.error, message: null };
   }
 }
 
@@ -60,6 +62,9 @@ type Dependencies = Readonly<{
 export function createBroadcastController({ media, livekit, requestSession }: Dependencies) {
   let state = initialBroadcastState;
   let cleaned = false;
+  let generation = 0;
+  let previewPending = false;
+  let broadcastPending = false;
   const listeners = new Set<() => void>();
   const emit = (next: BroadcastState) => { state = next; for (const listener of listeners) listener(); };
   const transition = (event: BroadcastEvent) => emit(reduceBroadcast(state, event));
@@ -73,35 +78,64 @@ export function createBroadcastController({ media, livekit, requestSession }: De
     getSnapshot: () => state,
     subscribe(listener: () => void) { listeners.add(listener); return () => listeners.delete(listener); },
     async startPreview() {
-      if (state.preview) return;
+      if (state.preview || previewPending) return;
       cleaned = false;
+      const operation = generation;
+      previewPending = true;
       try {
         const preview = await media.createPreview();
+        if (operation !== generation) {
+          media.stopPreview(preview);
+          return;
+        }
         emit({ ...state, preview });
         transition({ type: "permissions-granted" });
-      } catch (error) { transition({ type: "failed", error: safeError(error) }); }
+      } catch (error) {
+        if (operation === generation) transition({ type: "failed", error: safeError(error) });
+      } finally {
+        if (operation === generation) previewPending = false;
+      }
     },
     async startBroadcast() {
-      if (!state.preview || state.phase !== "preview") return;
+      if (!state.preview || state.phase !== "preview" || broadcastPending) return;
+      const operation = generation;
+      broadcastPending = true;
       transition({ type: "connecting" });
       let session;
-      try { session = await requestSession(); } catch (error) { transition({ type: "failed", error: safeError(error) }); return; }
-      if (!session.ok) { transition({ type: "failed", error: session.error }); return; }
+      try { session = await requestSession(); } catch (error) {
+        if (operation === generation) transition({ type: "failed", error: safeError(error) });
+        if (operation === generation) broadcastPending = false;
+        return;
+      }
+      if (operation !== generation) return;
+      if (!session.ok) { transition({ type: "failed", error: session.error }); broadcastPending = false; return; }
       try {
         await livekit.connect(session.credentials, state.preview, {
-          onReconnecting: () => transition({ type: "reconnecting" }),
-          onReconnected: () => transition({ type: "reconnected" }),
-          onDisconnected: (reason) => { release(); transition({ type: "room-disconnected", reason }); },
+          onReconnecting: () => { if (operation === generation) transition({ type: "reconnecting" }); },
+          onReconnected: () => { if (operation === generation) transition({ type: "reconnected" }); },
+          onRecordingStatusChanged: (isRecording) => { if (operation === generation) transition({ type: "recording-status", recordingState: isRecording ? "recording" : "failed" }); },
+          onDisconnected: (reason) => { if (operation === generation) { release(); transition({ type: "room-disconnected", reason }); } },
         });
+        if (operation !== generation) { await livekit.disconnect(); return; }
         transition({ type: "connected", recordingState: session.credentials.recordingState });
-      } catch (error) { release(); transition({ type: "failed", error: safeError(error) }); }
+      } catch (error) {
+        if (operation !== generation) { await livekit.disconnect(); return; }
+        release();
+        transition({ type: "failed", error: safeError(error) });
+      } finally {
+        if (operation === generation) broadcastPending = false;
+      }
     },
-    async leave() { await livekit.disconnect(); release(); cleaned = true; transition({ type: "left" }); },
+    async leave() { generation += 1; previewPending = false; broadcastPending = false; await livekit.disconnect(); release(); cleaned = true; transition({ type: "left" }); },
     async cleanup() {
       if (cleaned) return;
-      cleaned = true;
+      generation += 1;
+      previewPending = false;
+      broadcastPending = false;
       await livekit.disconnect();
       release();
+      cleaned = true;
+      transition({ type: "left" });
     },
   } as const;
 }

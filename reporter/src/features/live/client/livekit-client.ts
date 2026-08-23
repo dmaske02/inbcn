@@ -20,6 +20,7 @@ type DisconnectState = "admin-terminated" | "disconnected";
 type Events = Readonly<{
   onReconnecting?(): void;
   onReconnected?(): void;
+  onRecordingStatusChanged?(isRecording: boolean): void;
   onDisconnected?(reason: DisconnectState): void;
 }>;
 
@@ -48,6 +49,9 @@ export function createLiveKitBroadcastClient(createRoom: () => BroadcastRoom = (
       handlers = [
         [RoomEvent.Reconnecting, events.onReconnecting ?? (() => undefined)],
         [RoomEvent.Reconnected, events.onReconnected ?? (() => undefined)],
+        [RoomEvent.RecordingStatusChanged, ((isRecording: boolean) => {
+          events.onRecordingStatusChanged?.(isRecording);
+        }) as (...args: never[]) => void],
         [RoomEvent.Disconnected, ((reason: DisconnectReason) => {
           room = null;
           events.onDisconnected?.(disconnectState(reason));

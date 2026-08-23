@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   LiveTerminationError,
+  createDeferredLiveKitCleanup,
   createLiveTerminationService,
 } from "./live-termination.service.ts";
 
@@ -54,4 +55,39 @@ test("provider failure stays retryable without exposing its detail", async () =>
       && error.code === "UNAVAILABLE"
       && error.message === "The live broadcast was ended, but provider cleanup will be retried.",
   );
+});
+
+test("missing provider configuration commits an approved termination before returning retryable cleanup", async () => {
+  const calls = [];
+  let current = request;
+  const service = createLiveTerminationService({
+    get: async () => { calls.push(["get"]); return current; },
+    terminate: async () => { calls.push(["terminate"]); current = { ...current, status: "terminated" }; },
+    cleanup: createDeferredLiveKitCleanup(async () => { calls.push(["load-provider"]); throw new Error("LIVEKIT_CONFIG_MISSING"); }),
+  });
+  await assert.rejects(
+    () => service.terminate({ role: "admin" }, requestId, "Immediate safety concern"),
+    (error) => error instanceof LiveTerminationError && error.code === "UNAVAILABLE",
+  );
+  assert.deepEqual(calls, [["get"], ["terminate"], ["get"], ["load-provider"]]);
+});
+
+test("pending and rejected requests are invalid before any termination or provider work", async (context) => {
+  for (const status of ["pending", "rejected"]) {
+    await context.test(status, async () => {
+      let terminated = 0;
+      let cleaned = 0;
+      const service = createLiveTerminationService({
+        get: async () => ({ ...request, status }),
+        terminate: async () => { terminated += 1; },
+        cleanup: async () => { cleaned += 1; },
+      });
+      await assert.rejects(
+        () => service.terminate({ role: "admin" }, requestId, "Immediate safety concern"),
+        (error) => error instanceof LiveTerminationError && error.code === "INVALID",
+      );
+      assert.equal(terminated, 0);
+      assert.equal(cleaned, 0);
+    });
+  }
 });

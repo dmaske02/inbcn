@@ -12,6 +12,10 @@ type Repository = Readonly<{
 
 type Cleanup = (input: Readonly<{ roomName: string; profileId: string }>) => Promise<void>;
 
+export function createDeferredLiveKitCleanup(load: () => Promise<Cleanup>): Cleanup {
+  return async (input) => (await load())(input);
+}
+
 export class LiveTerminationError extends Error {
   readonly code: "FORBIDDEN" | "INVALID" | "UNAVAILABLE";
 
@@ -50,6 +54,9 @@ export function createLiveTerminationService(repository: Repository & Readonly<{
         throw unavailable();
       }
       if (!request) throw new LiveTerminationError("INVALID", "This live request is no longer available.");
+      if (request.status !== "approved" && request.status !== "terminated") {
+        throw new LiveTerminationError("INVALID", "This live request cannot be terminated.");
+      }
       if (request.status !== "terminated") {
         try {
           await repository.terminate(requestId, terminationReason);
@@ -71,17 +78,19 @@ export function createLiveTerminationService(repository: Repository & Readonly<{
 }
 
 async function runtimeService() {
-  const [{ env }, { RoomServiceClient }, { liveTerminationRepository }, { createLiveKitTerminationProvider }] = await Promise.all([
-    import("@/config/env"),
-    import("livekit-server-sdk"),
-    import("./live-termination.repository.ts"),
-    import("./live-termination.provider.ts"),
-  ]);
-  const { url, apiKey, apiSecret } = env.server.liveKit;
-  if (!url || !apiKey || !apiSecret) throw unavailable();
+  const { liveTerminationRepository } = await import("./live-termination.repository.ts");
   return createLiveTerminationService({
     ...liveTerminationRepository,
-    cleanup: createLiveKitTerminationProvider(new RoomServiceClient(url, apiKey, apiSecret)),
+    cleanup: createDeferredLiveKitCleanup(async () => {
+      const [{ env }, { RoomServiceClient }, { createLiveKitTerminationProvider }] = await Promise.all([
+        import("@/config/env"),
+        import("livekit-server-sdk"),
+        import("./live-termination.provider.ts"),
+      ]);
+      const { url, apiKey, apiSecret } = env.server.liveKit;
+      if (!url || !apiKey || !apiSecret) throw unavailable();
+      return createLiveKitTerminationProvider(new RoomServiceClient(url, apiKey, apiSecret));
+    }),
   });
 }
 

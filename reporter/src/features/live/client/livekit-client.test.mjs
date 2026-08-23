@@ -42,3 +42,15 @@ test("client maps LiveKit room deletion and participant removal to an admin term
   handlers.get("disconnected")?.(4);
   assert.deepEqual(received, ["admin-terminated", "admin-terminated"]);
 });
+
+test("client forwards LiveKit recording status changes", async () => {
+  const { handlers, room } = roomDouble();
+  const received = [];
+  const client = createLiveKitBroadcastClient(() => room);
+  await client.connect({ serverUrl: "wss://livekit.example.test", token: "token", roomName: "room", startsAt: "start", endsAt: "end", recordingState: "recording" }, { camera: {}, microphone: {} }, {
+    onRecordingStatusChanged: (isRecording) => received.push(isRecording),
+  });
+  handlers.get("recordingStatusChanged")?.(true);
+  handlers.get("recordingStatusChanged")?.(false);
+  assert.deepEqual(received, [true, false]);
+});
