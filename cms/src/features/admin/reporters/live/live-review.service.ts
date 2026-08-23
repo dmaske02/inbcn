@@ -39,6 +39,7 @@ function reason(value: string): string {
 }
 
 function safeError(error: unknown): LiveReviewError {
+  if (error instanceof LiveReviewError) return error;
   const detail = error instanceof Error ? error.message : "";
   if (detail.includes("REPORTER_LIVE_REQUEST_NOT_FOUND")) return new LiveReviewError("INVALID", "This live request is no longer available.");
   if (detail.includes("REPORTER_LIVE_REQUEST_CONFLICT") || detail.includes("REPORTER_LIVE_REQUEST_INVALID_STATE")) {
@@ -59,20 +60,32 @@ function requireDecision(admin: Pick<AdminIdentity, "role">): void {
 export function createLiveReviewService(repository: LiveReviewRepository) {
   return {
     async list(admin: AdminIdentity) { requireView(admin); return repository.list(); },
-    async get(admin: AdminIdentity, id: string) { requireView(admin); return repository.get(validId(id)); },
-    async approve(admin: AdminIdentity, id: string, startsAt: string, endsAt: string, maximumMinutes: number) {
+    async get(admin: AdminIdentity, id: string) {
+      requireView(admin);
+      const parsed = z.uuid().safeParse(id);
+      return parsed.success ? repository.get(parsed.data) : null;
+    },
+    async approve(admin: AdminIdentity, id: string, window: Readonly<{ startsAt: string; endsAt: string }>) {
       requireDecision(admin);
-      const window = validateApprovedWindow(startsAt, endsAt, maximumMinutes);
-      if (!window.ok) throw new LiveReviewError("INVALID", "Enter a valid approval window within the requested duration.");
-      try { await repository.approve(validId(id), window.startsAt, window.endsAt); } catch (error) { throw safeError(error); }
+      const requestId = validId(id);
+      let request: LiveReviewRequest | null;
+      try { request = await repository.get(requestId); } catch (error) { throw safeError(error); }
+      if (!request) throw new LiveReviewError("INVALID", "This live request is no longer available.");
+      const approvedWindow = validateApprovedWindow(window.startsAt, window.endsAt, request.expectedDurationMinutes);
+      if (!approvedWindow.ok) throw new LiveReviewError("INVALID", "Enter a valid approval window within the requested duration.");
+      try { await repository.approve(requestId, approvedWindow.startsAt, approvedWindow.endsAt); } catch (error) { throw safeError(error); }
     },
     async reject(admin: AdminIdentity, id: string, value: string) {
       requireDecision(admin);
-      try { await repository.reject(validId(id), reason(value)); } catch (error) { throw safeError(error); }
+      const requestId = validId(id);
+      const decisionReason = reason(value);
+      try { await repository.reject(requestId, decisionReason); } catch (error) { throw safeError(error); }
     },
     async terminate(admin: AdminIdentity, id: string, value: string) {
       requireDecision(admin);
-      try { await repository.terminate(validId(id), reason(value)); } catch (error) { throw safeError(error); }
+      const requestId = validId(id);
+      const terminationReason = reason(value);
+      try { await repository.terminate(requestId, terminationReason); } catch (error) { throw safeError(error); }
     },
   } as const;
 }
@@ -84,8 +97,8 @@ async function runtimeService() {
 
 export async function getLiveReviewRequests(admin: AdminIdentity) { return (await runtimeService()).list(admin); }
 export async function getLiveReviewRequest(admin: AdminIdentity, id: string) { return (await runtimeService()).get(admin, id); }
-export async function approveLiveRequest(admin: AdminIdentity, id: string, window: Readonly<{ startsAt: string; endsAt: string }>, maximumMinutes: number) {
-  return (await runtimeService()).approve(admin, id, window.startsAt, window.endsAt, maximumMinutes);
+export async function approveLiveRequest(admin: AdminIdentity, id: string, window: Readonly<{ startsAt: string; endsAt: string }>) {
+  return (await runtimeService()).approve(admin, id, window);
 }
 export async function rejectLiveRequest(admin: AdminIdentity, id: string, value: string) { return (await runtimeService()).reject(admin, id, value); }
 export async function terminateLiveRequest(admin: AdminIdentity, id: string, value: string) { return (await runtimeService()).terminate(admin, id, value); }

@@ -9,9 +9,15 @@ const editor = { ...admin, role: "editor" };
 
 function repository() {
   const calls = [];
+  const request = {
+    id, profileId: id, title: "Flood update", purpose: "Road closures", intendedLocality: "Dadar",
+    expectedStartsAt: "2026-08-22T10:00:00.000Z", expectedDurationMinutes: 30, supportingNotes: null,
+    status: "pending", decisionReason: null, approvedStartsAt: null, approvedEndsAt: null, terminationReason: null,
+    createdAt: "2026-08-22T09:00:00.000Z",
+  };
   return {
     calls,
-    list: async () => [], get: async () => null,
+    list: async () => [], get: async () => request,
     approve: async (...args) => { calls.push(["approve", ...args]); },
     reject: async (...args) => { calls.push(["reject", ...args]); },
     terminate: async (...args) => { calls.push(["terminate", ...args]); },
@@ -23,19 +29,18 @@ test("editors can read but cannot approve live requests", async () => {
   const service = createLiveReviewService(repo);
   assert.deepEqual(await service.list(editor), []);
   await assert.rejects(
-    () => service.approve(editor, id, "2026-08-22T10:00:00Z", "2026-08-22T10:30:00Z", 30),
+    () => service.approve(editor, id, { startsAt: "2026-08-22T10:00:00Z", endsAt: "2026-08-22T10:30:00Z" }),
     (error) => error instanceof LiveReviewError && error.code === "FORBIDDEN",
   );
 });
 
-test("admin approval accepts the exact window and safe duplicate RPC success", async () => {
+test("admin approval derives the maximum window from the authoritative request", async () => {
   const repo = repository();
   const service = createLiveReviewService(repo);
-  await service.approve(admin, id, "2026-08-22T10:00:00Z", "2026-08-22T10:30:00Z", 30);
-  await service.approve(admin, id, "2026-08-22T10:00:00Z", "2026-08-22T10:30:00Z", 30);
-  assert.equal(repo.calls.filter(([operation]) => operation === "approve").length, 2);
+  await service.approve(admin, id, { startsAt: "2026-08-22T10:00:00Z", endsAt: "2026-08-22T10:30:00Z" });
+  assert.deepEqual(repo.calls, [["approve", id, "2026-08-22T10:00:00.000Z", "2026-08-22T10:30:00.000Z"]]);
   await assert.rejects(
-    () => service.approve(admin, id, "2026-08-22T10:00:00Z", "2026-08-22T10:31:00Z", 30),
+    () => service.approve(admin, id, { startsAt: "2026-08-22T10:00:00Z", endsAt: "2026-08-22T10:31:00Z" }),
     (error) => error instanceof LiveReviewError && error.code === "INVALID",
   );
 });
@@ -45,5 +50,25 @@ test("admin termination requires a bounded trimmed reason", async () => {
   const service = createLiveReviewService(repo);
   await service.terminate(admin, id, "  Safety concern  ");
   assert.deepEqual(repo.calls, [["terminate", id, "Safety concern"]]);
-  await assert.rejects(() => service.terminate(admin, id, " "), LiveReviewError);
+  for (const value of [" ", "x".repeat(2001)]) {
+    await assert.rejects(
+      () => service.terminate(admin, id, value),
+      (error) => error instanceof LiveReviewError
+        && error.code === "INVALID"
+        && error.message === "Enter a reason between 1 and 2000 characters.",
+    );
+  }
+});
+
+test("malformed read IDs fail closed as missing rows", async () => {
+  const service = createLiveReviewService(repository());
+  assert.equal(await service.get(admin, "not-a-uuid"), null);
+});
+
+test("malformed mutation IDs remain safe validation errors", async () => {
+  const service = createLiveReviewService(repository());
+  await assert.rejects(
+    () => service.reject(admin, "not-a-uuid", "No safety plan"),
+    (error) => error instanceof LiveReviewError && error.code === "INVALID" && error.message === "The live request is invalid.",
+  );
 });

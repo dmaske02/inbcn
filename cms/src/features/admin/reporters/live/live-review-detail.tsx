@@ -16,7 +16,7 @@ function StateMessage({ state, pending }: Readonly<{ state: LiveReviewActionStat
 function date(value: string): string { return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" }).format(new Date(value)); }
 
 export function LiveReviewDetail({ request, canDecide }: Readonly<{ request: LiveReviewRequest; canDecide: boolean }>) {
-  const approve = approveLiveRequestAction.bind(null, request.id, request.expectedDurationMinutes);
+  const approve = approveLiveRequestAction.bind(null, request.id);
   const reject = rejectLiveRequestAction.bind(null, request.id);
   const terminate = terminateLiveRequestAction.bind(null, request.id);
   const [approveState, approveAction, approvePending] = useActionState(approve, initialState);

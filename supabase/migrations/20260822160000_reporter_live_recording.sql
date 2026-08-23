@@ -417,7 +417,7 @@ begin
   insert into public.audit_events (actor_id, action, subject_type, subject_id, metadata, created_at)
   values (actor_id, 'reporter_live_request.terminated', 'reporter_live_request', current_request.id, '{"status":"terminated"}'::jsonb, termination_time);
   insert into public.reporter_notifications (profile_id, notification_type, message, delivery_channel, delivery_status, created_at)
-  values (current_request.profile_id, 'live_request_terminated', 'Your live broadcast session was terminated by the newsroom.', 'in_app', 'not_applicable', termination_time);
+  values (current_request.profile_id, 'live_request_terminated', 'Your approved live request window was cancelled by the newsroom.', 'in_app', 'not_applicable', termination_time);
   return current_request.id;
 end;
 $$;

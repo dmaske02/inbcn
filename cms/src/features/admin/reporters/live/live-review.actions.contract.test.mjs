@@ -9,4 +9,5 @@ test("live review decisions stay behind the admin-only server action", async () 
   assert.match(actions, /approveLiveRequest/u);
   assert.match(actions, /rejectLiveRequest/u);
   assert.match(actions, /terminateLiveRequest/u);
+  assert.doesNotMatch(actions, /maximumMinutes/u);
 });

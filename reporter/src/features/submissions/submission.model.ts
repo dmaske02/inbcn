@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { strictTimestampMilliseconds } from "@inbcn/domain";
 
 export const REPORTER_LANGUAGE_CODES = ["en", "hi", "mr"] as const;
 export type ReporterLanguageCode = (typeof REPORTER_LANGUAGE_CODES)[number];
@@ -75,33 +76,6 @@ const locationSchema = z.object({
 
 function nowMilliseconds(now: string | number | Date): number {
   return now instanceof Date ? now.getTime() : typeof now === "number" ? now : strictTimestampMilliseconds(now);
-}
-
-function strictTimestampMilliseconds(value: string): number {
-  const match = value.match(
-    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/u,
-  );
-  if (!match) return Number.NaN;
-  const [, yearText, monthText, dayText, hourText, minuteText, secondText = "00", timezone] = match;
-  const year = Number(yearText);
-  const month = Number(monthText);
-  const day = Number(dayText);
-  const hour = Number(hourText);
-  const minute = Number(minuteText);
-  const second = Number(secondText);
-  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
-  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
-  if (year < 1 || !daysInMonth || day < 1 || day > daysInMonth
-    || hour > 23 || minute > 59 || second > 59) {
-    return Number.NaN;
-  }
-  if (timezone !== "Z") {
-    const [offsetHour, offsetMinute] = timezone.slice(1).split(":").map(Number);
-    if (offsetHour > 14 || offsetMinute > 59 || (offsetHour === 14 && offsetMinute !== 0)) {
-      return Number.NaN;
-    }
-  }
-  return Date.parse(value);
 }
 
 export function createNewReporterDraftTarget(randomId: () => string): ReporterDraftActionTarget {

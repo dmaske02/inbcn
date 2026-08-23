@@ -21,10 +21,10 @@ function refresh(id: string): void {
   revalidatePath(`/admin/reporters/live/${id}`);
 }
 
-export async function approveLiveRequestAction(id: string, maximumMinutes: number, _previous: LiveReviewActionState, formData: FormData): Promise<LiveReviewActionState> {
+export async function approveLiveRequestAction(id: string, _previous: LiveReviewActionState, formData: FormData): Promise<LiveReviewActionState> {
   const admin = await requireAdminUser();
   try {
-    await approveLiveRequest(admin, id, { startsAt: istTimestamp(formData.get("approvedStartsAt")), endsAt: istTimestamp(formData.get("approvedEndsAt")) }, maximumMinutes);
+    await approveLiveRequest(admin, id, { startsAt: istTimestamp(formData.get("approvedStartsAt")), endsAt: istTimestamp(formData.get("approvedEndsAt")) });
     refresh(id);
     return { status: "success", message: "Live request approved for the selected window." };
   } catch (error) { return safeError(error); }

@@ -7,6 +7,7 @@ export {
   isAtLeast18,
   membershipAccess,
   membershipStatusAt,
+  strictTimestampMilliseconds,
   reporterApplicationStatuses,
   type ReporterMembershipAccess,
   type ReporterMembershipStatus,

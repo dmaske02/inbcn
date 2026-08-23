@@ -41,3 +41,15 @@ test("normalizes bounded request fields without coordinates", () => {
     },
   });
 });
+
+test("treats missing supporting notes as optional private input", () => {
+  const input = {
+    title: "Flood response update", purpose: "Explain the road closure and relief work.", intendedLocality: "Dadar",
+    expectedStartsAt: "2026-08-22T10:00:00Z", expectedDurationMinutes: 60,
+  };
+  for (const supportingNotes of [undefined, null]) {
+    const result = validateLiveRequestInput({ ...input, supportingNotes });
+    assert.equal(result.ok, true);
+    assert.equal(result.data.supportingNotes, null);
+  }
+});

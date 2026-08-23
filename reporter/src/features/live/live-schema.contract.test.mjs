@@ -159,6 +159,12 @@ test("same-terminal live commands reject conflicting normalized inputs", () => {
   );
 });
 
+test("termination copy describes request-window cancellation, not a provider session", () => {
+  const termination = sqlFunction("terminate_reporter_live_request");
+  assert.match(termination, /Your approved live request window was cancelled by the newsroom\./u);
+  assert.doesNotMatch(termination, /session was terminated/u);
+});
+
 test("request creation is audited once with fixed safe metadata", () => {
   const trigger = sqlFunction("audit_reporter_live_request_creation");
 
