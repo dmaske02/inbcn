@@ -16,7 +16,7 @@ export const initialBroadcastState: BroadcastState = Object.freeze({
 export type BroadcastEvent =
   | Readonly<{ type: "permissions-granted" }>
   | Readonly<{ type: "connecting" }>
-  | Readonly<{ type: "connected"; recordingState: "recording" | "failed" }>
+  | Readonly<{ type: "connected" }>
   | Readonly<{ type: "recording-status"; recordingState: "recording" | "failed" }>
   | Readonly<{ type: "reconnecting" }>
   | Readonly<{ type: "reconnected" }>
@@ -32,7 +32,7 @@ export function reduceBroadcast(state: BroadcastState, event: BroadcastEvent): B
   switch (event.type) {
     case "permissions-granted": return { ...state, phase: "preview", error: null, message: null };
     case "connecting": return { ...state, phase: "connecting", error: null, message: null };
-    case "connected": return { ...state, phase: "live", recordingState: event.recordingState, error: null, message: null };
+    case "connected": return { ...state, phase: "live", error: null, message: null };
     case "reconnecting": return { ...state, phase: "reconnecting", error: null };
     case "reconnected": return { ...state, phase: "live", error: null };
     case "room-disconnected": return event.reason === "admin-terminated"
@@ -73,6 +73,14 @@ export function createBroadcastController({ media, livekit, requestSession }: De
     media.stopPreview(state.preview);
     emit({ ...state, preview: null });
   };
+  const invalidate = () => {
+    generation += 1;
+    previewPending = false;
+    broadcastPending = false;
+  };
+  const disconnectSafely = async () => {
+    try { await livekit.disconnect(); } catch { /* Cleanup must not restore a stale broadcast state. */ }
+  };
 
   return {
     getSnapshot: () => state,
@@ -109,33 +117,39 @@ export function createBroadcastController({ media, livekit, requestSession }: De
       }
       if (operation !== generation) return;
       if (!session.ok) { transition({ type: "failed", error: session.error }); broadcastPending = false; return; }
+      transition({ type: "recording-status", recordingState: session.credentials.recordingState });
       try {
         await livekit.connect(session.credentials, state.preview, {
           onReconnecting: () => { if (operation === generation) transition({ type: "reconnecting" }); },
           onReconnected: () => { if (operation === generation) transition({ type: "reconnected" }); },
           onRecordingStatusChanged: (isRecording) => { if (operation === generation) transition({ type: "recording-status", recordingState: isRecording ? "recording" : "failed" }); },
-          onDisconnected: (reason) => { if (operation === generation) { release(); transition({ type: "room-disconnected", reason }); } },
+          onDisconnected: (reason) => {
+            if (operation !== generation) return;
+            invalidate();
+            release();
+            transition({ type: "room-disconnected", reason });
+          },
         });
-        if (operation !== generation) { await livekit.disconnect(); return; }
-        transition({ type: "connected", recordingState: session.credentials.recordingState });
+        if (operation !== generation) { await disconnectSafely(); return; }
+        transition({ type: "connected" });
       } catch (error) {
-        if (operation !== generation) { await livekit.disconnect(); return; }
+        if (operation !== generation) { await disconnectSafely(); return; }
         release();
         transition({ type: "failed", error: safeError(error) });
       } finally {
         if (operation === generation) broadcastPending = false;
       }
     },
-    async leave() { generation += 1; previewPending = false; broadcastPending = false; await livekit.disconnect(); release(); cleaned = true; transition({ type: "left" }); },
+    async leave() {
+      invalidate();
+      try { await livekit.disconnect(); } catch { /* Leaving must finish local cleanup after provider failure. */ }
+      finally { release(); cleaned = true; transition({ type: "left" }); }
+    },
     async cleanup() {
       if (cleaned) return;
-      generation += 1;
-      previewPending = false;
-      broadcastPending = false;
-      await livekit.disconnect();
-      release();
-      cleaned = true;
-      transition({ type: "left" });
+      invalidate();
+      try { await livekit.disconnect(); } catch { /* Unmount cleanup must not expose provider failures. */ }
+      finally { release(); cleaned = true; transition({ type: "left" }); }
     },
   } as const;
 }
