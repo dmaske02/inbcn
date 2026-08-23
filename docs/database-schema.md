@@ -41,6 +41,8 @@ The baseline migration is stored in
   per-request admin decision, approved window, DB-derived room, and termination.
 - `live_recordings` stores private LiveKit Egress recording segments, output
   facts, private provider metadata, replay fields, retention deadline, and hold.
+  Provider starts use service-only UUID claims and a five-minute DB lease; a
+  partial unique index allows only one pending/recording segment per request.
 
 ## Reporter foundation
 

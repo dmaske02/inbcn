@@ -40,6 +40,15 @@ const environmentSchema = z
     LIVEKIT_URL: optionalLiveKitUrl,
     LIVEKIT_API_KEY: optionalString,
     LIVEKIT_API_SECRET: optionalString,
+    LIVEKIT_S3_ACCESS_KEY: optionalString,
+    LIVEKIT_S3_SECRET: optionalString,
+    LIVEKIT_S3_BUCKET: optionalString,
+    LIVEKIT_S3_ENDPOINT: optionalHttpUrl,
+    LIVEKIT_S3_REGION: optionalString,
+    LIVEKIT_S3_FORCE_PATH_STYLE: z.preprocess(
+      emptyStringToUndefined,
+      z.enum(["true", "false"]).optional(),
+    ),
     CRON_SECRET: optionalString,
     SMS_NOTIFICATIONS_ENABLED: z.enum(["true", "false"]).default("false"),
   })
@@ -83,6 +92,26 @@ const environmentSchema = z
       ],
       "LiveKit",
     );
+    if ([
+      values.LIVEKIT_S3_ACCESS_KEY,
+      values.LIVEKIT_S3_SECRET,
+      values.LIVEKIT_S3_BUCKET,
+      values.LIVEKIT_S3_ENDPOINT,
+      values.LIVEKIT_S3_REGION,
+      values.LIVEKIT_S3_FORCE_PATH_STYLE,
+    ].some(Boolean)) {
+      for (const [name, value] of [
+        ["LIVEKIT_S3_ACCESS_KEY", values.LIVEKIT_S3_ACCESS_KEY],
+        ["LIVEKIT_S3_SECRET", values.LIVEKIT_S3_SECRET],
+        ["LIVEKIT_S3_BUCKET", values.LIVEKIT_S3_BUCKET],
+      ] as const) {
+        if (!value) context.addIssue({
+          code: "custom",
+          path: [name],
+          message: `${name} is required when private LiveKit storage is configured.`,
+        });
+      }
+    }
 
     if (values.KYC_ENABLED === "true") {
       for (const [name, value] of [
@@ -134,6 +163,12 @@ const parsedEnvironment = environmentSchema.safeParse({
   LIVEKIT_URL: process.env.LIVEKIT_URL,
   LIVEKIT_API_KEY: process.env.LIVEKIT_API_KEY,
   LIVEKIT_API_SECRET: process.env.LIVEKIT_API_SECRET,
+  LIVEKIT_S3_ACCESS_KEY: process.env.LIVEKIT_S3_ACCESS_KEY,
+  LIVEKIT_S3_SECRET: process.env.LIVEKIT_S3_SECRET,
+  LIVEKIT_S3_BUCKET: process.env.LIVEKIT_S3_BUCKET,
+  LIVEKIT_S3_ENDPOINT: process.env.LIVEKIT_S3_ENDPOINT,
+  LIVEKIT_S3_REGION: process.env.LIVEKIT_S3_REGION,
+  LIVEKIT_S3_FORCE_PATH_STYLE: process.env.LIVEKIT_S3_FORCE_PATH_STYLE,
   CRON_SECRET: process.env.CRON_SECRET,
   SMS_NOTIFICATIONS_ENABLED: process.env.SMS_NOTIFICATIONS_ENABLED,
 });
@@ -177,6 +212,14 @@ export const env = Object.freeze({
       url: values.LIVEKIT_URL,
       apiKey: values.LIVEKIT_API_KEY,
       apiSecret: values.LIVEKIT_API_SECRET,
+      storage: Object.freeze({
+        accessKey: values.LIVEKIT_S3_ACCESS_KEY,
+        secret: values.LIVEKIT_S3_SECRET,
+        bucket: values.LIVEKIT_S3_BUCKET,
+        endpoint: values.LIVEKIT_S3_ENDPOINT,
+        region: values.LIVEKIT_S3_REGION,
+        forcePathStyle: values.LIVEKIT_S3_FORCE_PATH_STYLE === "true",
+      }),
     }),
     cronSecret: values.CRON_SECRET,
     smsNotificationsEnabled: values.SMS_NOTIFICATIONS_ENABLED === "true",

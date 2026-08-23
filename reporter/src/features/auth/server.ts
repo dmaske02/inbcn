@@ -9,8 +9,8 @@ import {
   type ReporterAuthorizationResult,
 } from "./authorization.model";
 
-type CurrentReporterResult =
-  | ReporterAuthorizationResult
+export type CurrentReporterResult =
+  | (ReporterAuthorizationResult & Readonly<{ accessGeneration?: number }>)
   | Readonly<{
       ok: false;
       reason: Extract<
@@ -66,7 +66,7 @@ export async function authorizeCurrentReporter(): Promise<CurrentReporterResult>
     accessSyncGeneration = reporter?.access_sync_generation ?? null;
   }
 
-  return authorizeReporterIdentity(
+  const authorization = authorizeReporterIdentity(
     { id: claims.sub, role, accessGeneration },
     profile
       ? {
@@ -78,6 +78,10 @@ export async function authorizeCurrentReporter(): Promise<CurrentReporterResult>
         }
       : null,
   );
+  if (authorization.ok && authorization.state === "reporter" && accessGeneration !== null) {
+    return { ...authorization, accessGeneration };
+  }
+  return authorization;
 }
 
 export async function requireReporterSession() {

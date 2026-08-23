@@ -629,6 +629,9 @@ export type Database = {
           live_stream_id: string | null
           egress_id: string | null
           recording_status: string
+          recording_claim_token: string | null
+          recording_claimed_at: string | null
+          recording_attempt_count: number
           storage_key: string | null
           duration_seconds: number | null
           bytes: number | null
@@ -655,6 +658,9 @@ export type Database = {
           live_stream_id?: string | null
           egress_id?: string | null
           recording_status?: string
+          recording_claim_token?: string | null
+          recording_claimed_at?: string | null
+          recording_attempt_count?: number
           storage_key?: string | null
           duration_seconds?: number | null
           bytes?: number | null
@@ -681,6 +687,9 @@ export type Database = {
           live_stream_id?: string | null
           egress_id?: string | null
           recording_status?: string
+          recording_claim_token?: string | null
+          recording_claimed_at?: string | null
+          recording_attempt_count?: number
           storage_key?: string | null
           duration_seconds?: number | null
           bytes?: number | null
@@ -1619,6 +1628,10 @@ export type Database = {
         Args: { p_profile_id: string; p_generation: number; p_claim_token: string; p_succeeded: boolean; p_failure_detail: string | null }
         Returns: Json
       }
+      complete_reporter_live_recording_start: {
+        Args: { p_recording_id: string; p_claim_token: string; p_egress_id: string }
+        Returns: boolean
+      }
       fail_razorpay_webhook_event: {
         Args: { p_event_id: string; p_processing_token: string; p_failure_detail: string }
         Returns: boolean
@@ -1626,6 +1639,10 @@ export type Database = {
       fail_kyc_webhook_event: { Args: { p_event_id: string; p_processing_token: string; p_failure_detail: string }; Returns: boolean }
       fail_reporter_order: {
         Args: { p_payment_id: string; p_order_creation_token: string }
+        Returns: boolean
+      }
+      fail_reporter_live_recording_start: {
+        Args: { p_recording_id: string; p_claim_token: string; p_failure_code: string }
         Returns: boolean
       }
       is_reporter_story: {
@@ -1654,6 +1671,10 @@ export type Database = {
       }
       reserve_reporter_order: {
         Args: { p_profile_id: string; p_application_id: string | null; p_purpose: string; p_required_consents: Json }
+        Returns: Json
+      }
+      reserve_reporter_live_recording: {
+        Args: { p_profile_id: string; p_access_generation: number; p_request_id: string }
         Returns: Json
       }
       reserve_reporter_refund: {
