@@ -63,6 +63,13 @@ updates and receive no editorial privileges.
   server-only upload completion flow owns canonical media writes.
 - `public_reporter_profiles`: anonymous and authenticated users can select the
   deliberately narrow public projection; neither role can select its base table.
+- `reporter_live_requests`: eligible active reporters can create only their own
+  pending requests after a signed-generation, active membership, access-sync,
+  and live-trust check. They can read only their own requests, with no direct
+  update or delete capability. Active admins may read requests.
+- `live_recordings`: there is no anonymous or reporter base-table access.
+  Active editors/admins can read the private review records; the service role
+  receives only explicit lifecycle columns and cannot set legal hold directly.
 
 ## Reporter transition functions
 
@@ -128,6 +135,15 @@ functions are also `service_role`-only, use row locks and compare-and-set lease
 tokens, and validate exact provider identifiers, fixed money fields, and expected
 states before capture or refund completion. Refund reservation additionally
 rechecks that the supplied actor is an active database `admin` profile.
+
+Live approval, rejection, termination, and legal hold are separate
+empty-search-path `SECURITY DEFINER` functions. Every command requires both the
+signed `app_metadata.role = admin` claim and an active matching database admin.
+Approval locks the request and rechecks the target reporter's active (not grace)
+membership, active profile, synchronized reporter role, and live trust grant;
+the general grant never creates an unapproved room. Audit metadata and reporter
+notifications contain only safe status facts, not provider identifiers,
+storage keys, notes, or decision/termination reasons.
 
 ## Security notes
 

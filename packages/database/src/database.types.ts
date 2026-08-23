@@ -279,6 +279,79 @@ export type Database = {
           { foreignKeyName: "reporter_payments_application_profile_fkey"; columns: ["application_id", "profile_id"]; isOneToOne: false; referencedRelation: "reporter_applications"; referencedColumns: ["id", "profile_id"] },
         ]
       }
+      reporter_live_requests: {
+        Row: {
+          id: string
+          profile_id: string
+          title: string
+          purpose: string
+          intended_locality: string
+          expected_starts_at: string
+          expected_duration_minutes: number
+          supporting_notes: string | null
+          status: string
+          decided_by: string | null
+          decided_at: string | null
+          decision_reason: string | null
+          approved_starts_at: string | null
+          approved_ends_at: string | null
+          livekit_room_name: string | null
+          terminated_by: string | null
+          terminated_at: string | null
+          termination_reason: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          profile_id: string
+          title: string
+          purpose: string
+          intended_locality: string
+          expected_starts_at: string
+          expected_duration_minutes: number
+          supporting_notes?: string | null
+          status?: string
+          decided_by?: string | null
+          decided_at?: string | null
+          decision_reason?: string | null
+          approved_starts_at?: string | null
+          approved_ends_at?: string | null
+          livekit_room_name?: string | null
+          terminated_by?: string | null
+          terminated_at?: string | null
+          termination_reason?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          profile_id?: string
+          title?: string
+          purpose?: string
+          intended_locality?: string
+          expected_starts_at?: string
+          expected_duration_minutes?: number
+          supporting_notes?: string | null
+          status?: string
+          decided_by?: string | null
+          decided_at?: string | null
+          decision_reason?: string | null
+          approved_starts_at?: string | null
+          approved_ends_at?: string | null
+          livekit_room_name?: string | null
+          terminated_by?: string | null
+          terminated_at?: string | null
+          termination_reason?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "reporter_live_requests_profile_id_fkey"; columns: ["profile_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "reporter_live_requests_decided_by_fkey"; columns: ["decided_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "reporter_live_requests_terminated_by_fkey"; columns: ["terminated_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ]
+      }
       reporter_profiles: {
         Row: {
           profile_id: string
@@ -547,6 +620,92 @@ export type Database = {
           { foreignKeyName: "live_streams_related_story_id_fkey"; columns: ["related_story_id"]; isOneToOne: false; referencedRelation: "stories"; referencedColumns: ["id"] },
           { foreignKeyName: "live_streams_created_by_fkey"; columns: ["created_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
           { foreignKeyName: "live_streams_updated_by_fkey"; columns: ["updated_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ]
+      }
+      live_recordings: {
+        Row: {
+          id: string
+          live_request_id: string
+          live_stream_id: string | null
+          egress_id: string | null
+          recording_status: string
+          storage_key: string | null
+          duration_seconds: number | null
+          bytes: number | null
+          checksum: string | null
+          provider_error: string | null
+          private_metadata: Json
+          recording_started_at: string | null
+          recording_completed_at: string | null
+          replay_status: string
+          replay_title: string | null
+          replay_description: string | null
+          replay_category_id: string | null
+          replay_thumbnail_media_id: string | null
+          replay_published_at: string | null
+          replay_rejected_at: string | null
+          retention_delete_at: string | null
+          legal_hold: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          live_request_id: string
+          live_stream_id?: string | null
+          egress_id?: string | null
+          recording_status?: string
+          storage_key?: string | null
+          duration_seconds?: number | null
+          bytes?: number | null
+          checksum?: string | null
+          provider_error?: string | null
+          private_metadata?: Json
+          recording_started_at?: string | null
+          recording_completed_at?: string | null
+          replay_status?: string
+          replay_title?: string | null
+          replay_description?: string | null
+          replay_category_id?: string | null
+          replay_thumbnail_media_id?: string | null
+          replay_published_at?: string | null
+          replay_rejected_at?: string | null
+          retention_delete_at?: string | null
+          legal_hold?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          live_request_id?: string
+          live_stream_id?: string | null
+          egress_id?: string | null
+          recording_status?: string
+          storage_key?: string | null
+          duration_seconds?: number | null
+          bytes?: number | null
+          checksum?: string | null
+          provider_error?: string | null
+          private_metadata?: Json
+          recording_started_at?: string | null
+          recording_completed_at?: string | null
+          replay_status?: string
+          replay_title?: string | null
+          replay_description?: string | null
+          replay_category_id?: string | null
+          replay_thumbnail_media_id?: string | null
+          replay_published_at?: string | null
+          replay_rejected_at?: string | null
+          retention_delete_at?: string | null
+          legal_hold?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "live_recordings_live_request_id_fkey"; columns: ["live_request_id"]; isOneToOne: false; referencedRelation: "reporter_live_requests"; referencedColumns: ["id"] },
+          { foreignKeyName: "live_recordings_live_stream_id_fkey"; columns: ["live_stream_id"]; isOneToOne: false; referencedRelation: "live_streams"; referencedColumns: ["id"] },
+          { foreignKeyName: "live_recordings_replay_category_id_fkey"; columns: ["replay_category_id"]; isOneToOne: false; referencedRelation: "categories"; referencedColumns: ["id"] },
+          { foreignKeyName: "live_recordings_replay_thumbnail_media_id_fkey"; columns: ["replay_thumbnail_media_id"]; isOneToOne: false; referencedRelation: "media"; referencedColumns: ["id"] },
         ]
       }
       categories: {
@@ -1385,6 +1544,10 @@ export type Database = {
         Returns: string
       }
       approve_reporter_application: { Args: { p_application_id: string; p_public_photo_identity_match: boolean }; Returns: string }
+      approve_reporter_live_request: {
+        Args: { p_request_id: string; p_approved_starts_at: string; p_approved_ends_at: string }
+        Returns: string
+      }
       claim_razorpay_webhook_event: {
         Args: { p_event_id: string; p_event_type: string }
         Returns: Json
@@ -1483,6 +1646,7 @@ export type Database = {
       retire_media_asset: { Args: { media_id: string; expected_updated_at: string }; Returns: string }
       restore_media_asset: { Args: { media_id: string; expected_updated_at: string }; Returns: string }
       reject_reporter_application: { Args: { p_application_id: string; p_decision_reason: string }; Returns: string }
+      reject_reporter_live_request: { Args: { p_request_id: string; p_decision_reason: string }; Returns: string }
       reinstate_reporter: { Args: { p_profile_id: string }; Returns: string }
       record_reporter_refund_request: {
         Args: { p_payment_id: string; p_refund_request_token: string; p_razorpay_refund_id: string; p_razorpay_payment_id: string; p_amount_paise: number; p_currency: string }
@@ -1540,6 +1704,8 @@ export type Database = {
         Args: { p_capability: string; p_enabled: boolean; p_profile_id: string; p_reason: string }
         Returns: Json
       }
+      set_live_recording_legal_hold: { Args: { p_recording_id: string; p_legal_hold: boolean }; Returns: string }
+      terminate_reporter_live_request: { Args: { p_request_id: string; p_termination_reason: string }; Returns: string }
       withdraw_reporter_story: { Args: { p_story_id: string }; Returns: Json }
     }
     Enums: {

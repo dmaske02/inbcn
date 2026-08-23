@@ -37,6 +37,10 @@ The baseline migration is stored in
   state without coupling delivery success to the underlying business event.
 - `audit_events` stores append-only, safe actor/action/subject metadata for
   security and reporter lifecycle transitions.
+- `reporter_live_requests` stores private reporter-proposed broadcasts and the
+  per-request admin decision, approved window, DB-derived room, and termination.
+- `live_recordings` stores private LiveKit Egress recording segments, output
+  facts, private provider metadata, replay fields, retention deadline, and hold.
 
 ## Reporter foundation
 
@@ -89,6 +93,15 @@ immutable-revision provenance; legacy writer/admin citizen reports are not
 attributed to a reporter. Date of birth, KYC references, payment identifiers,
 consent receipts, review notes, city/state, and trust controls remain in private
 base tables.
+
+`supabase/migrations/20260822160000_reporter_live_recording.sql` keeps the
+existing `live_streams` channel model unchanged. A live request may receive one
+DB-derived approved room and many recording segments. Egress IDs are unique
+when present. Lifecycle triggers own recording transition timestamps and assign
+terminal private/rejected recordings a 90-day `retention_delete_at`; published
+recordings receive no deadline and `legal_hold` excludes a row from the queue.
+Storage keys, provider errors, supporting notes, and private metadata remain
+base-table-only fields.
 
 ## Design notes
 
