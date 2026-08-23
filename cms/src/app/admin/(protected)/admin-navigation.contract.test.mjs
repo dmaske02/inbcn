@@ -29,6 +29,11 @@ test("reporter administration is linked only for administrators", () => {
   );
 });
 
+test("live request review is discoverable to editors and administrators", () => {
+  assert.match(layout, /canViewLiveRequests\(admin\.role\)/u);
+  assert.match(layout, /href="\/admin\/reporters\/live"/u);
+});
+
 test("Broadcast navigation links to the existing route and marks nested paths active", async () => {
   const source = await readFile(broadcastLinkUrl, "utf8");
   assert.match(source, /^"use client"/u);

@@ -66,7 +66,9 @@ updates and receive no editorial privileges.
 - `reporter_live_requests`: eligible active reporters can create only their own
   pending requests after a signed-generation, active membership, access-sync,
   and live-trust check. They can read only their own requests, with no direct
-  update or delete capability. Active admins may read requests.
+  update or delete capability. Active admins and active signed editors may read
+  request rows; editors receive no request mutation or unrelated reporter,
+  KYC, payment, provider, or recording access.
 - `live_recordings`: there is no anonymous or reporter base-table access.
   Active editors/admins can read the private review records; the service role
   receives only explicit lifecycle columns and cannot set legal hold directly.

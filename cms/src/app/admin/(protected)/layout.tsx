@@ -11,6 +11,7 @@ import { canManageLiveTv } from "@/features/admin/live-tv/live-tv.model";
 import { AdminMobileNavigation } from "@/features/admin/navigation/admin-mobile-navigation";
 import { BroadcastNavigationLink } from "@/features/admin/navigation/broadcast-navigation-link";
 import { canSetReporterTrust } from "@/features/admin/reporters/reporter.model";
+import { canViewLiveRequests } from "@/features/admin/reporters/live/live-review.model";
 import { canAccessBroadcastStudio } from "@/features/broadcast-studio/models/broadcast-session.model";
 
 export default async function ProtectedAdminLayout({
@@ -26,6 +27,7 @@ export default async function ProtectedAdminLayout({
       {canAccessBroadcastStudio(admin.role) ? <BroadcastNavigationLink /> : null}
       {canManageAlerts(admin.role) ? <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/alerts">Alerts</Link> : null}
       {canSetReporterTrust(admin.role) ? <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/reporters">Reporters</Link> : null}
+      {canViewLiveRequests(admin.role) ? <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/reporters/live">Live requests</Link> : null}
       {canManageMedia(admin.role) ? <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/media">Media</Link> : null}
       {canManageNewsData(admin.role) ? <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/sources">Sources</Link> : null}
       {canManageNewsData(admin.role) ? <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/admin/imports">Imports</Link> : null}

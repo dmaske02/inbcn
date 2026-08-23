@@ -15,6 +15,7 @@ export default async function ProtectedLayout({
           {actor.state === "reporter" ? (
             <>
               <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/stories">Stories</Link>
+              <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/live">Live</Link>
               <Link className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/membership">Membership</Link>
             </>
           ) : null}
