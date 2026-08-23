@@ -40,7 +40,7 @@ export function reduceBroadcast(state: BroadcastState, event: BroadcastEvent): B
       : { ...state, phase: "idle", preview: null, recordingState: null, message: "The broadcast connection ended. Rejoin only if your approved window is still active." };
     case "recording-status": return { ...state, recordingState: event.recordingState };
     case "left": return initialBroadcastState;
-    case "failed": return { ...state, phase: state.preview ? "preview" : "error", error: event.error, message: null };
+    case "failed": return { ...state, phase: state.preview ? "preview" : "error", recordingState: null, error: event.error, message: null };
   }
 }
 

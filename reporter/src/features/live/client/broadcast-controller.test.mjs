@@ -314,3 +314,13 @@ test("recording callbacks during a pending connect win over stale session record
     });
   }
 });
+
+test("a current connect failure clears preloaded recording state before exposing its safe error", async () => {
+  const { controller } = setup({ connectError: new Error("private provider detail") });
+  await controller.startPreview();
+  await controller.startBroadcast();
+  assert.equal(controller.getSnapshot().phase, "error");
+  assert.equal(controller.getSnapshot().error?.code, "broadcast-unavailable");
+  assert.equal(controller.getSnapshot().recordingState, null);
+  assert.equal(recordingAnnouncement(controller.getSnapshot().recordingState), "Recording status is unavailable.");
+});
