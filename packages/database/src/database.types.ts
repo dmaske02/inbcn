@@ -493,9 +493,9 @@ export type Database = {
         ]
       }
       webhook_events: {
-        Row: { id: string; provider: string; provider_event_id: string; event_type: string; signature_verified_at: string; processing_status: string; attempt_count: number; processing_token: string | null; failure_detail: string | null; subject_type: string | null; subject_id: string | null; processed_at: string | null; created_at: string; updated_at: string }
-        Insert: { id?: string; provider: string; provider_event_id: string; event_type: string; signature_verified_at: string; processing_status?: string; attempt_count?: number; processing_token?: string | null; failure_detail?: string | null; subject_type?: string | null; subject_id?: string | null; processed_at?: string | null; created_at?: string; updated_at?: string }
-        Update: { id?: string; provider?: string; provider_event_id?: string; event_type?: string; signature_verified_at?: string; processing_status?: string; attempt_count?: number; processing_token?: string | null; failure_detail?: string | null; subject_type?: string | null; subject_id?: string | null; processed_at?: string | null; created_at?: string; updated_at?: string }
+        Row: { id: string; provider: string; provider_event_id: string; event_type: string; provider_subject_id: string | null; signature_verified_at: string; processing_status: string; attempt_count: number; processing_token: string | null; failure_detail: string | null; subject_type: string | null; subject_id: string | null; processed_at: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; provider: string; provider_event_id: string; event_type: string; provider_subject_id?: string | null; signature_verified_at: string; processing_status?: string; attempt_count?: number; processing_token?: string | null; failure_detail?: string | null; subject_type?: string | null; subject_id?: string | null; processed_at?: string | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; provider?: string; provider_event_id?: string; event_type?: string; provider_subject_id?: string | null; signature_verified_at?: string; processing_status?: string; attempt_count?: number; processing_token?: string | null; failure_detail?: string | null; subject_type?: string | null; subject_id?: string | null; processed_at?: string | null; created_at?: string; updated_at?: string }
         Relationships: []
       }
       breaking_alerts: {
@@ -715,6 +715,82 @@ export type Database = {
           { foreignKeyName: "live_recordings_live_stream_id_fkey"; columns: ["live_stream_id"]; isOneToOne: false; referencedRelation: "live_streams"; referencedColumns: ["id"] },
           { foreignKeyName: "live_recordings_replay_category_id_fkey"; columns: ["replay_category_id"]; isOneToOne: false; referencedRelation: "categories"; referencedColumns: ["id"] },
           { foreignKeyName: "live_recordings_replay_thumbnail_media_id_fkey"; columns: ["replay_thumbnail_media_id"]; isOneToOne: false; referencedRelation: "media"; referencedColumns: ["id"] },
+        ]
+      }
+      live_recording_editorial_private: {
+        Row: {
+          recording_id: string
+          rejection_reason: string | null
+          legal_hold_reason: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          recording_id: string
+          rejection_reason?: string | null
+          legal_hold_reason?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          recording_id?: string
+          rejection_reason?: string | null
+          legal_hold_reason?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "live_recording_editorial_private_recording_id_fkey"; columns: ["recording_id"]; isOneToOne: true; referencedRelation: "live_recordings"; referencedColumns: ["id"] },
+        ]
+      }
+      public_live_replays: {
+        Row: {
+          id: string
+          live_request_id: string
+          title: string
+          description: string
+          category_id: string
+          thumbnail_media_id: string
+          duration_seconds: number
+          recording_started_at: string
+          recording_ended_at: string
+          published_at: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          live_request_id: string
+          title: string
+          description: string
+          category_id: string
+          thumbnail_media_id: string
+          duration_seconds: number
+          recording_started_at: string
+          recording_ended_at: string
+          published_at: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          live_request_id?: string
+          title?: string
+          description?: string
+          category_id?: string
+          thumbnail_media_id?: string
+          duration_seconds?: number
+          recording_started_at?: string
+          recording_ended_at?: string
+          published_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "public_live_replays_id_fkey"; columns: ["id"]; isOneToOne: true; referencedRelation: "live_recordings"; referencedColumns: ["id"] },
+          { foreignKeyName: "public_live_replays_live_request_id_fkey"; columns: ["live_request_id"]; isOneToOne: false; referencedRelation: "reporter_live_requests"; referencedColumns: ["id"] },
+          { foreignKeyName: "public_live_replays_category_id_fkey"; columns: ["category_id"]; isOneToOne: false; referencedRelation: "categories"; referencedColumns: ["id"] },
+          { foreignKeyName: "public_live_replays_thumbnail_media_id_fkey"; columns: ["thumbnail_media_id"]; isOneToOne: false; referencedRelation: "media"; referencedColumns: ["id"] },
         ]
       }
       categories: {
@@ -1561,6 +1637,10 @@ export type Database = {
         Args: { p_event_id: string; p_event_type: string }
         Returns: Json
       }
+      claim_livekit_webhook_event: {
+        Args: { p_event_id: string; p_event_type: string; p_egress_id: string }
+        Returns: Json
+      }
       claim_reporter_access_sync: { Args: { p_profile_id: string }; Returns: Json }
       claim_kyc_webhook_event: { Args: { p_event_id: string; p_event_type: string }; Returns: Json }
       claim_auto_import_batch: {
@@ -1596,6 +1676,21 @@ export type Database = {
       complete_razorpay_refund_webhook: {
         Args: { p_event_id: string; p_processing_token: string; p_razorpay_refund_id: string; p_razorpay_payment_id: string; p_amount_paise: number; p_currency: string }
         Returns: boolean
+      }
+      complete_livekit_webhook_event: {
+        Args: {
+          p_event_id: string
+          p_processing_token: string
+          p_recording_id: string
+          p_recording_status: string
+          p_storage_key: string | null
+          p_duration_seconds: number | null
+          p_bytes: number | null
+          p_provider_started_at: string
+          p_provider_ended_at: string | null
+          p_failure_code: string | null
+        }
+        Returns: Json
       }
       complete_reporter_order: {
         Args: { p_payment_id: string; p_order_creation_token: string; p_razorpay_order_id: string }
@@ -1640,6 +1735,10 @@ export type Database = {
         Args: { p_event_id: string; p_processing_token: string; p_failure_detail: string }
         Returns: boolean
       }
+      fail_livekit_webhook_event: {
+        Args: { p_event_id: string; p_processing_token: string; p_failure_code: string }
+        Returns: boolean
+      }
       fail_kyc_webhook_event: { Args: { p_event_id: string; p_processing_token: string; p_failure_detail: string }; Returns: boolean }
       fail_reporter_order: {
         Args: { p_payment_id: string; p_order_creation_token: string }
@@ -1662,11 +1761,16 @@ export type Database = {
         Returns: boolean
       }
       mark_overdue_reporter_application: { Args: { p_application_id: string }; Returns: string }
+      publish_live_recording: {
+        Args: { p_recording_id: string; p_title: string; p_description: string; p_category_id: string; p_thumbnail_media_id: string }
+        Returns: string
+      }
       move_homepage_section: { Args: { section_id: string; direction: string }; Returns: undefined }
       move_homepage_section_to: { Args: { section_id: string; target_position: number }; Returns: undefined }
       retire_media_asset: { Args: { media_id: string; expected_updated_at: string }; Returns: string }
       restore_media_asset: { Args: { media_id: string; expected_updated_at: string }; Returns: string }
       reject_reporter_application: { Args: { p_application_id: string; p_decision_reason: string }; Returns: string }
+      reject_live_recording: { Args: { p_recording_id: string; p_reason: string }; Returns: string }
       reject_reporter_live_request: { Args: { p_request_id: string; p_decision_reason: string }; Returns: string }
       reinstate_reporter: { Args: { p_profile_id: string }; Returns: string }
       record_reporter_refund_request: {
@@ -1729,7 +1833,7 @@ export type Database = {
         Args: { p_capability: string; p_enabled: boolean; p_profile_id: string; p_reason: string }
         Returns: Json
       }
-      set_live_recording_legal_hold: { Args: { p_recording_id: string; p_legal_hold: boolean }; Returns: string }
+      set_live_recording_legal_hold: { Args: { p_recording_id: string; p_legal_hold: boolean; p_reason: string }; Returns: string }
       terminate_reporter_live_request: { Args: { p_request_id: string; p_termination_reason: string }; Returns: string }
       withdraw_reporter_story: { Args: { p_story_id: string }; Returns: Json }
     }

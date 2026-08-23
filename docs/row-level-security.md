@@ -68,15 +68,23 @@ updates and receive no editorial privileges.
   and live-trust check. They can read only their own requests, with no direct
   update or delete capability. Active admins and active signed editors may read
   request rows; editors receive no request mutation or unrelated reporter,
-  KYC, payment, provider, or recording access.
+  KYC, payment, provider, or private recording-storage access.
 - `live_recordings`: there is no anonymous or reporter base-table access.
-  Active editors/admins can read the private review records; the service role
-  receives only explicit lifecycle columns and cannot set legal hold directly.
+  Active editors/admins can select only explicit safe review columns; browser
+  grants exclude the Egress ID, storage key, provider error, checksum, claim,
+  and private metadata. The service role receives only explicit lifecycle
+  columns and cannot set legal hold directly.
   Provider starts use service-role-only reserve/complete/fail/final-authorization
   security-definer RPCs with empty search paths and CAS claims; all other execute
   grants are revoked. Final authorization repeats current ownership, active
   membership/trust/access-generation, request-window, room, and recording checks
   immediately before the server issues a publisher token.
+- `live_recording_editorial_private`: only active signed editors/admins may read
+  bounded private decision reasons. Publication/rejection/hold RPCs recheck the
+  signed role against the active matching profile and row-lock before mutation.
+- `public_live_replays`: RLS is enabled and all table privileges are revoked
+  from `public`, `anon`, `authenticated`, and `service_role`. Task 6 owns any
+  future anonymous read policy and grant.
 
 ## Reporter transition functions
 

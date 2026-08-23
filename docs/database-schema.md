@@ -32,7 +32,9 @@ The baseline migration is stored in
 - `reporter_consents` stores immutable, versioned notice receipts by application,
   notice key, version, and locale.
 - `webhook_events` stores unique provider receipts and safe processing state for
-  idempotent Razorpay, hosted-KYC, and LiveKit callback handling.
+  idempotent Razorpay, hosted-KYC, and LiveKit callback handling. LiveKit
+  receipts bind the immutable event UUID/type to one exact Egress ID without
+  retaining the provider body, authorization, error, or location.
 - `reporter_notifications` stores in-app notifications and optional delivery
   state without coupling delivery success to the underlying business event.
 - `audit_events` stores append-only, safe actor/action/subject metadata for
@@ -45,6 +47,13 @@ The baseline migration is stored in
   partial unique index allows only one pending/recording segment per request.
   A service-only final authorization rechecks current reporter/request access
   and durable recording state immediately before publisher token issuance.
+- `live_recording_editorial_private` stores bounded rejection and legal-hold
+  reasons for active editor/admin review only; reasons never enter generic
+  audit metadata or public data.
+- `public_live_replays` is the closed-by-default publication projection with
+  only replay, request, category, thumbnail, duration, and publication facts.
+  It contains no storage key, provider field, profile/account UUID, private
+  reason, signed URL, or exact location. A later task owns anonymous exposure.
 
 ## Reporter foundation
 
