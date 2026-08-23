@@ -106,3 +106,67 @@ test("handwritten database types retain the private table and command contracts"
     assert.match(databaseTypes, new RegExp(`\\b${command}:`, "u"));
   }
 });
+
+test("nullable lifecycle facts are explicitly required and positive", () => {
+  assert.match(compact, /approved_ends_at is not null and approved_ends_at > approved_starts_at/u);
+  assert.match(compact, /livekit_room_name is not null and livekit_room_name = 'reporter-live-'/u);
+  assert.match(compact, /duration_seconds is not null and duration_seconds > 0/u);
+  assert.match(compact, /bytes is not null and bytes > 0/u);
+  assert.match(compact, /constraint live_recordings_duration_seconds_check check \( duration_seconds is null or duration_seconds > 0 \)/u);
+  assert.match(compact, /constraint live_recordings_bytes_check check \( bytes is null or bytes > 0 \)/u);
+});
+
+test("approval locks and refreshes authorization before an idempotent success", () => {
+  const approval = sqlFunction("approve_reporter_live_request");
+  const requestLock = approval.indexOf("where id = p_request_id for update");
+  const reporterLock = approval.indexOf("where profile_id = current_request.profile_id for update");
+  const profileLock = approval.indexOf("where id = current_request.profile_id for update");
+  const decisionClock = approval.indexOf("decision_time := clock_timestamp()");
+  const approvedRetry = approval.indexOf("if current_request.status = 'approved' then");
+  const eligibility = approval.indexOf("current_reporter.public_status is distinct from 'active'");
+
+  assert.equal((approval.match(/decision_time := clock_timestamp\(\)/gu) ?? []).length, 1);
+  assert.ok(requestLock < reporterLock && reporterLock < profileLock && profileLock < decisionClock);
+  assert.ok(eligibility < approvedRetry);
+  assert.ok(profileLock < approvedRetry);
+});
+
+test("same-terminal live commands reject conflicting normalized inputs", () => {
+  const approval = sqlFunction("approve_reporter_live_request");
+  const rejection = sqlFunction("reject_reporter_live_request");
+  const termination = sqlFunction("terminate_reporter_live_request");
+
+  assert.match(approval, /approved_starts_at is distinct from p_approved_starts_at/u);
+  assert.match(approval, /approved_ends_at is distinct from p_approved_ends_at/u);
+  assert.match(rejection, /normalized_decision_reason text := btrim\(p_decision_reason\)/u);
+  assert.match(rejection, /decision_reason is distinct from normalized_decision_reason/u);
+  assert.match(termination, /normalized_termination_reason text := btrim\(p_termination_reason\)/u);
+  assert.match(termination, /termination_reason is distinct from normalized_termination_reason/u);
+  for (const command of [approval, rejection, termination]) {
+    assert.match(command, /REPORTER_LIVE_REQUEST_CONFLICT/u);
+  }
+  assert.ok(
+    approval.indexOf("if p_approved_starts_at is null")
+      > approval.indexOf("if current_request.status = 'approved' then"),
+  );
+  assert.ok(
+    rejection.indexOf("if p_decision_reason is null")
+      > rejection.indexOf("if current_request.status = 'rejected' then"),
+  );
+  assert.ok(
+    termination.indexOf("if p_termination_reason is null")
+      > termination.indexOf("if current_request.status = 'terminated' then"),
+  );
+});
+
+test("request creation is audited once with fixed safe metadata", () => {
+  const trigger = sqlFunction("audit_reporter_live_request_creation");
+
+  assert.match(compact, /create trigger audit_reporter_live_request_creation after insert on public\.reporter_live_requests for each row execute function public\.audit_reporter_live_request_creation\(\)/u);
+  assert.match(trigger, /security definer set search_path = ''/u);
+  assert.match(trigger, /'reporter_live_request\.created'/u);
+  assert.match(trigger, /'\{"status":"pending"\}'::jsonb/u);
+  assert.match(trigger, /new\.created_at/u);
+  assert.doesNotMatch(trigger, /title|purpose|locality|supporting_notes|latitude|longitude|storage|egress|provider/iu);
+  assert.match(compact, /revoke all on function public\.audit_reporter_live_request_creation\(\) from public, anon, authenticated, service_role/u);
+});

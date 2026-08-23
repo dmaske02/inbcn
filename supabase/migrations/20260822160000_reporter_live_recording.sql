@@ -31,7 +31,9 @@ create table public.reporter_live_requests (
       and terminated_by is null and terminated_at is null and termination_reason is null)
     or (status = 'approved'
       and decided_by is not null and decided_at is not null and decision_reason is null
-      and approved_starts_at is not null and approved_ends_at > approved_starts_at
+      and approved_starts_at is not null and approved_ends_at is not null
+      and approved_ends_at > approved_starts_at
+      and livekit_room_name is not null
       and livekit_room_name = 'reporter-live-' || replace(id::text, '-', '')
       and terminated_by is null and terminated_at is null and termination_reason is null)
     or (status = 'rejected'
@@ -40,7 +42,9 @@ create table public.reporter_live_requests (
       and terminated_by is null and terminated_at is null and termination_reason is null)
     or (status = 'terminated'
       and decided_by is not null and decided_at is not null and decision_reason is null
-      and approved_starts_at is not null and approved_ends_at > approved_starts_at
+      and approved_starts_at is not null and approved_ends_at is not null
+      and approved_ends_at > approved_starts_at
+      and livekit_room_name is not null
       and livekit_room_name = 'reporter-live-' || replace(id::text, '-', '')
       and terminated_by is not null and terminated_at is not null and termination_reason is not null)
   )
@@ -88,6 +92,12 @@ create table public.live_recordings (
   constraint live_recordings_storage_key_check check (
     storage_key is null or length(btrim(storage_key)) between 1 and 1024
   ),
+  constraint live_recordings_duration_seconds_check check (
+    duration_seconds is null or duration_seconds > 0
+  ),
+  constraint live_recordings_bytes_check check (
+    bytes is null or bytes > 0
+  ),
   constraint live_recordings_output_check check (
     (recording_status = 'pending'
       and recording_started_at is null and recording_completed_at is null
@@ -97,7 +107,8 @@ create table public.live_recordings (
       and storage_key is null and duration_seconds is null and bytes is null)
     or (recording_status = 'completed'
       and recording_started_at is not null and recording_completed_at is not null
-      and storage_key is not null and duration_seconds > 0 and bytes > 0)
+      and storage_key is not null and duration_seconds is not null and duration_seconds > 0
+      and bytes is not null and bytes > 0)
     or (recording_status = 'failed'
       and recording_started_at is not null and recording_completed_at is not null
       and provider_error is not null and length(btrim(provider_error)) between 1 and 4000)
@@ -196,6 +207,30 @@ create trigger set_live_recording_lifecycle_clocks
 before insert or update on public.live_recordings
 for each row execute function public.set_live_recording_lifecycle_clocks();
 
+create function public.audit_reporter_live_request_creation()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into public.audit_events (actor_id, action, subject_type, subject_id, metadata, created_at)
+  values (
+    auth.uid(),
+    'reporter_live_request.created',
+    'reporter_live_request',
+    new.id,
+    '{"status":"pending"}'::jsonb,
+    new.created_at
+  );
+  return new;
+end;
+$$;
+
+create trigger audit_reporter_live_request_creation
+after insert on public.reporter_live_requests
+for each row execute function public.audit_reporter_live_request_creation();
+
 create function public.approve_reporter_live_request(
   p_request_id uuid,
   p_approved_starts_at timestamptz,
@@ -212,7 +247,7 @@ declare
   current_request public.reporter_live_requests%rowtype;
   current_reporter public.reporter_profiles%rowtype;
   current_profile public.profiles%rowtype;
-  decision_time timestamptz := clock_timestamp();
+  decision_time timestamptz;
 begin
   if actor_id is null or actor_role is distinct from 'admin'
     or not exists (
@@ -221,31 +256,20 @@ begin
     ) then
     raise exception using errcode = '42501', message = 'REPORTER_LIVE_APPROVAL_FORBIDDEN';
   end if;
-  if p_approved_starts_at is null or p_approved_ends_at is null
-    or p_approved_ends_at <= p_approved_starts_at then
-    raise exception using errcode = '22023', message = 'REPORTER_LIVE_WINDOW_INVALID';
-  end if;
-
   select * into current_request from public.reporter_live_requests
   where id = p_request_id for update;
   if not found then
     raise exception using errcode = 'P0002', message = 'REPORTER_LIVE_REQUEST_NOT_FOUND';
   end if;
-  if current_request.status = 'approved' then
-    return current_request.id;
-  end if;
-  if current_request.status <> 'pending' then
-    raise exception using errcode = 'P0001', message = 'REPORTER_LIVE_REQUEST_INVALID_STATE';
-  end if;
-  if p_approved_ends_at > p_approved_starts_at
-    + make_interval(mins => current_request.expected_duration_minutes) then
-    raise exception using errcode = '22023', message = 'REPORTER_LIVE_WINDOW_INVALID';
-  end if;
-
   select * into current_reporter from public.reporter_profiles
   where profile_id = current_request.profile_id for update;
   select * into current_profile from public.profiles
   where id = current_request.profile_id for update;
+  decision_time := clock_timestamp();
+
+  if current_request.status not in ('pending', 'approved') then
+    raise exception using errcode = 'P0001', message = 'REPORTER_LIVE_REQUEST_INVALID_STATE';
+  end if;
   if current_reporter.profile_id is null or current_profile.id is null
     or current_profile.role is distinct from 'reporter' or not current_profile.is_active
     or current_reporter.public_status is distinct from 'active'
@@ -255,6 +279,21 @@ begin
     or current_reporter.access_sync_status is distinct from 'succeeded'
     or current_reporter.access_sync_desired_role is distinct from 'reporter' then
     raise exception using errcode = '42501', message = 'REPORTER_LIVE_REQUEST_INELIGIBLE';
+  end if;
+  if current_request.status = 'approved' then
+    if current_request.approved_starts_at is distinct from p_approved_starts_at
+      or current_request.approved_ends_at is distinct from p_approved_ends_at then
+      raise exception using errcode = '23505', message = 'REPORTER_LIVE_REQUEST_CONFLICT';
+    end if;
+    return current_request.id;
+  end if;
+  if p_approved_starts_at is null or p_approved_ends_at is null
+    or p_approved_ends_at <= p_approved_starts_at then
+    raise exception using errcode = '22023', message = 'REPORTER_LIVE_WINDOW_INVALID';
+  end if;
+  if p_approved_ends_at > p_approved_starts_at
+    + make_interval(mins => current_request.expected_duration_minutes) then
+    raise exception using errcode = '22023', message = 'REPORTER_LIVE_WINDOW_INVALID';
   end if;
 
   update public.reporter_live_requests
@@ -288,7 +327,8 @@ declare
   actor_id uuid := auth.uid();
   actor_role text := auth.jwt() -> 'app_metadata' ->> 'role';
   current_request public.reporter_live_requests%rowtype;
-  decision_time timestamptz := clock_timestamp();
+  decision_time timestamptz;
+  normalized_decision_reason text := btrim(p_decision_reason);
 begin
   if actor_id is null or actor_role is distinct from 'admin'
     or not exists (
@@ -297,24 +337,28 @@ begin
     ) then
     raise exception using errcode = '42501', message = 'REPORTER_LIVE_REJECTION_FORBIDDEN';
   end if;
-  if p_decision_reason is null or length(btrim(p_decision_reason)) not between 1 and 2000 then
-    raise exception using errcode = '22023', message = 'REPORTER_LIVE_DECISION_REASON_REQUIRED';
-  end if;
   select * into current_request from public.reporter_live_requests
   where id = p_request_id for update;
   if not found then
     raise exception using errcode = 'P0002', message = 'REPORTER_LIVE_REQUEST_NOT_FOUND';
   end if;
   if current_request.status = 'rejected' then
+    if current_request.decision_reason is distinct from normalized_decision_reason then
+      raise exception using errcode = '23505', message = 'REPORTER_LIVE_REQUEST_CONFLICT';
+    end if;
     return current_request.id;
   end if;
   if current_request.status <> 'pending' then
     raise exception using errcode = 'P0001', message = 'REPORTER_LIVE_REQUEST_INVALID_STATE';
   end if;
+  if p_decision_reason is null or length(normalized_decision_reason) not between 1 and 2000 then
+    raise exception using errcode = '22023', message = 'REPORTER_LIVE_DECISION_REASON_REQUIRED';
+  end if;
+  decision_time := clock_timestamp();
 
   update public.reporter_live_requests
   set status = 'rejected', decided_by = actor_id, decided_at = decision_time,
-      decision_reason = btrim(p_decision_reason), updated_at = decision_time
+      decision_reason = normalized_decision_reason, updated_at = decision_time
   where id = current_request.id;
   insert into public.audit_events (actor_id, action, subject_type, subject_id, metadata, created_at)
   values (actor_id, 'reporter_live_request.rejected', 'reporter_live_request', current_request.id, '{"status":"rejected"}'::jsonb, decision_time);
@@ -337,7 +381,8 @@ declare
   actor_id uuid := auth.uid();
   actor_role text := auth.jwt() -> 'app_metadata' ->> 'role';
   current_request public.reporter_live_requests%rowtype;
-  termination_time timestamptz := clock_timestamp();
+  termination_time timestamptz;
+  normalized_termination_reason text := btrim(p_termination_reason);
 begin
   if actor_id is null or actor_role is distinct from 'admin'
     or not exists (
@@ -346,24 +391,28 @@ begin
     ) then
     raise exception using errcode = '42501', message = 'REPORTER_LIVE_TERMINATION_FORBIDDEN';
   end if;
-  if p_termination_reason is null or length(btrim(p_termination_reason)) not between 1 and 2000 then
-    raise exception using errcode = '22023', message = 'REPORTER_LIVE_TERMINATION_REASON_REQUIRED';
-  end if;
   select * into current_request from public.reporter_live_requests
   where id = p_request_id for update;
   if not found then
     raise exception using errcode = 'P0002', message = 'REPORTER_LIVE_REQUEST_NOT_FOUND';
   end if;
   if current_request.status = 'terminated' then
+    if current_request.termination_reason is distinct from normalized_termination_reason then
+      raise exception using errcode = '23505', message = 'REPORTER_LIVE_REQUEST_CONFLICT';
+    end if;
     return current_request.id;
   end if;
   if current_request.status <> 'approved' then
     raise exception using errcode = 'P0001', message = 'REPORTER_LIVE_REQUEST_INVALID_STATE';
   end if;
+  if p_termination_reason is null or length(normalized_termination_reason) not between 1 and 2000 then
+    raise exception using errcode = '22023', message = 'REPORTER_LIVE_TERMINATION_REASON_REQUIRED';
+  end if;
+  termination_time := clock_timestamp();
 
   update public.reporter_live_requests
   set status = 'terminated', terminated_by = actor_id, terminated_at = termination_time,
-      termination_reason = btrim(p_termination_reason), updated_at = termination_time
+      termination_reason = normalized_termination_reason, updated_at = termination_time
   where id = current_request.id;
   insert into public.audit_events (actor_id, action, subject_type, subject_id, metadata, created_at)
   values (actor_id, 'reporter_live_request.terminated', 'reporter_live_request', current_request.id, '{"status":"terminated"}'::jsonb, termination_time);
@@ -486,6 +535,8 @@ using (
 );
 
 revoke all on function public.set_live_recording_lifecycle_clocks()
+from public, anon, authenticated, service_role;
+revoke all on function public.audit_reporter_live_request_creation()
 from public, anon, authenticated, service_role;
 revoke all on function public.approve_reporter_live_request(uuid, timestamptz, timestamptz)
 from public, anon, authenticated, service_role;
