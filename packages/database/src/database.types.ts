@@ -1298,6 +1298,18 @@ export type Database = {
       }
     }
     Views: {
+      public_media: {
+        Row: {
+          alt_text: string | null
+          caption: string | null
+          cloudinary_public_id: string
+          height: number | null
+          id: string
+          secure_url: string
+          width: number | null
+        }
+        Relationships: []
+      }
       public_stories: {
         Row: {
           canonical_url: string | null

@@ -209,7 +209,7 @@ async function getFeaturedMediaMap(
   if (mediaIds.length === 0) return new Map();
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from("media")
+    .from("public_media")
     .select("id, cloudinary_public_id, secure_url, alt_text, caption, width, height")
     .in("id", mediaIds);
   assertRepositoryQuerySucceeded(error, "load featured media");
@@ -312,7 +312,7 @@ export async function getStoryBySlug(
   let media: FeaturedMediaRow | null = null;
   if (data.featured_media_id) {
     const mediaResult = await supabase
-      .from("media")
+      .from("public_media")
       .select("id, cloudinary_public_id, secure_url, alt_text, caption, width, height")
       .eq("id", data.featured_media_id)
       .maybeSingle();

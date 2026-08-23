@@ -107,14 +107,14 @@ test("normalizes bounded accessibility metadata and requires image alt text", ()
 
 const imageAsset = {
   asset_id: "asset-image-1",
-  public_id: "inbcn/reporter/story/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222/33333333-3333-4333-8333-333333333333",
+  public_id: "inbcn/reporter/story/22222222-2222-4222-8222-222222222222/33333333-3333-4333-8333-333333333333",
   resource_type: "image",
   type: "upload",
   format: "jpg",
   bytes: 1_000_000,
   width: 1200,
   height: 800,
-  secure_url: "https://res.cloudinary.com/demo-cloud/image/upload/v1787461170/inbcn/reporter/story/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222/33333333-3333-4333-8333-333333333333.jpg",
+  secure_url: "https://res.cloudinary.com/demo-cloud/image/upload/v1787461170/inbcn/reporter/story/22222222-2222-4222-8222-222222222222/33333333-3333-4333-8333-333333333333.jpg",
   created_at: "2026-08-23T10:19:30.000Z",
 };
 
@@ -241,7 +241,7 @@ test("uses Cloudinary's one-hour signing lifetime without claiming a shorter TTL
 const profileId = "11111111-1111-4111-8111-111111111111";
 const storyId = "22222222-2222-4222-8222-222222222222";
 const randomId = "33333333-3333-4333-8333-333333333333";
-const publicId = `inbcn/reporter/story/${profileId}/${storyId}/${randomId}`;
+const publicId = `inbcn/reporter/story/${storyId}/${randomId}`;
 const now = "2026-08-23T10:20:00.000Z";
 const signedAt = 1_787_480_340;
 
@@ -320,6 +320,7 @@ test("signs only a server-owned non-guessable public ID after current access che
   });
 
   assert.equal(result.publicId, publicId);
+  assert.equal(result.publicId.includes(profileId), false);
   assert.equal(result.resourceType, "image");
   assert.equal(result.timestamp, Math.floor(Date.parse(now) / 1_000));
   assert.deepEqual(calls.signed, [{ publicId, mediaType: "image", timestamp: Math.floor(Date.parse(now) / 1_000) }]);
@@ -439,6 +440,7 @@ test("rejects forged authorization and public IDs before provider lookup", async
     { signature: "b".repeat(40) },
     { publicId: publicId.replace(randomId, "44444444-4444-4444-8444-444444444444") },
     { publicId: publicId.replace(storyId, "44444444-4444-4444-8444-444444444444") },
+    { publicId: `inbcn/reporter/story/${profileId}/${storyId}/${randomId}` },
   ]) {
     const { calls, service } = uploadService();
     await assert.rejects(
@@ -508,25 +510,39 @@ test("Cloudinary signing covers only server-fixed upload parameters and exposes 
 });
 
 test("canonical completion serializes concurrent public and asset ID conflicts service-only", async () => {
-  const migrationUrl = new URL("../../../../supabase/migrations/20260822152000_reporter_media_completion.sql", import.meta.url);
-  const sql = await readFile(migrationUrl, "utf8").catch(() => "");
+  const migrationUrl = new URL("../../../../supabase/migrations/20260822156000_public_media_and_reporter_path_hardening.sql", import.meta.url);
+  const initialMigrationUrl = new URL("../../../../supabase/migrations/20260822152000_reporter_media_completion.sql", import.meta.url);
+  const [sql, initialSql] = await Promise.all([
+    readFile(migrationUrl, "utf8").catch(() => ""),
+    readFile(initialMigrationUrl, "utf8"),
+  ]);
   const compact = sql.replace(/\s+/gu, " ");
+  const compactInitial = initialSql.replace(/\s+/gu, " ");
+  const completionFunction = compact.match(
+    /create or replace function public\.complete_reporter_media_upload\([\s\S]+?\$\$;/u,
+  )?.[0] ?? "";
   const databaseTypes = await readFile(new URL("../../../../packages/database/src/database.types.ts", import.meta.url), "utf8");
 
-  assert.match(compact, /create function public\.complete_reporter_media_upload\(/u);
+  assert.match(compact, /create or replace function public\.complete_reporter_media_upload\(/u);
   assert.match(compact, /security definer set search_path = ''/u);
   assert.match(compact, /from public\.reporter_profiles where profile_id = p_profile_id for update;[\s\S]*from public\.profiles where id = p_profile_id for update;[\s\S]*from public\.stories where id = p_story_id for update;/u);
   assert.match(compact, /access_sync_generation is distinct from p_access_generation/u);
   assert.match(compact, /is_reporter_story\(current_story\)[\s\S]*status is distinct from 'draft'[\s\S]*source_id is not null/u);
-  assert.match(compact, /create unique index media_cloudinary_asset_id_key on public\.media \(\(metadata ->> 'cloudinaryAssetId'\)\)/u);
+  assert.match(compactInitial, /create unique index media_cloudinary_asset_id_key on public\.media \(\(metadata ->> 'cloudinaryAssetId'\)\)/u);
   assert.match(compact, /insert into public\.media \([\s\S]*story_id[\s\S]*\) values \([\s\S]*null,[\s\S]*on conflict do nothing/u);
   assert.match(compact, /metadata ->> 'cloudinaryAssetId'[\s\S]*metadata ->> 'reporterStoryId'/u);
+  assert.match(compact, /'uploadedBy', p_profile_id/u);
+  assert.match(compact, /existing_media\.created_by is distinct from p_profile_id/u);
+  assert.match(completionFunction, /'inbcn\/reporter\/story\/' \|\| p_story_id::text \|\| '\/' \|\| object_id/u);
+  assert.doesNotMatch(completionFunction, /'inbcn\/reporter\/story\/' \|\| p_profile_id::text/u);
   assert.match(compact, /where cloudinary_public_id = p_public_id for update;/u);
   assert.match(compact, /message = 'REPORTER_MEDIA_CONFLICT'/u);
   assert.match(compact, /revoke all on function public\.complete_reporter_media_upload\([\s\S]*from public, anon, authenticated, service_role;/u);
   assert.match(compact, /grant execute on function public\.complete_reporter_media_upload\([\s\S]*to service_role;/u);
   assert.doesNotMatch(compact, /grant execute on function public\.complete_reporter_media_upload\([\s\S]*to authenticated;/u);
   assert.match(compact, /media_reporter_upload_binding_check/u);
+  assert.match(compact, /metadata ->> 'uploadedBy'\) = created_by::text/u);
+  assert.match(compact, /cloudinary_public_id = 'inbcn\/reporter\/story\/' \|\| created_by::text \|\| '\/' \|\| \(metadata ->> 'reporterStoryId'\) \|\| '\/' \|\| \(metadata ->> 'cloudinaryObjectId'\)/u);
   assert.doesNotMatch(compact, /set story_id = p_story_id|sort_order =/u);
   assert.match(databaseTypes, /complete_reporter_media_upload:[\s\S]*p_access_generation: number[\s\S]*p_provider_created_at: string[\s\S]*Returns: string/u);
 });

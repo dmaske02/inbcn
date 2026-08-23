@@ -183,7 +183,7 @@ export function createUploadService(dependencies: Readonly<{
       const { now } = await currentAccess(profileId, input.storyId);
       const objectId = randomId();
       if (!OBJECT_UUID.test(objectId)) throw new UploadServiceError("temporarily-unavailable", "Uploads are temporarily unavailable.");
-      const publicId = `inbcn/reporter/story/${profileId}/${input.storyId}/${objectId}`;
+      const publicId = `inbcn/reporter/story/${input.storyId}/${objectId}`;
       try {
         return dependencies.provider.sign({
           publicId,
@@ -202,7 +202,7 @@ export function createUploadService(dependencies: Readonly<{
       if ((input.mediaType !== "image" && input.mediaType !== "video")
         || typeof input.assetId !== "string" || !ASSET_ID.test(input.assetId)
         || typeof input.publicId !== "string"
-        || input.publicId !== `inbcn/reporter/story/${profileId}/${input.storyId}/${input.publicId.split("/").at(-1) ?? ""}`
+        || input.publicId !== `inbcn/reporter/story/${input.storyId}/${input.publicId.split("/").at(-1) ?? ""}`
         || !OBJECT_UUID.test(input.publicId.split("/").at(-1) ?? "")
         || typeof input.timestamp !== "number" || !Number.isSafeInteger(input.timestamp) || input.timestamp <= 0
         || typeof input.signature !== "string" || !SIGNATURE.test(input.signature)) invalidUpload();

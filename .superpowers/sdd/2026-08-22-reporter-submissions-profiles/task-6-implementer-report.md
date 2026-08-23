@@ -232,3 +232,97 @@ roles can safely use the public view, while only authenticated keeps base-table
 workflow access subject to existing role policies.
 
 Follow-up commit subject: `fix(website): harden public story access`
+
+## Independent-review public media and identifier follow-up
+
+Status: `DONE`
+
+The second independent review found two remaining identity paths. First, the
+authenticated current-publication policies added during the first hardening
+still allowed an ordinary signed-in website session to select protected base
+story and media columns. Second, reporter Cloudinary story identifiers embedded
+the reporter profile/account UUID in browser-visible public IDs and delivery
+URLs.
+
+One additive migration after `155000` now makes both public surfaces projections:
+
+- The generic authenticated story policy is removed. Existing writer-owner,
+  editor/admin, admin-all, and reporter-owner policies and authenticated base
+  privileges remain unchanged, so CMS/reporter workflow reads continue while
+  an ordinary authenticated session with no app role sees zero base rows.
+- `public_media` is an owner-executed `security_barrier` view with exactly the
+  seven fields used by public story rendering: ID, Cloudinary public ID, secure
+  URL, alt text, caption, width, and height. Its fixed predicate exposes only
+  media featured by a database-current `public_stories` row. It is granted only
+  to `anon` and `authenticated`; anonymous base-media privileges and both
+  generic current-public media policies are removed.
+- Both website featured-media reads now use `public_media`. CMS Media Library
+  and reporter owner flows retain base `media` and their existing role/owner
+  policies. Cookie-authenticated public visitors use the same safe projection
+  as signed-out visitors.
+- New reporter assets use
+  `inbcn/reporter/story/<public story UUID>/<random object UUID>`. The service
+  rejects the former owner-bearing shape before provider lookup, and the
+  replacement completion RPC accepts and creates only the new shape.
+- The replacement media CHECK continues to require canonical `created_by`,
+  exact `metadata.uploadedBy` ownership, story/object/asset metadata, UUID
+  shapes, and optional story association. It tolerates a pre-existing legacy
+  path only when that path binds exactly to the same creator/story/object
+  metadata, avoiding migration failure over local development rows.
+- `public_media` independently excludes legacy owner-bearing reporter paths and
+  requires the browser-visible secure URL to contain the same new safe public
+  ID without an owner-bearing reporter segment. Such an asset must be renamed
+  at Cloudinary and safely recompleted before it can become public. The project
+  is pre-production and provider-adapter-gated; no live reporter assets exist
+  to migrate.
+
+The separately approved portrait path was audited and remains
+`inbcn/reporter/portrait/<application UUID>`. That value is preallocated for the
+application and is not the protected account/profile UUID, so this follow-up
+does not broaden into portrait storage changes.
+
+### TDD and verification
+
+Bundled Node `v24.19.0` was used throughout. RED first showed four intended
+reporter upload failures and four intended public-access failures. A later
+legacy-compatibility RED added explicit failures for the missing legacy CHECK
+strategy and missing public-view exclusion. Final focused GREEN is 33/33:
+6 public story/media security contracts and 27 reporter upload/RPC contracts.
+
+- Full website tests: 233 passed.
+- Full CMS tests: 600 passed.
+- Full reporter tests: 202 passed.
+- Fresh root tests: 1,035 passed.
+- Root typecheck: passed across database, domain, website, CMS, and reporter.
+- Root lint: passed across website, CMS, and reporter.
+- Website, CMS, and reporter Next.js 16.3 production builds each compiled,
+  typechecked, and generated every route successfully using documented
+  non-secret URL placeholders. The combined root build could not retain all
+  three Turbopack caches simultaneously because the volume had less than
+  500 MiB free; exact ignored `.next` artifacts were removed and the reporter
+  build was rerun successfully on its own after website and CMS had passed.
+- `git diff --check`: passed before report finalization and is rerun at handoff.
+
+Docker remains unavailable, so no migration apply, generated-type refresh,
+anonymous HTTP integration, or database-advisor result is claimed. The updated
+rollback-only verifier checks both safe view schemas/options/grants, absence of
+generic policies, preservation of named staff/owner policies, ordinary
+authenticated zero-row access to protected base fields, editor base access,
+current/future/unpublished visibility, a valid legacy binding fixture excluded
+from `public_media`, a safe public ID paired with an owner-bearing legacy URL
+also excluded from `public_media`, the new completion path, constraint
+ownership, and full rollback.
+
+Current Supabase changelog and official grants/RLS/view guidance were rechecked
+on 2026-08-23. The design records the default view-owner RLS bypass honestly:
+the fixed projection and predicates are the public security boundaries. Supabase
+Auth anonymous users assume `authenticated`, so both safe views intentionally
+grant that role while base rows still require the existing owner/staff policies.
+
+Security self-review found no reporter account UUID in new public media IDs,
+safe view columns, website DTOs, routes, or rendered metadata. New completion
+retains the Task 3 profile/profile-record/story lock order, access-generation
+and membership gates, story ownership/provenance/draft checks, authoritative
+provider-fact validation, public-ID and asset-ID uniqueness, conflict-safe
+idempotency, owner metadata, and service-role-only execution. No live scope or
+additional public repository was added.
