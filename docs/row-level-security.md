@@ -72,13 +72,20 @@ updates and receive no editorial privileges.
 - `live_recordings`: there is no anonymous or reporter base-table access.
   Active editors/admins can select only explicit safe review columns; browser
   grants exclude the Egress ID, storage key, provider error, checksum, claim,
-  and private metadata. The service role receives only explicit lifecycle
-  columns and cannot set legal hold directly.
+  terminal-reconciliation marker, and private metadata. Direct service-role
+  recording DML is revoked; service mutations cross guarded functions, and the
+  service role cannot set legal hold directly.
   Provider starts use service-role-only reserve/complete/fail/final-authorization
   security-definer RPCs with empty search paths and CAS claims; all other execute
   grants are revoked. Final authorization repeats current ownership, active
   membership/trust/access-generation, request-window, room, and recording checks
-  immediately before the server issues a publisher token.
+  immediately before the server issues a publisher token. Any unresolved
+  `unknown` sibling fences reservation and final authorization for the whole
+  request; exact provider-confirmed terminal resolution releases that quarantine.
+  The one operational quarantine-resolution RPC is also service-role-only,
+  locks request before recording, requires exact provider-confirmed terminal
+  facts, preserves prior audit evidence, and emits no provider identifier,
+  object key, reason, location, or payload in its generic resolution audit.
 - `live_recording_editorial_private`: only active signed editors/admins may read
   the immutable bounded rejection reason. Direct inserts, updates, and deletes
   remain revoked; a trigger also rejects mutation after insertion.

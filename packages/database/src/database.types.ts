@@ -1819,6 +1819,20 @@ export type Database = {
         }
         Returns: boolean
       }
+      resolve_quarantined_live_recording: {
+        Args: {
+          p_request_id: string
+          p_recording_id: string
+          p_egress_id: string
+          p_provider_status: "completed" | "failed"
+          p_storage_key: string | null
+          p_duration_seconds: number | null
+          p_bytes: number | null
+          p_provider_started_at: string | null
+          p_provider_ended_at: string | null
+        }
+        Returns: Json
+      }
       is_reporter_story: {
         Args: { "": Database["public"]["Tables"]["stories"]["Row"] }
         Returns: boolean

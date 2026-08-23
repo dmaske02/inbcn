@@ -47,6 +47,9 @@ The baseline migration is stored in
   partial unique index allows only one pending/recording segment per request.
   A service-only final authorization rechecks current reporter/request access
   and durable recording state immediately before publisher token issuance.
+  A private monotonic terminal-reconciliation marker quarantines every bound,
+  reconciliation-audited legacy pending/recording/failed row as `unknown`
+  without guessing or deleting its audit evidence.
 - `live_recording_editorial_private` stores one immutable bounded rejection
   reason per rejected recording for active editor/admin review only.
 - `live_recording_legal_hold_events` stores an append-only event for each
@@ -124,6 +127,18 @@ terminal private/rejected recordings a 90-day `retention_delete_at`; published
 recordings receive no deadline and `legal_hold` excludes a row from the queue.
 Storage keys, provider errors, supporting notes, and private metadata remain
 base-table-only fields.
+
+`supabase/migrations/20260822165000_livekit_terminal_reconciliation_marker.sql`
+applies the legacy quarantine under a writer lock and removes direct
+service-role recording writes. Normal signed terminal callbacks remain the
+preferred resolution path. The operational service-only
+`resolve_quarantined_live_recording` RPC accepts only an exact bound request,
+recording, Egress, canonical room/key, and bounded provider-confirmed terminal
+facts. Exact retries are idempotent; conflicts fail, and each successful
+resolution appends only a generic safe audit while retaining the original
+reconciliation evidence. Only unresolved `unknown` siblings fence the whole
+request; a provider-confirmed terminal resolution releases that quarantine
+without clearing the immutable terminal marker.
 
 ## Design notes
 

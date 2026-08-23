@@ -387,3 +387,108 @@ Docker still cannot connect to `~/.docker/run/docker.sock`; local reset,
 runtime rollback verification, generated-type refresh, and database advisors
 were not run. LiveKit and S3 credentials are unset, so provider/storage E2E was
 not run or claimed.
+
+## Final fix round 5 — convergent legacy quarantine
+
+Reviewed base: `989a5f2`
+
+The abort-based round-4 upgrade has been removed. It could not converge:
+Postgres correctly rolled back both the migration and any attempted local
+remediation signal, while the append-only reconciliation evidence that caused
+the abort remained. `165000` now completes under its writer lock and durably
+marks every precisely identifiable legacy row `unknown` when it has a bound
+Egress, a null marker, one of the legacy `pending`/`recording`/`failed` local
+shapes, and the exact `live_recording.reconciliation_required` audit. Claim
+shape is deliberately irrelevant. The migration neither guesses provider
+terminal truth nor deletes or changes audit evidence.
+
+The relational marker constraint and private monotonic trigger now admit
+`unknown` for all three legacy shapes while preventing it from being cleared.
+Reservation/reclaim, start completion/failure, final authorization, delayed
+nonterminal callbacks, and token issuance remain fenced while any request
+sibling is `unknown`. A known marker on an active pending row also remains
+busy until its exact callback finalizes it. Once an unknown sibling is
+provider-confirmed terminal, the request-level quarantine is released; the
+terminal marker itself remains immutable.
+
+One new operational RPC,
+`resolve_quarantined_live_recording(uuid, uuid, text, text, text, numeric,
+bigint, timestamptz, timestamptz)`, is the only added API. It is a
+security-definer with an empty search path, rejects every non-service role,
+locks request before recording, and requires the exact request/recording,
+bound Egress, canonical room, and original reconciliation audit. It accepts
+only provider-confirmed `completed` or `failed`:
+
+- `completed` requires the exact canonical MP4 key, positive duration of at
+  most 24 hours at the stored millisecond precision, positive bytes no greater
+  than 1 TiB, and finite ordered provider timestamps no more than five minutes
+  in the future;
+- `failed` requires every output fact to be null and stores only the fixed
+  private error `provider-confirmed-terminal-failure`.
+
+The RPC clears stale output/checksum/claim facts as appropriate, can safely
+correct a legacy local `failed` row to provider-confirmed `completed`, and
+restarts the 90-day retention clock for that correction. It appends one
+generic `live_recording.reconciliation_resolved` audit with only
+`{"status":"resolved"}` metadata and preserves every original audit row.
+Exact retries return `unchanged`; a changed terminal status or any changed
+completed fact fails with the fixed conflict error. Existing signed terminal
+webhooks and the original reconciliation flow remain the normal resolution
+path. The new RPC is only the privileged convergence path for rows that are
+still `unknown` after migration.
+
+The handwritten database types include the exact nullable terminal-fact
+arguments and JSON result. This is an operational database RPC, so no new
+application environment variable or provider client path was added.
+
+### Mandatory round-5 deployment procedure
+
+1. Confirm `20260822165000` is absent from
+   `supabase_migrations.schema_migrations`. If any rejected earlier `165000`
+   file was independently applied, stop and create a new compensating
+   migration; never reuse changed migration history.
+2. Quiesce reporter live-session creation and LiveKit webhook processing, then
+   let all in-flight session/webhook transactions drain.
+3. Apply the corrected `165000` migration. It must commit with every exact
+   reconciliation-audited, Egress-bound pending/recording/failed legacy row
+   durably quarantined as `unknown`; it must not delete or rewrite audit
+   evidence.
+4. Run the rollback-only recording verifier and inspect remaining `unknown`
+   rows through a privileged operator workflow. Prefer delivery/retry of the
+   exact signed terminal callback. Use `resolve_quarantined_live_recording`
+   only after an authoritative provider lookup of that exact bound Egress, and
+   only for a row whose marker is still `unknown`. Supply every canonical,
+   bounded output fact for `completed`; supply no output facts for `failed`.
+5. Never clear the marker manually, infer terminal truth from local status, or
+   delete/change `live_recording.reconciliation_required` evidence. Resume
+   traffic only after the verifier and post-migration session/webhook smoke
+   checks pass.
+
+### Round-5 TDD and verification evidence
+
+- Initial focused RED: 4/9 contracts passed and 5/9 failed on the old abort,
+  incomplete legacy-shape quarantine, missing provider-resolution API and
+  lifecycle correction, and verifier/type parity.
+- Two audit regressions were also observed RED before their minimal fixes:
+  7/9 passed and 2/9 failed for exact numeric retry precision and retention on
+  a failed-to-completed correction; the request-quarantine convergence
+  distinction then failed 8/9 before the unknown-only sibling fence. A final
+  8/9 RED caught SQL-null role handling before the lifecycle gate was made a
+  total boolean with `IS NOT DISTINCT FROM`.
+- Focused terminal contracts pass 9/9, and the reporter schema/session/
+  reservation/recovery/webhook/terminal matrix passes 79/79.
+- Full tests pass: website 251/251, CMS 637/637, reporter 326/326.
+- Root `npm run typecheck` passed for database, domain, website, CMS, and
+  reporter. Root `npm run lint` passed for website, CMS, and reporter.
+- Production builds with non-secret URL placeholders and inert
+  `LIVEKIT_S3_FORCE_PATH_STYLE=false` passed for website and reporter on
+  Next.js 16.3 Turbopack, and for CMS on webpack (26 generated pages,
+  including the live termination route).
+- `git diff --check` and the final SQL/data-safety, privilege, lock-order,
+  lifecycle/retention, audit-redaction, caller/type, and migration-history
+  review passed.
+
+Docker's daemon remains unavailable, so the clean Postgres reset, runtime
+rollback verifier, generated-type refresh, and database advisors remain
+deployment gates. LiveKit/S3 credentials are unset; provider/storage E2E was
+not run or claimed.

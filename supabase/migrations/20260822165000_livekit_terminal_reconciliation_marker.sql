@@ -5,8 +5,10 @@ alter table public.live_recordings
   add column terminal_reconciliation_status text,
   add constraint live_recordings_terminal_reconciliation_status_check check (
     terminal_reconciliation_status is null
+    or (terminal_reconciliation_status = 'unknown'
+      and recording_status in ('pending', 'recording', 'failed'))
     or (recording_status = 'pending'
-      and terminal_reconciliation_status in ('unknown', 'completed', 'failed'))
+      and terminal_reconciliation_status in ('completed', 'failed'))
     or (recording_status = 'completed'
       and terminal_reconciliation_status = 'completed')
     or (recording_status = 'failed'
@@ -17,9 +19,9 @@ comment on column public.live_recordings.terminal_reconciliation_status is
   'DB-owned monotonic terminal-reconciliation state. Unknown quarantines a legacy bound reconciliation until an exact terminal observation. Never exposed to browsers, public projections, audit metadata, or notifications.';
 
 -- The old reconciliation RPC atomically bound the Egress and wrote this exact
--- audit row while retaining the pending claim. Lock writers while upgrading,
--- reject audited bindings that have since left that exact shape, then quarantine
--- the safe pending claim without guessing a terminal outcome.
+-- audit row. Lock writers while upgrading, then quarantine every bound,
+-- reconciliation-audited row whose local non-completed shape cannot prove the
+-- provider outcome. Do not guess or remove the append-only evidence.
 lock table public.live_recordings in share row exclusive mode;
 
 create or replace function private.quarantine_legacy_live_recording_reconciliations()
@@ -30,33 +32,10 @@ as $$
 declare
   quarantined_count integer;
 begin
-  if exists (
-    select 1
-    from public.live_recordings as legacy_recording
-    where legacy_recording.terminal_reconciliation_status is null
-      and legacy_recording.egress_id is not null
-      and exists (
-        select 1
-        from public.audit_events as reconciliation_audit
-        where reconciliation_audit.action = 'live_recording.reconciliation_required'
-          and reconciliation_audit.subject_type = 'live_recording'
-          and reconciliation_audit.subject_id = legacy_recording.id
-      )
-      and not (legacy_recording.recording_status = 'pending'
-        and legacy_recording.recording_claim_token is not null
-        and legacy_recording.recording_claimed_at is not null)
-  ) then
-    raise exception using
-      errcode = '55000',
-      message = 'LIVE_RECORDING_RECONCILIATION_UPGRADE_REQUIRES_OPERATOR_REMEDIATION';
-  end if;
-
   update public.live_recordings as legacy_recording
   set terminal_reconciliation_status = 'unknown'
-  where legacy_recording.recording_status = 'pending'
+  where legacy_recording.recording_status in ('pending', 'recording', 'failed')
     and legacy_recording.egress_id is not null
-    and legacy_recording.recording_claim_token is not null
-    and legacy_recording.recording_claimed_at is not null
     and legacy_recording.terminal_reconciliation_status is null
     and exists (
       select 1
@@ -74,6 +53,82 @@ revoke all on function private.quarantine_legacy_live_recording_reconciliations(
 from public, anon, authenticated, service_role;
 
 select private.quarantine_legacy_live_recording_reconciliations();
+
+-- Preserve the normal terminal lifecycle guard. The only correction it admits
+-- is an exact service-role unknown -> matching terminal resolution; direct
+-- service-role recording DML is revoked below.
+create or replace function public.set_live_recording_lifecycle_clocks()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  transition_time timestamptz := clock_timestamp();
+  is_terminal boolean;
+  became_terminal boolean;
+  provider_resolution boolean := false;
+begin
+  if tg_op = 'UPDATE' then
+    provider_resolution := auth.role() is not distinct from 'service_role'
+      and old.terminal_reconciliation_status = 'unknown'
+      and new.terminal_reconciliation_status = new.recording_status
+      and new.recording_status in ('completed', 'failed');
+  end if;
+
+  is_terminal := new.recording_status in ('completed', 'failed');
+  became_terminal := tg_op = 'INSERT'
+    or old.recording_status not in ('completed', 'failed')
+    or (provider_resolution
+      and old.recording_status is distinct from new.recording_status)
+    or old.replay_status is distinct from new.replay_status;
+
+  new.updated_at := transition_time;
+  if tg_op = 'INSERT' then
+    if new.recording_status in ('recording', 'completed', 'failed') then
+      new.recording_started_at := transition_time;
+    end if;
+    if is_terminal then
+      new.recording_completed_at := transition_time;
+    end if;
+  elsif new.recording_status is distinct from old.recording_status then
+    if old.recording_status in ('completed', 'failed') and not provider_resolution then
+      raise exception using errcode = '55000', message = 'LIVE_RECORDING_TRANSITION_INVALID';
+    end if;
+    if provider_resolution and new.recording_status = 'completed' then
+      if new.recording_started_at is null or new.recording_completed_at is null
+        or not isfinite(new.recording_started_at)
+        or not isfinite(new.recording_completed_at)
+        or new.recording_completed_at <= new.recording_started_at then
+        raise exception using errcode = '55000', message = 'LIVE_RECORDING_TRANSITION_INVALID';
+      end if;
+    elsif new.recording_status = 'recording' then
+      new.recording_started_at := transition_time;
+      new.recording_completed_at := null;
+    elsif is_terminal then
+      new.recording_started_at := coalesce(old.recording_started_at, transition_time);
+      new.recording_completed_at := transition_time;
+    else
+      raise exception using errcode = '55000', message = 'LIVE_RECORDING_TRANSITION_INVALID';
+    end if;
+  else
+    new.recording_started_at := old.recording_started_at;
+    new.recording_completed_at := old.recording_completed_at;
+  end if;
+
+  if new.replay_status = 'published' then
+    new.retention_delete_at := null;
+  elsif is_terminal then
+    if became_terminal then
+      new.retention_delete_at := transition_time + interval '90 days';
+    else
+      new.retention_delete_at := old.retention_delete_at;
+    end if;
+  else
+    new.retention_delete_at := null;
+  end if;
+  return new;
+end;
+$$;
 
 create or replace function private.guard_live_recording_terminal_reconciliation()
 returns trigger
@@ -183,6 +238,17 @@ begin
     or current_request.livekit_room_name is distinct from
       'reporter-live-' || replace(current_request.id::text, '-', '') then
     raise exception using errcode = '42501', message = 'REPORTER_LIVE_SESSION_FORBIDDEN';
+  end if;
+
+  perform 1
+  from public.live_recordings
+  where live_request_id = current_request.id
+    and terminal_reconciliation_status = 'unknown'
+  order by id
+  limit 1
+  for update;
+  if found then
+    return jsonb_build_object('state', 'busy');
   end if;
 
   select * into current_recording
@@ -413,6 +479,12 @@ begin
     or current_recording.id is null
     or current_recording.live_request_id is distinct from current_request.id
     or current_recording.terminal_reconciliation_status is not null
+    or exists (
+      select 1
+      from public.live_recordings as quarantined_recording
+      where quarantined_recording.live_request_id = current_request.id
+        and quarantined_recording.terminal_reconciliation_status = 'unknown'
+    )
     or current_recording.recording_status not in ('recording', 'failed')
     or (current_recording.recording_status = 'failed'
       and current_recording.provider_error is distinct from 'egress-start-failed') then
@@ -474,6 +546,9 @@ begin
       or p_duration_seconds > 86400 or p_bytes is null or p_bytes <= 0
       or p_bytes > 1099511627776 or p_provider_started_at is null
       or p_provider_ended_at is null or p_provider_ended_at <= p_provider_started_at
+      or not isfinite(p_provider_started_at) or not isfinite(p_provider_ended_at)
+      or p_provider_started_at > processing_time + interval '5 minutes'
+      or p_provider_ended_at > processing_time + interval '5 minutes'
       or p_failure_code is not null
     ))
     or (p_recording_status = 'failed' and (
@@ -528,13 +603,20 @@ begin
     raise exception using errcode = '22023', message = 'LIVEKIT_WEBHOOK_TARGET_MISMATCH';
   end if;
 
+  canonical_key := 'reporter-live/' || current_request.id::text || '/'
+    || current_recording.id::text || '.mp4';
+  if p_recording_status = 'completed' and p_storage_key is distinct from canonical_key then
+    raise exception using errcode = '22023', message = 'LIVEKIT_WEBHOOK_KEY_MISMATCH';
+  end if;
+
   if current_recording.terminal_reconciliation_status in ('completed', 'failed')
     and p_recording_status in ('completed', 'failed')
     and current_recording.terminal_reconciliation_status is distinct from p_recording_status then
     raise exception using errcode = '22023', message = 'LIVEKIT_WEBHOOK_TERMINAL_MISMATCH';
   end if;
 
-  if current_recording.recording_status in ('completed', 'failed')
+  if (current_recording.recording_status in ('completed', 'failed')
+      and current_recording.terminal_reconciliation_status is distinct from 'unknown')
     or (current_recording.terminal_reconciliation_status is not null
       and p_recording_status = 'recording') then
     update public.webhook_events
@@ -551,12 +633,6 @@ begin
     return jsonb_build_object('state', 'stale');
   end if;
 
-  canonical_key := 'reporter-live/' || current_request.id::text || '/'
-    || current_recording.id::text || '.mp4';
-  if p_recording_status = 'completed' and p_storage_key is distinct from canonical_key then
-    raise exception using errcode = '22023', message = 'LIVEKIT_WEBHOOK_KEY_MISMATCH';
-  end if;
-
   if p_recording_status = 'recording' then
     if current_recording.recording_status = 'pending' then
       update public.live_recordings
@@ -568,8 +644,10 @@ begin
     update public.live_recordings
     set recording_status = 'completed', storage_key = canonical_key,
         duration_seconds = p_duration_seconds, bytes = p_bytes,
-        provider_error = null, recording_claim_token = null,
+        checksum = null, provider_error = null, recording_claim_token = null,
         recording_claimed_at = null,
+        recording_started_at = p_provider_started_at,
+        recording_completed_at = p_provider_ended_at,
         terminal_reconciliation_status = case
           when terminal_reconciliation_status is null then null
           else 'completed'
@@ -578,7 +656,7 @@ begin
   else
     update public.live_recordings
     set recording_status = 'failed', provider_error = p_failure_code,
-        storage_key = null, duration_seconds = null, bytes = null,
+        storage_key = null, duration_seconds = null, bytes = null, checksum = null,
         recording_claim_token = null, recording_claimed_at = null,
         terminal_reconciliation_status = case
           when terminal_reconciliation_status is null then null
@@ -727,6 +805,166 @@ begin
 end;
 $$;
 
+create or replace function public.resolve_quarantined_live_recording(
+  p_request_id uuid,
+  p_recording_id uuid,
+  p_egress_id text,
+  p_provider_status text,
+  p_storage_key text,
+  p_duration_seconds numeric,
+  p_bytes bigint,
+  p_provider_started_at timestamptz,
+  p_provider_ended_at timestamptz
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  current_request public.reporter_live_requests%rowtype;
+  current_recording public.live_recordings%rowtype;
+  resolution_time timestamptz := clock_timestamp();
+  canonical_key text;
+  has_reconciliation_audit boolean;
+  has_resolution_audit boolean;
+begin
+  if auth.role() is distinct from 'service_role' then
+    raise exception using errcode = '42501', message = 'LIVE_RECORDING_PROVIDER_RESOLUTION_FORBIDDEN';
+  end if;
+  if p_request_id is null or p_recording_id is null
+    or p_egress_id is null or length(p_egress_id) not between 1 and 255
+    or p_egress_id !~ '^[A-Za-z0-9_-]+$'
+    or p_provider_status is null
+    or p_provider_status not in ('completed', 'failed')
+    or (p_provider_status = 'completed' and (
+      p_storage_key is null
+      or p_duration_seconds is null or p_duration_seconds <= 0
+      or p_duration_seconds > 86400
+      or p_duration_seconds is distinct from round(p_duration_seconds, 3)
+      or p_bytes is null or p_bytes <= 0 or p_bytes > 1099511627776
+      or p_provider_started_at is null or p_provider_ended_at is null
+      or not isfinite(p_provider_started_at) or not isfinite(p_provider_ended_at)
+      or p_provider_ended_at <= p_provider_started_at
+      or p_provider_started_at > resolution_time + interval '5 minutes'
+      or p_provider_ended_at > resolution_time + interval '5 minutes'
+    ))
+    or (p_provider_status = 'failed' and (
+      p_storage_key is not null or p_duration_seconds is not null
+      or p_bytes is not null or p_provider_started_at is not null
+      or p_provider_ended_at is not null
+    )) then
+    raise exception using errcode = '22023', message = 'LIVE_RECORDING_PROVIDER_RESOLUTION_INVALID';
+  end if;
+
+  select * into current_request
+  from public.reporter_live_requests
+  where id = p_request_id
+  for update;
+  if not found then
+    raise exception using errcode = '22023', message = 'LIVE_RECORDING_PROVIDER_RESOLUTION_TARGET_MISMATCH';
+  end if;
+
+  select * into current_recording
+  from public.live_recordings
+  where id = p_recording_id
+  for update;
+  if not found
+    or current_recording.live_request_id is distinct from current_request.id
+    or current_recording.egress_id is distinct from p_egress_id
+    or current_request.livekit_room_name is null
+    or current_request.livekit_room_name is distinct from
+      'reporter-live-' || replace(current_request.id::text, '-', '') then
+    raise exception using errcode = '22023', message = 'LIVE_RECORDING_PROVIDER_RESOLUTION_TARGET_MISMATCH';
+  end if;
+
+  canonical_key := 'reporter-live/' || current_request.id::text || '/'
+    || current_recording.id::text || '.mp4';
+  if p_provider_status = 'completed' and p_storage_key is distinct from canonical_key then
+    raise exception using errcode = '22023', message = 'LIVE_RECORDING_PROVIDER_RESOLUTION_TARGET_MISMATCH';
+  end if;
+
+  select exists (
+    select 1
+    from public.audit_events
+    where action = 'live_recording.reconciliation_required'
+      and subject_type = 'live_recording'
+      and subject_id = current_recording.id
+  ) into has_reconciliation_audit;
+  select exists (
+    select 1
+    from public.audit_events
+    where action = 'live_recording.reconciliation_resolved'
+      and subject_type = 'live_recording'
+      and subject_id = current_recording.id
+      and metadata = '{"status":"resolved"}'::jsonb
+  ) into has_resolution_audit;
+
+  if not has_reconciliation_audit then
+    raise exception using errcode = '55000', message = 'LIVE_RECORDING_PROVIDER_RESOLUTION_CONFLICT';
+  end if;
+  if current_recording.terminal_reconciliation_status is distinct from 'unknown' then
+    if has_resolution_audit
+      and current_recording.terminal_reconciliation_status = p_provider_status
+      and current_recording.recording_status = p_provider_status
+      and current_recording.recording_claim_token is null
+      and current_recording.recording_claimed_at is null
+      and (
+        (p_provider_status = 'completed'
+          and current_recording.storage_key = canonical_key
+          and current_recording.duration_seconds = p_duration_seconds
+          and current_recording.bytes = p_bytes
+          and current_recording.checksum is null
+          and current_recording.provider_error is null
+          and current_recording.recording_started_at = p_provider_started_at
+          and current_recording.recording_completed_at = p_provider_ended_at)
+        or (p_provider_status = 'failed'
+          and current_recording.storage_key is null
+          and current_recording.duration_seconds is null
+          and current_recording.bytes is null
+          and current_recording.checksum is null
+          and current_recording.provider_error = 'provider-confirmed-terminal-failure')
+      ) then
+      return jsonb_build_object('state', 'unchanged');
+    end if;
+    raise exception using errcode = '55000', message = 'LIVE_RECORDING_PROVIDER_RESOLUTION_CONFLICT';
+  end if;
+
+  if p_provider_status = 'completed' then
+    update public.live_recordings
+    set recording_status = 'completed', storage_key = canonical_key,
+        duration_seconds = p_duration_seconds, bytes = p_bytes,
+        checksum = null, provider_error = null,
+        recording_claim_token = null, recording_claimed_at = null,
+        recording_started_at = p_provider_started_at,
+        recording_completed_at = p_provider_ended_at,
+        terminal_reconciliation_status = 'completed'
+    where id = current_recording.id
+      and terminal_reconciliation_status = 'unknown';
+  else
+    update public.live_recordings
+    set recording_status = 'failed', storage_key = null,
+        duration_seconds = null, bytes = null, checksum = null,
+        provider_error = 'provider-confirmed-terminal-failure',
+        recording_claim_token = null, recording_claimed_at = null,
+        terminal_reconciliation_status = 'failed'
+    where id = current_recording.id
+      and terminal_reconciliation_status = 'unknown';
+  end if;
+  if not found then
+    raise exception using errcode = '40001', message = 'LIVE_RECORDING_PROVIDER_RESOLUTION_CONFLICT';
+  end if;
+
+  insert into public.audit_events (
+    actor_id, action, subject_type, subject_id, metadata, created_at
+  ) values (
+    null, 'live_recording.reconciliation_resolved', 'live_recording',
+    current_recording.id, '{"status":"resolved"}'::jsonb, resolution_time
+  );
+  return jsonb_build_object('state', 'resolved');
+end;
+$$;
+
 revoke all on function public.reserve_reporter_live_recording(uuid, bigint, uuid)
 from public, anon, authenticated, service_role;
 revoke all on function public.complete_reporter_live_recording_start(uuid, uuid, text)
@@ -739,6 +977,8 @@ revoke all on function public.complete_livekit_webhook_event(text, uuid, uuid, t
 from public, anon, authenticated, service_role;
 revoke all on function public.report_reporter_live_recording_reconciliation(uuid, uuid, text, text)
 from public, anon, authenticated, service_role;
+revoke all on function public.resolve_quarantined_live_recording(uuid, uuid, text, text, text, numeric, bigint, timestamptz, timestamptz)
+from public, anon, authenticated, service_role;
 
 grant execute on function public.reserve_reporter_live_recording(uuid, bigint, uuid) to service_role;
 grant execute on function public.complete_reporter_live_recording_start(uuid, uuid, text) to service_role;
@@ -746,3 +986,4 @@ grant execute on function public.fail_reporter_live_recording_start(uuid, uuid, 
 grant execute on function public.authorize_reporter_live_session(uuid, bigint, uuid, uuid) to service_role;
 grant execute on function public.complete_livekit_webhook_event(text, uuid, uuid, text, text, numeric, bigint, timestamptz, timestamptz, text) to service_role;
 grant execute on function public.report_reporter_live_recording_reconciliation(uuid, uuid, text, text) to service_role;
+grant execute on function public.resolve_quarantined_live_recording(uuid, uuid, text, text, text, numeric, bigint, timestamptz, timestamptz) to service_role;
