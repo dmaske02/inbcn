@@ -142,3 +142,80 @@ generated-type refresh, and database advisors could not run. All required
 LiveKit and S3 credentials are unset, so credentialed provider/S3 end-to-end
 tests also remain an explicit external deployment gate. No provider success
 was inferred from those unavailable checks.
+
+## Final fix round 2 — terminal reconciliation race
+
+Reviewed base: `2c0c87a`
+
+The residual retry-order race is closed at the database state-machine boundary.
+The new additive migration
+`20260822165000_livekit_terminal_reconciliation_marker.sql` adds one nullable,
+private `terminal_reconciliation_status` fact constrained to `completed` or
+`failed`. The historical-Egress reconciliation RPC writes it with the exact
+Egress binding under the existing request-then-recording locks and can only
+retain the same terminal value; a conflicting terminal observation returns
+false without overwriting it.
+
+The final migration replaces the existing RPCs without changing their
+signatures:
+
+- `complete_reporter_live_recording_start` cannot change a marked pending row
+  to recording;
+- `complete_livekit_webhook_event` acknowledges each later nonterminal receipt
+  as processed/stale without changing the pending row or clearing its claim;
+- `authorize_reporter_live_session` rejects any marked row before a publisher
+  token can be issued;
+- the exact matching completed/failed callback still validates the immutable
+  receipt/Egress/request/output binding, finalizes the row and receipt, and
+  leaves the terminal marker intact. A terminal callback that conflicts with
+  the marker fails closed through the existing safe, retryable receipt-failure
+  path.
+
+Receipt-first then request-before-recording lock order, claim leases, canonical
+MP4 validation, fixed safe audit/notification metadata, and provider-text ID
+validation are unchanged. The marker is absent from the authenticated column
+grant and public projections. `service_role` has no direct INSERT/UPDATE column
+privilege for it; only the explicitly revoked/regranted definer RPC owns the
+transition.
+
+### Additive migration decision
+
+Unlike the first consolidated final fix, this round assumes the target may
+already have migrations through `20260822164000` applied. It therefore does not
+rewrite `20260822162000` or `20260822163000`. The single new `165000` migration
+adds the column/constraint and replaces the same four function identities, so
+both fresh chains and already-applied chains converge on one final contract.
+Manual database types add only the new column; callers and RPC signatures do
+not change. The rollback-only verifier now checks the column, constraint,
+browser/service write privileges, and final catalog function definitions.
+
+Supabase's current changelog and function privilege guidance were rechecked.
+No current breaking change affects this additive Postgres contract; all four
+definer functions retain the empty `search_path`, service-role check, explicit
+revocation from `public`/`anon`/`authenticated`/`service_role`, and one intended
+`service_role` grant.
+
+### Round-2 TDD and verification evidence
+
+- Exact interleaving RED on base `2c0c87a`: 0/3 passed. The failures were the
+  intentionally missing additive marker/RPC transition contract, lock-order
+  contract, and type/privilege/runtime-verifier parity.
+- Exact interleaving GREEN: 3/3 passed.
+- Focused schema, reservation, session, Egress reconciliation, webhook, and
+  marker suites: 73/73 passed.
+- Full `npm test`: website 251/251, CMS 637/637, reporter 320/320.
+- Root `npm run typecheck` and `npm run lint` passed across every workspace.
+- Production builds with documented non-secret URL placeholders and
+  `LIVEKIT_S3_FORCE_PATH_STYLE=false` passed for website and reporter on
+  Next.js 16.3 Turbopack, and for CMS with the supported webpack builder (26
+  pages, including the termination route). The default CMS Turbopack attempt
+  reproduced only the known macOS sandbox denial when PostCSS binds a local
+  port; no compilation/type error was reported.
+- `git diff --check` and the scoped two-pass SQL/data-safety, concurrency,
+  privilege, safe-error, raw-payload, caller/type, and migration-history review
+  passed with no findings.
+
+Docker remains installed with its daemon unavailable at
+`~/.docker/run/docker.sock`, so local Postgres reset, runtime verifier,
+generated-type refresh, and advisors remain external gates. LiveKit and S3
+credentials are still unset, so no credentialed provider success was inferred.

@@ -38,4 +38,69 @@ begin
 end;
 $$;
 
+do $$
+declare
+  complete_start_definition text;
+  authorize_definition text;
+  webhook_definition text;
+  reconciliation_definition text;
+begin
+  if not exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'live_recordings'
+      and column_name = 'terminal_reconciliation_status'
+      and data_type = 'text'
+      and is_nullable = 'YES'
+  ) or not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.live_recordings'::regclass
+      and conname = 'live_recordings_terminal_reconciliation_status_check'
+      and pg_get_constraintdef(oid) like '%completed%failed%'
+  ) then
+    raise exception 'live terminal reconciliation marker schema contract failed';
+  end if;
+
+  if exists (
+    select 1
+    from information_schema.column_privileges
+    where table_schema = 'public'
+      and table_name = 'live_recordings'
+      and column_name = 'terminal_reconciliation_status'
+      and lower(grantee) in ('public', 'anon', 'authenticated')
+  ) or exists (
+    select 1
+    from information_schema.column_privileges
+    where table_schema = 'public'
+      and table_name = 'live_recordings'
+      and column_name = 'terminal_reconciliation_status'
+      and grantee = 'service_role'
+      and privilege_type in ('INSERT', 'UPDATE')
+  ) then
+    raise exception 'live terminal reconciliation marker privilege contract failed';
+  end if;
+
+  complete_start_definition := lower(pg_get_functiondef(
+    'public.complete_reporter_live_recording_start(uuid,uuid,text)'::regprocedure
+  ));
+  authorize_definition := lower(pg_get_functiondef(
+    'public.authorize_reporter_live_session(uuid,bigint,uuid,uuid)'::regprocedure
+  ));
+  webhook_definition := lower(pg_get_functiondef(
+    'public.complete_livekit_webhook_event(text,uuid,uuid,text,text,numeric,bigint,timestamptz,timestamptz,text)'::regprocedure
+  ));
+  reconciliation_definition := lower(pg_get_functiondef(
+    'public.report_reporter_live_recording_reconciliation(uuid,uuid,text,text)'::regprocedure
+  ));
+  if position('terminal_reconciliation_status is null' in complete_start_definition) = 0
+    or position('terminal_reconciliation_status is not null' in authorize_definition) = 0
+    or position('terminal_reconciliation_status is not null' in webhook_definition) = 0
+    or position('terminal_reconciliation_status = coalesce' in reconciliation_definition) = 0 then
+    raise exception 'live terminal reconciliation marker function contract failed';
+  end if;
+end;
+$$;
+
 rollback;

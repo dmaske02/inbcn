@@ -637,6 +637,7 @@ export type Database = {
           bytes: number | null
           checksum: string | null
           provider_error: string | null
+          terminal_reconciliation_status: string | null
           private_metadata: Json
           recording_started_at: string | null
           recording_completed_at: string | null
@@ -666,6 +667,7 @@ export type Database = {
           bytes?: number | null
           checksum?: string | null
           provider_error?: string | null
+          terminal_reconciliation_status?: string | null
           private_metadata?: Json
           recording_started_at?: string | null
           recording_completed_at?: string | null
@@ -695,6 +697,7 @@ export type Database = {
           bytes?: number | null
           checksum?: string | null
           provider_error?: string | null
+          terminal_reconciliation_status?: string | null
           private_metadata?: Json
           recording_started_at?: string | null
           recording_completed_at?: string | null
