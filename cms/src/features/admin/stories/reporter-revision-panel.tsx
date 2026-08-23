@@ -1,12 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { reviewReporterStoryAction, type ReporterReviewActionState } from "./story.actions";
+import type { CmsStoryDto, CmsStoryReferenceDto } from "@/features/news/server";
+import { correctReporterStoryAction, reviewReporterStoryAction, type ReporterReviewActionState } from "./story.actions";
 import type { ReporterStoryReview, StoryCommand } from "./story.model";
 
 const initialState: ReporterReviewActionState = { status: "idle" };
@@ -55,10 +56,46 @@ function ReviewActionForm({
   );
 }
 
+function EditorialCorrectionForm({
+  references,
+  review,
+  story,
+}: Readonly<{
+  references: CmsStoryReferenceDto;
+  review: ReporterStoryReview;
+  story: CmsStoryDto;
+}>) {
+  const canonical = review.canonical_story;
+  const action = correctReporterStoryAction.bind(null, canonical.id, review.latest_revision.id);
+  const [state, formAction, pending] = useActionState(action, initialState);
+  const [languageId, setLanguageId] = useState(story.languageId);
+  const categories = references.categories.filter((category) => category.languageId === languageId);
+  const images = review.submitted_media.filter((media) => media.type === "image");
+  return (
+    <form action={formAction} className="grid gap-4 lg:grid-cols-2">
+      <input name="expectedUpdatedAt" type="hidden" value={story.updatedAt} />
+      <label className="grid gap-2 text-sm"><span>Headline</span><input className={inputClass} defaultValue={story.title} maxLength={240} name="title" required /></label>
+      <label className="grid gap-2 text-sm"><span>Slug</span><input className={inputClass} defaultValue={story.slug} name="slug" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" required /></label>
+      <label className="grid gap-2 text-sm lg:col-span-2"><span>Summary</span><textarea className={inputClass} defaultValue={story.summary} maxLength={1000} name="summary" required rows={3} /></label>
+      <label className="grid gap-2 text-sm lg:col-span-2"><span>Body</span><textarea className={inputClass} defaultValue={story.content} maxLength={100_000} name="content" required rows={10} /></label>
+      <label className="grid gap-2 text-sm"><span>Language</span><select className={inputClass} name="languageId" onChange={(event) => setLanguageId(event.target.value)} value={languageId}>{references.languages.map((language) => <option key={language.id} value={language.id}>{language.name}</option>)}</select></label>
+      <label className="grid gap-2 text-sm"><span>Category</span><select className={inputClass} defaultValue={languageId === story.languageId ? story.categoryId : categories[0]?.id} key={languageId} name="categoryId" required>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+      <label className="grid gap-2 text-sm"><span>Featured submitted image</span><select className={inputClass} defaultValue={story.featuredMediaId ?? ""} name="featuredMediaId"><option value="">None</option>{images.map((media) => <option key={media.id} value={media.id}>{media.title}</option>)}</select></label>
+      <label className="grid gap-2 text-sm"><span>SEO keywords</span><input className={inputClass} defaultValue={story.seoKeywords.join(", ")} maxLength={1000} name="tags" /></label>
+      <label className="grid gap-2 text-sm"><span>SEO title</span><input className={inputClass} defaultValue={story.seoTitle ?? ""} maxLength={240} name="seoTitle" /></label>
+      <label className="grid gap-2 text-sm"><span>SEO description</span><textarea className={inputClass} defaultValue={story.seoDescription ?? ""} maxLength={1000} name="seoDescription" rows={3} /></label>
+      <label className="grid gap-2 text-sm lg:col-span-2"><span>Required correction reason</span><textarea className={inputClass} maxLength={2000} name="reason" required rows={3} /></label>
+      <div className="lg:col-span-2"><Button disabled={pending} type="submit">{pending ? "Saving correction…" : "Save editorial correction"}</Button><p aria-live="polite" className={state.status === "error" ? "mt-2 text-sm text-destructive" : "mt-2 text-sm text-muted-foreground"} role="status">{state.message ?? ""}</p></div>
+    </form>
+  );
+}
+
 export function ReporterRevisionPanel({
   commands,
+  references,
   review,
-}: Readonly<{ commands: readonly StoryCommand[]; review: ReporterStoryReview }>) {
+  story,
+}: Readonly<{ commands: readonly StoryCommand[]; references: CmsStoryReferenceDto; review: ReporterStoryReview; story: CmsStoryDto }>) {
   const revision = review.latest_revision;
   const snapshot = revision.snapshot;
   const canonical = review.canonical_story;
@@ -108,6 +145,8 @@ export function ReporterRevisionPanel({
         <CardHeader><h2 className="text-lg font-semibold">Private newsroom evidence</h2><p className="text-sm text-muted-foreground">Exact coordinates must never be copied into public story fields, URLs, logs, or audit metadata.</p></CardHeader>
         <CardContent>{review.private_location ? <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3"><div><dt className="text-muted-foreground">Exact latitude / longitude</dt><dd>{review.private_location.latitude}, {review.private_location.longitude}</dd></div><div><dt className="text-muted-foreground">Accuracy</dt><dd>{review.private_location.accuracy_meters} metres</dd></div><div><dt className="text-muted-foreground">Captured</dt><dd>{format(review.private_location.captured_at)}</dd></div><div><dt className="text-muted-foreground">Locality</dt><dd>{review.private_location.locality}</dd></div></dl> : <p className="text-sm text-muted-foreground">Private location evidence has expired or is unavailable.</p>}</CardContent>
       </Card>
+
+      {["pending_review", "approved", "scheduled", "published"].includes(canonical.status) ? <Card padding="none"><CardHeader><h2 className="text-lg font-semibold">Editorial correction</h2><p className="text-sm text-muted-foreground">Correct the canonical newsroom version with a required audit reason. Immutable reporter-submitted revisions remain unchanged.</p></CardHeader><CardContent><EditorialCorrectionForm references={references} review={review} story={story} /></CardContent></Card> : null}
 
       {reviewCommands.length ? <Card padding="none"><CardHeader><h2 className="text-lg font-semibold">Review actions</h2><p className="text-sm text-muted-foreground">Actions apply to revision #{revision.number}. Refresh if another editor has already acted.</p></CardHeader><CardContent className="grid gap-4 lg:grid-cols-2">{reviewCommands.map((command) => <ReviewActionForm command={command} key={command} revisionId={revision.id} storyId={canonical.id} />)}</CardContent></Card> : null}
 

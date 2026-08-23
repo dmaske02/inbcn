@@ -202,6 +202,7 @@ export function createDraftSaveTracker() {
   let acknowledged = 0;
   return {
     edit() { generation += 1; },
+    snapshot() { return generation; },
     beginSave() { return { attempt: ++attempt, generation }; },
     isCurrentGeneration(candidate: number) { return candidate === generation; },
     acknowledge(result: Readonly<{ attempt: number; generation: number; status: "success" | "error" | "idle" }>) {

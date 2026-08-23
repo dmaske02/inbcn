@@ -14,6 +14,10 @@ const migration = await readFile(
   new URL("supabase/migrations/20260822153000_reporter_review_trust.sql", root),
   "utf8",
 ).catch(() => "");
+const correctionMigration = await readFile(
+  new URL("supabase/migrations/20260822157000_reporter_editorial_corrections.sql", root),
+  "utf8",
+).catch(() => "");
 const [service, actions, storyList, reporterRepository, reporterService, reporterActions, panel, directory, layout, databaseTypes] = await Promise.all([
   readFile(new URL("./story.service.ts", import.meta.url), "utf8"),
   readFile(new URL("./story.actions.ts", import.meta.url), "utf8"),
@@ -32,12 +36,15 @@ function compact(value) {
 }
 
 function sqlFunction(name, signatureStart = "") {
+  const sql = correctionMigration.includes(`create or replace function public.${name}(`)
+    ? correctionMigration
+    : migration;
   const marker = `create or replace function public.${name}(${signatureStart}`;
-  const start = migration.indexOf(marker);
+  const start = sql.indexOf(marker);
   assert.notEqual(start, -1, `missing ${name}`);
-  const end = migration.indexOf("\n$$;", start);
+  const end = sql.indexOf("\n$$;", start);
   assert.notEqual(end, -1, `unterminated ${name}`);
-  return compact(migration.slice(start, end + 4));
+  return compact(sql.slice(start, end + 4));
 }
 
 test("review and trust authorization is explicit and reporter commands never enable content mutation", () => {
@@ -135,10 +142,58 @@ test("pending reporter rejection notifies exactly once without affecting legacy 
   assert.match(notification, /old\.status is distinct from 'pending_review'/u);
   assert.match(notification, /new\.status is distinct from 'rejected'/u);
   assert.match(notification, /not public\.is_reporter_story\(new\)/u);
+  assert.match(notification, /review_outcome[\s\S]*= 'withdrawn'/u);
   assert.match(notification, /insert into public\.reporter_notifications/u);
   assert.match(notification, /'story_rejected'/u);
   assert.doesNotMatch(notification, /latitude|longitude|accuracy|review_reason|rejection_reason/u);
   assert.match(migration, /create trigger zz_notify_reporter_story_rejection\s+after update of status on public\.stories/u);
+});
+
+test("editorial corrections are narrow, revision-conflicted, audited, and RPC-only", () => {
+  const correction = sqlFunction("correct_reporter_story", "\n  p_story_id uuid,");
+  assert.match(correction, /security definer set search_path = ''/u);
+  assert.match(correction, /actor_role not in \('editor', 'admin'\)/u);
+  assert.match(correction, /profiles\.role::text = actor_role[\s\S]*profiles\.is_active/u);
+  assert.match(correction, /from public\.stories[\s\S]*for update/u);
+  assert.match(correction, /order by revision_number desc[\s\S]*limit 1[\s\S]*for update/u);
+  assert.match(correction, /current_revision\.id is distinct from p_revision_id/u);
+  assert.match(correction, /current_story\.updated_at is distinct from p_expected_updated_at/u);
+  assert.match(correction, /jsonb_object_keys\(p_patch\)/u);
+  assert.match(correction, /jsonb_typeof\(keyword\) is distinct from 'string'/u);
+  assert.match(correction, /sum\(length\(keyword\)\)/u);
+  assert.match(correction, /length\(btrim\(p_reason\)\) not between 1 and 2000/u);
+  assert.match(correction, /public\.is_reporter_story\(current_story\)/u);
+  assert.match(correction, /insert into private\.reporter_story_correction_states/u);
+  assert.match(correction, /'story\.reporter_editorial_corrected'/u);
+  assert.match(correction, /'changed_fields'/u);
+  assert.doesNotMatch(correction, /insert into public\.story_revisions|update public\.story_revisions/u);
+  assert.match(compact(correctionMigration), /revoke all on function public\.correct_reporter_story\(uuid, uuid, timestamptz, jsonb, text\) from public, anon, authenticated, service_role/u);
+  assert.match(compact(correctionMigration), /grant execute on function public\.correct_reporter_story\(uuid, uuid, timestamptz, jsonb, text\) to authenticated/u);
+  assert.match(databaseTypes, /correct_reporter_story: \{[\s\S]*p_expected_updated_at: string[\s\S]*p_patch: Json[\s\S]*p_reason: string[\s\S]*p_revision_id: string[\s\S]*p_story_id: string/u);
+});
+
+test("reporter archive provenance and correction verification are rollback-safe", async () => {
+  const provenance = sqlFunction("guard_reporter_story_provenance");
+  assert.match(correctionMigration, /drop constraint stories_review_status_check[\s\S]*status not in \('approved', 'scheduled', 'published', 'archived'\)[\s\S]*rejected_at is not null/u);
+  assert.match(provenance, /reporter_story_correction_states/u);
+  assert.match(provenance, /new\.approved_by is distinct from old\.approved_by/u);
+  assert.doesNotMatch(provenance, /old\.status = 'rejected'[\s\S]*new\.approved_by is distinct from actor_id/u);
+  const verifier = await readFile(new URL("supabase/verification/reporter-editorial-correction-verification.sql", root), "utf8").catch(() => "");
+  assert.match(verifier, /^\\set ON_ERROR_STOP on/mu);
+  assert.match(verifier, /begin;/u);
+  assert.match(verifier, /rollback;/u);
+  assert.match(verifier, /correct_reporter_story/u);
+  assert.match(verifier, /REPORTER_CORRECTION_REVISION_CONFLICT/u);
+});
+
+test("CMS exposes a clearly labeled correction action and revalidates public corrections", () => {
+  assert.match(panel, /Editorial correction/u);
+  assert.match(actions, /correctReporterStoryAction/u);
+  assert.match(actions, /await correctReporterStory/u);
+  assert.match(panel, /name="expectedUpdatedAt"[^>]*value=\{story\.updatedAt\}/u);
+  assert.match(actions, /expectedUpdatedAt: formData\.get\("expectedUpdatedAt"\)/u);
+  assert.match(actions, /revalidateStories\(storyId, published, true\)/u);
+  assert.doesNotMatch(actions, /saveStory\(admin, storyId/u);
 });
 
 test("trust RPC locks established rows and owns exact gates, provenance, idempotency, audit, and notification", () => {

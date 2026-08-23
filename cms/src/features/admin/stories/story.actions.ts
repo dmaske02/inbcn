@@ -5,9 +5,10 @@ import { redirect } from "next/navigation";
 
 import { requireAdminUser } from "@/features/admin/auth/server";
 import { revalidatePublicNews } from "@/features/admin/public-revalidation";
-import { storyFormSchema, storyUpdateSubmissionSchema, type StoryFormValues } from "./story.model";
+import { reporterCorrectionSchema, storyFormSchema, storyUpdateSubmissionSchema, type StoryFormValues } from "./story.model";
 import {
   createStory,
+  correctReporterStory,
   requestReporterChanges,
   runReporterStoryReviewCommand,
   runBulkStoryCommand,
@@ -16,6 +17,7 @@ import {
   StoryManagementError,
 } from "./story.service";
 import { normalizeScheduledAt } from "./story.workflow";
+import { StoryBatchPartialError } from "./story-bulk.service";
 
 export type StoryActionState = Readonly<{
   status: "idle" | "error";
@@ -151,12 +153,17 @@ export async function bulkStoryAction(formData: FormData): Promise<void> {
   if (ids.length === 0 || !["publish", "archive", "delete"].includes(command)) {
     redirect("/admin/stories?error=select-stories");
   }
+  const publicAffecting = command === "publish" || command === "archive";
   try {
     await runBulkStoryCommand(admin, ids, command as "publish" | "archive" | "delete");
-  } catch {
+  } catch (error) {
+    if (error instanceof StoryBatchPartialError && error.completedIds.length > 0) {
+      await revalidateStories(undefined, publicAffecting, true);
+      redirect(`/admin/stories?error=bulk-partial&completed=${error.completedIds.length}`);
+    }
     redirect("/admin/stories?error=bulk-action-failed");
   }
-  await revalidateStories(undefined, command === "publish" || command === "archive", true);
+  await revalidateStories(undefined, publicAffecting, true);
   redirect(`/admin/stories?changed=${command}`);
 }
 
@@ -200,4 +207,40 @@ export async function reviewReporterStoryAction(
   const publicAffecting = command === "publish" || command === "archive";
   await revalidateStories(storyId, publicAffecting, true);
   return { status: "success", message: "Reporter review updated." };
+}
+
+export async function correctReporterStoryAction(
+  storyId: string,
+  latestRevisionId: string,
+  _previous: ReporterReviewActionState,
+  formData: FormData,
+): Promise<ReporterReviewActionState> {
+  const admin = await requireAdminUser();
+  const parsed = reporterCorrectionSchema.safeParse({
+    expectedUpdatedAt: formData.get("expectedUpdatedAt"),
+    languageId: formData.get("languageId"),
+    categoryId: formData.get("categoryId"),
+    slug: formData.get("slug"),
+    title: formData.get("title"),
+    summary: formData.get("summary"),
+    content: formData.get("content"),
+    featuredMediaId: formData.get("featuredMediaId") ?? "",
+    tags: formData.get("tags") ?? "",
+    seoTitle: formData.get("seoTitle") ?? "",
+    seoDescription: formData.get("seoDescription") ?? "",
+    reason: formData.get("reason"),
+  });
+  if (!parsed.success) return { status: "error", message: "Check every correction field and enter a reason." };
+  try {
+    const { published } = await correctReporterStory(admin, storyId, latestRevisionId, parsed.data);
+    await revalidateStories(storyId, published, true);
+    return { status: "success", message: "Editorial correction saved without changing the submitted revision." };
+  } catch (error) {
+    return {
+      status: "error",
+      message: error instanceof StoryManagementError
+        ? error.message
+        : "The editorial correction could not be completed. Refresh and try again.",
+    };
+  }
 }

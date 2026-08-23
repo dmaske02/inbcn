@@ -72,3 +72,15 @@ test("mobile editor requires captured private evidence for review or direct publ
   assert.match(source, /canDirectPublish/u);
   assert.match(source, /disabled=\{!canTransition \|\| transitionPending\}/u);
 });
+
+test("submission transitions freeze mutable controls and clear only their exact recovery snapshot", () => {
+  assert.match(source, /const transitionLocked = transitionPending \|\| transitionState\?\.status === "success"/u);
+  assert.match(source, /<fieldset[^>]+disabled=\{transitionLocked\}/u);
+  assert.match(source, /const transitionGeneration = saveTracker\.current\.snapshot\(\)/u);
+  assert.match(source, /isCurrentGeneration\(transitionGeneration\)/u);
+  assert.match(source, /transitionInFlight\.current/u);
+  assert.match(source, /transitionSucceeded\.current/u);
+  assert.match(source, /if \(clearRecovery\(\)\) router\.refresh\(\)/u);
+  assert.match(source, /finally \{ transitionInFlight\.current = false; \}/u);
+  assert.doesNotMatch(source, /transitionState\?\.status === "success"\) clearRecovery\(\)/u);
+});

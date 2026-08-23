@@ -46,6 +46,24 @@ export const storyUpdateSubmissionSchema = storyFormSchema.extend({
 
 export type StoryFormValues = z.infer<typeof storyFormSchema>;
 
+export const reporterCorrectionSchema = storyFormSchema.pick({
+  languageId: true,
+  categoryId: true,
+  slug: true,
+  title: true,
+  summary: true,
+  content: true,
+  featuredMediaId: true,
+  tags: true,
+  seoTitle: true,
+  seoDescription: true,
+}).extend({
+  expectedUpdatedAt: z.iso.datetime({ offset: true }),
+  reason: z.string().trim().min(1).max(2000),
+});
+
+export type ReporterCorrectionValues = z.infer<typeof reporterCorrectionSchema>;
+
 const nullableTimestamp = z.string().nullable();
 
 export const reporterStoryReviewSchema = z.object({

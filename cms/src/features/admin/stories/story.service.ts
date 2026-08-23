@@ -21,10 +21,12 @@ import {
   getAllowedStoryCommands,
   parseReporterReviewReason,
   parseStoryUpdateForm,
+  reporterCorrectionSchema,
   reporterStoryReviewSchema,
   resolveEditableStoryType,
   storyFormSchema,
   type StoryCommand,
+  type ReporterCorrectionValues,
   type StoryFormValues,
   type StoryStatus,
 } from "./story.model";
@@ -394,6 +396,52 @@ export async function runReporterStoryReviewCommand(
     reason = parsedReason.reason;
   }
   await runStoryCommand(admin, storyId, command, scheduledAt, reason);
+}
+
+const reporterCorrectionResultSchema = z.object({ status: z.string() }).passthrough();
+
+export async function correctReporterStory(
+  admin: AdminIdentity,
+  storyId: string,
+  latestRevisionId: string,
+  input: ReporterCorrectionValues,
+): Promise<Readonly<{ published: boolean }>> {
+  if (!reporterReviewIdSchema.safeParse(storyId).success
+    || !reporterReviewIdSchema.safeParse(latestRevisionId).success
+    || !canReviewReporterStory(admin.role, "pending_review")) {
+    throw new StoryManagementError("FORBIDDEN", "You cannot correct reporter stories.");
+  }
+  const parsed = reporterCorrectionSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new StoryManagementError("VALIDATION", "Check the correction fields and reason.");
+  }
+  const values = parsed.data;
+  const { data, error } = await (await createClient()).rpc("correct_reporter_story", {
+    p_story_id: storyId,
+    p_revision_id: latestRevisionId,
+    p_expected_updated_at: values.expectedUpdatedAt,
+    p_patch: {
+      language_id: values.languageId,
+      category_id: values.categoryId,
+      slug: values.slug,
+      title: values.title,
+      summary: values.summary,
+      content: values.content,
+      featured_media_id: values.featuredMediaId || null,
+      seo_title: values.seoTitle || null,
+      seo_description: values.seoDescription || null,
+      seo_keywords: parseTags(values.tags),
+    },
+    p_reason: values.reason,
+  });
+  const result = reporterCorrectionResultSchema.safeParse(data);
+  if (error || !result.success) {
+    throw new StoryManagementError(
+      "INVALID_TRANSITION",
+      "This story or submitted revision changed before the correction completed. Refresh and try again.",
+    );
+  }
+  return { published: result.data.status === "published" };
 }
 
 export async function runBulkStoryCommand(

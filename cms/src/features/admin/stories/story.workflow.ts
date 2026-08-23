@@ -46,7 +46,7 @@ export function buildTransitionPatch(
   }
 
   const approval =
-    currentStatus === "draft" || currentStatus === "pending_review" || currentStatus === "rejected"
+    currentStatus === "draft" || currentStatus === "pending_review"
       ? {
           ...(currentStatus === "draft" ? { submitted_at: now } : {}),
           approved_by: actorId,

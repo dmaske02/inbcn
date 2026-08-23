@@ -103,6 +103,8 @@ export function StoryEditor({
   const [transitionPending, startTransition] = useTransition();
   const persistence = useRef<ReturnType<typeof createDraftPersistence> | null>(null);
   const saveTracker = useRef(createDraftSaveTracker());
+  const transitionInFlight = useRef(false);
+  const transitionSucceeded = useRef(false);
   const saveAttemptInput = useRef<HTMLInputElement>(null);
   const saveGenerationInput = useRef<HTMLInputElement>(null);
   const form = useRef<HTMLFormElement>(null);
@@ -169,10 +171,6 @@ export function StoryEditor({
     return () => window.clearTimeout(cleanTimer);
   }, [clearRecovery, fields, reportStorageFailure, router, saveState, storageStoryId, userId]);
 
-  useEffect(() => {
-    if (transitionState?.status === "success") clearRecovery();
-  }, [clearRecovery, transitionState?.status]);
-
   function updateFields(update: (current: LocalDraftFields) => LocalDraftFields) {
     saveTracker.current.edit();
     setDirty(true);
@@ -211,10 +209,28 @@ export function StoryEditor({
   }
 
   function transition(action: Action | undefined) {
-    if (dirty || !action || !form.current || !location || !isFreshCapture(location.capturedAt, new Date()) || !locality.trim()) return;
+    if (transitionSucceeded.current || transitionInFlight.current || dirty || !action || !form.current || !location || !isFreshCapture(location.capturedAt, new Date()) || !locality.trim()) return;
+    transitionInFlight.current = true;
     setTransitionState(null);
     const formData = new FormData(form.current);
-    startTransition(async () => setTransitionState(await action(initialState, formData)));
+    const transitionGeneration = saveTracker.current.snapshot();
+    startTransition(async () => {
+      try {
+        const result = await action(initialState, formData);
+        if (result.status === "success") {
+          transitionSucceeded.current = true;
+          setTransitionState(result);
+          if (saveTracker.current.isCurrentGeneration(transitionGeneration)) {
+            if (clearRecovery()) router.refresh();
+          }
+          else reportStorageFailure("Newer edits remain in local recovery. Reopen the draft before leaving this page.");
+          return;
+        }
+        setTransitionState(result);
+      } catch {
+        setTransitionState({ status: "error", message: "The story could not be submitted. Your local recovery is still available." });
+      } finally { transitionInFlight.current = false; }
+    });
   }
 
   function prepareSave() {
@@ -227,10 +243,12 @@ export function StoryEditor({
   const canTransition = Boolean(!dirty && location && isFreshCapture(location.capturedAt, new Date()) && locality.trim());
   const featuredMedia = fields.media.filter((item) => item.type === "image");
   const isSaving = saving || transitionPending;
+  const transitionLocked = transitionPending || transitionState?.status === "success";
 
   if (!editable) return null;
   return (
     <form action={saveFormAction} className="space-y-5 rounded-lg border border-border bg-background p-5 shadow-sm sm:p-6" onBlur={() => persistence.current?.flush()} onSubmit={prepareSave} ref={form}>
+      <fieldset className="contents" disabled={transitionLocked}>
       <input name="draftSaveAttempt" ref={saveAttemptInput} type="hidden" />
       <input name="draftSaveGeneration" ref={saveGenerationInput} type="hidden" />
       <input name="latitude" type="hidden" value={location?.latitude ?? ""} />
@@ -262,6 +280,7 @@ export function StoryEditor({
       {actionMessage(saveState)}
       {storageMessage ? <p aria-live="polite" className="text-sm text-destructive" role="alert">{storageMessage}</p> : null}
       {canSubmit ? <section aria-labelledby="private-evidence-heading" className="space-y-3 border-t border-border pt-5"><h2 id="private-evidence-heading" className="text-lg font-semibold">Private current-location evidence</h2><p className="text-sm text-muted-foreground">Your exact coordinates, accuracy, and capture time are private evidence for the newsroom and never appear in the story.</p><button className={`${buttonClass} border border-border`} disabled={capturing || transitionPending} onClick={() => void captureLocation()} type="button">{capturing ? "Capturing location…" : "Capture current location"}</button><p aria-live="polite" className="text-sm" role={location ? "status" : undefined}>{locationMessage}</p>{location ? <p className="rounded-md border border-border p-3 text-sm">Private capture: {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)} · accuracy {Math.round(location.accuracy)} m · {new Date(location.capturedAt).toLocaleString()}</p> : null}<label className="block text-sm font-medium">Detailed locality confirmation<input aria-required="true" className={fieldClass} maxLength={200} name="locality" onChange={(event) => setLocality(event.target.value)} value={locality} /></label><div className="flex flex-wrap gap-2"><button className={`${buttonClass} bg-foreground text-background`} disabled={!canTransition || transitionPending} onClick={() => transition(submitAction)} type="button">{transitionPending ? "Working…" : "Submit for review"}</button>{canDirectPublish ? <button className={`${buttonClass} border border-border`} disabled={!canTransition || transitionPending} onClick={() => transition(directAction)} type="button">Publish directly</button> : null}</div>{actionMessage(transitionState)}</section> : null}
+      </fieldset>
     </form>
   );
 }

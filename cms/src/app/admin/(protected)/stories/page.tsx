@@ -6,7 +6,7 @@ import { requireAdminUser } from "@/features/admin/auth/server";
 import { StoryList } from "@/features/admin/stories/story-list";
 import { getStoryListView, type StoryListParams } from "@/features/admin/stories/story.service";
 
-export default async function StoriesPage({ searchParams }: { searchParams: Promise<StoryListParams & { error?: string; changed?: string }> }) {
+export default async function StoriesPage({ searchParams }: { searchParams: Promise<StoryListParams & { error?: string; changed?: string; completed?: string }> }) {
   const admin = await requireAdminUser();
   const params = await searchParams;
   const view = await getStoryListView(admin, params);
@@ -23,7 +23,7 @@ export default async function StoriesPage({ searchParams }: { searchParams: Prom
           <Link className={buttonVariants()} href="/admin/stories/new"><Plus aria-hidden="true" />New Story</Link>
         ) : null}
       </header>
-      {params.error ? <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">The requested action could not be completed.</p> : null}
+      {params.error === "bulk-partial" ? <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{params.completed} selected stories were updated before a later story changed. Refresh and review the remaining selection.</p> : params.error ? <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">The requested action could not be completed.</p> : null}
       {params.changed ? <p role="status" className="rounded-md border border-verified/30 bg-verified/5 p-3 text-sm text-verified">Story changes were applied successfully.</p> : null}
       <StoryList view={view} />
     </div>

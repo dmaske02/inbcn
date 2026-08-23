@@ -193,3 +193,12 @@ test("acknowledges only the exact saved edit generation and handles repeated suc
   assert.equal(tracker.isCurrentGeneration(third.generation), false);
   assert.deepEqual(tracker.acknowledge({ ...first, status: "success" }), { clear: false, stale: false });
 });
+
+test("a transition may clear recovery only for its exact edit generation", () => {
+  const tracker = createDraftSaveTracker();
+  tracker.edit();
+  const transition = tracker.snapshot();
+  assert.equal(tracker.isCurrentGeneration(transition), true);
+  tracker.edit();
+  assert.equal(tracker.isCurrentGeneration(transition), false);
+});

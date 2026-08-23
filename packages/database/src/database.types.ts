@@ -1500,6 +1500,10 @@ export type Database = {
         Args: { p_story_id: string; p_revision_id: string; p_reason: string }
         Returns: Json
       }
+      correct_reporter_story: {
+        Args: { p_expected_updated_at: string; p_patch: Json; p_reason: string; p_revision_id: string; p_story_id: string }
+        Returns: Json
+      }
       get_reporter_story_review: {
         Args: { p_story_id: string }
         Returns: Json

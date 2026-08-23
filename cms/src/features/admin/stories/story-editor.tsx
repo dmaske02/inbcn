@@ -22,7 +22,7 @@ export function StoryEditor({ adminRole, view, notices = {} }: { adminRole: Admi
       </header>
       {notices.saved || notices.changed ? <p role="status" className="rounded-md border border-verified/30 bg-verified/5 p-3 text-sm text-verified">Story changes were saved successfully.</p> : null}
       {notices.error ? <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">The requested workflow action could not be completed.</p> : null}
-      {view.reporterReview ? <ReporterRevisionPanel commands={view.commands} review={view.reporterReview} /> : <StoryForm adminRole={adminRole} view={view} />}
+      {view.reporterReview && view.story ? <ReporterRevisionPanel commands={view.commands} references={view.references} review={view.reporterReview} story={view.story} /> : <StoryForm adminRole={adminRole} view={view} />}
     </div>
   );
 }

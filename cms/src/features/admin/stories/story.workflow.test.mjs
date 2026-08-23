@@ -58,6 +58,14 @@ test("rejects a story with a durable editorial reason", () => {
   );
 });
 
+test("archiving rejected or withdrawn reporter stories preserves approval provenance", () => {
+  const now = "2026-08-01T10:00:00.000Z";
+  assert.deepEqual(buildTransitionPatch("archive", "rejected", "editor-1", now), {
+    status: "archived",
+    updated_at: now,
+  });
+});
+
 test("schedule requires a future date", () => {
   assert.throws(
     () => buildTransitionPatch("schedule", "approved", "editor-1", "2026-08-01T10:00:00.000Z"),
