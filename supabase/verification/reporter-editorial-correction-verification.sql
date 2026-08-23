@@ -88,7 +88,9 @@ do $$
 declare
   canonical_title text;
   submitted_title text;
-  changed jsonb;
+  generic_metadata jsonb;
+  private_reason text;
+  private_changed jsonb;
 begin
   select title into strict canonical_title
   from public.stories
@@ -97,16 +99,39 @@ begin
   from public.story_revisions
   where story_id = '86000000-0000-4000-8000-000000000003'
   order by revision_number desc limit 1;
-  select metadata -> 'changed_fields' into strict changed
+  select audit_events.metadata, corrections.reason, to_jsonb(corrections.changed_fields)
+  into strict generic_metadata, private_reason, private_changed
   from public.audit_events
-  where action = 'story.reporter_editorial_corrected'
-    and subject_id = '86000000-0000-4000-8000-000000000003'
-  order by created_at desc limit 1;
+  join private.reporter_story_corrections as corrections
+    on corrections.id = (audit_events.metadata ->> 'correction_event_id')::uuid
+  where audit_events.action = 'story.reporter_editorial_corrected'
+    and audit_events.subject_id = '86000000-0000-4000-8000-000000000003'
+  order by audit_events.created_at desc limit 1;
   if canonical_title is distinct from 'Editor corrected headline'
     or submitted_title is distinct from 'Original submitted headline'
-    or changed is distinct from '["slug", "title"]'::jsonb then
+    or private_reason is distinct from 'Corrected a factual error in the headline.'
+    or private_changed is distinct from '["slug", "title"]'::jsonb
+    or generic_metadata -> 'changed_fields' is distinct from private_changed
+    or jsonb_object_length(generic_metadata) is distinct from 3
+    or generic_metadata ? 'reason'
+    or generic_metadata ?| array['latitude', 'longitude', 'accuracy'] then
     raise exception 'editor correction or immutable revision verification failed';
   end if;
+end;
+$$;
+
+do $$
+begin
+  begin
+    update private.reporter_story_corrections
+    set reason = 'History must remain immutable.'
+    where story_id = '86000000-0000-4000-8000-000000000003';
+    raise exception 'private correction history unexpectedly changed';
+  exception when object_not_in_prerequisite_state then
+    if sqlerrm is distinct from 'REPORTER_CORRECTION_HISTORY_IMMUTABLE' then
+      raise;
+    end if;
+  end;
 end;
 $$;
 

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  clearRecoveryBeforeRefresh,
   NEW_REPORTER_DRAFT_ID,
   clearLocalDraft,
   chooseLocalDraft,
@@ -201,4 +202,15 @@ test("a transition may clear recovery only for its exact edit generation", () =>
   assert.equal(tracker.isCurrentGeneration(transition), true);
   tracker.edit();
   assert.equal(tracker.isCurrentGeneration(transition), false);
+});
+
+test("failed transition cleanup never refreshes and may be retried safely", () => {
+  let attempts = 0;
+  let refreshes = 0;
+  const clear = () => ++attempts > 1;
+  const refresh = () => { refreshes += 1; };
+  assert.equal(clearRecoveryBeforeRefresh(clear, refresh), false);
+  assert.equal(refreshes, 0);
+  assert.equal(clearRecoveryBeforeRefresh(clear, refresh), true);
+  assert.equal(refreshes, 1);
 });

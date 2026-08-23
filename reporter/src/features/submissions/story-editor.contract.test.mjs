@@ -80,7 +80,12 @@ test("submission transitions freeze mutable controls and clear only their exact 
   assert.match(source, /isCurrentGeneration\(transitionGeneration\)/u);
   assert.match(source, /transitionInFlight\.current/u);
   assert.match(source, /transitionSucceeded\.current/u);
-  assert.match(source, /if \(clearRecovery\(\)\) router\.refresh\(\)/u);
+  assert.match(source, /clearRecoveryBeforeRefresh\(clearRecovery, \(\) => router\.refresh\(\)\)/u);
+  assert.match(source, /cleanupRequired/u);
+  assert.match(source, /retryTransitionCleanup/u);
+  assert.match(source, /Retry cleanup and refresh/u);
+  assert.match(source, /<\/fieldset>[\s\S]*cleanupRequired/u);
+  assert.match(source, /role="status"/u);
   assert.match(source, /finally \{ transitionInFlight\.current = false; \}/u);
   assert.doesNotMatch(source, /transitionState\?\.status === "success"\) clearRecovery\(\)/u);
 });

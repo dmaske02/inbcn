@@ -164,8 +164,15 @@ test("editorial corrections are narrow, revision-conflicted, audited, and RPC-on
   assert.match(correction, /length\(btrim\(p_reason\)\) not between 1 and 2000/u);
   assert.match(correction, /public\.is_reporter_story\(current_story\)/u);
   assert.match(correction, /insert into private\.reporter_story_correction_states/u);
+  assert.match(correction, /insert into private\.reporter_story_corrections/u);
   assert.match(correction, /'story\.reporter_editorial_corrected'/u);
   assert.match(correction, /'changed_fields'/u);
+  assert.match(correction, /'correction_event_id'/u);
+  const genericAudit = correction.slice(correction.indexOf("insert into public.audit_events"), correction.indexOf("insert into public.reporter_notifications"));
+  assert.doesNotMatch(genericAudit, /'reason'|p_reason|latitude|longitude|accuracy/u);
+  assert.match(correctionMigration, /create table private\.reporter_story_corrections/u);
+  assert.match(correctionMigration, /create trigger reporter_story_corrections_are_append_only\s+before update or delete/u);
+  assert.match(compact(correctionMigration), /revoke all on table private\.reporter_story_corrections from public, anon, authenticated, service_role/u);
   assert.doesNotMatch(correction, /insert into public\.story_revisions|update public\.story_revisions/u);
   assert.match(compact(correctionMigration), /revoke all on function public\.correct_reporter_story\(uuid, uuid, timestamptz, jsonb, text\) from public, anon, authenticated, service_role/u);
   assert.match(compact(correctionMigration), /grant execute on function public\.correct_reporter_story\(uuid, uuid, timestamptz, jsonb, text\) to authenticated/u);
@@ -184,6 +191,8 @@ test("reporter archive provenance and correction verification are rollback-safe"
   assert.match(verifier, /rollback;/u);
   assert.match(verifier, /correct_reporter_story/u);
   assert.match(verifier, /REPORTER_CORRECTION_REVISION_CONFLICT/u);
+  assert.match(verifier, /reporter_story_corrections/u);
+  assert.match(verifier, /metadata \? 'reason'/u);
 });
 
 test("CMS exposes a clearly labeled correction action and revalidates public corrections", () => {

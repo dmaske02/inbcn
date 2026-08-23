@@ -28,6 +28,12 @@ export type LocalDraft = Readonly<{
 type SafeStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 type Timer = Readonly<{ setTimeout(callback: () => void, milliseconds: number): number; clearTimeout(id: number): void }>;
 
+export function clearRecoveryBeforeRefresh(clearRecovery: () => boolean, refresh: () => void): boolean {
+  if (!clearRecovery()) return false;
+  refresh();
+  return true;
+}
+
 export function draftStorageKey(userId: string, storyId: string): string {
   return `inbcn:reporter-draft:${userId}:${storyId}`;
 }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import type { SubmissionActionState } from "./submission.actions.ts";
 import {
+  clearRecoveryBeforeRefresh,
   createDraftPersistence,
   createDraftSaveTracker,
   loadLocalDraft,
@@ -100,6 +101,7 @@ export function StoryEditor({
   const [dirty, setDirty] = useState(false);
   const [storageMessage, setStorageMessage] = useState("");
   const [transitionState, setTransitionState] = useState<SubmissionActionState | null>(null);
+  const [cleanupRequired, setCleanupRequired] = useState(false);
   const [transitionPending, startTransition] = useTransition();
   const persistence = useRef<ReturnType<typeof createDraftPersistence> | null>(null);
   const saveTracker = useRef(createDraftSaveTracker());
@@ -221,7 +223,7 @@ export function StoryEditor({
           transitionSucceeded.current = true;
           setTransitionState(result);
           if (saveTracker.current.isCurrentGeneration(transitionGeneration)) {
-            if (clearRecovery()) router.refresh();
+            if (!clearRecoveryBeforeRefresh(clearRecovery, () => router.refresh())) setCleanupRequired(true);
           }
           else reportStorageFailure("Newer edits remain in local recovery. Reopen the draft before leaving this page.");
           return;
@@ -231,6 +233,10 @@ export function StoryEditor({
         setTransitionState({ status: "error", message: "The story could not be submitted. Your local recovery is still available." });
       } finally { transitionInFlight.current = false; }
     });
+  }
+
+  function retryTransitionCleanup() {
+    if (clearRecoveryBeforeRefresh(clearRecovery, () => router.refresh())) setCleanupRequired(false);
   }
 
   function prepareSave() {
@@ -281,6 +287,7 @@ export function StoryEditor({
       {storageMessage ? <p aria-live="polite" className="text-sm text-destructive" role="alert">{storageMessage}</p> : null}
       {canSubmit ? <section aria-labelledby="private-evidence-heading" className="space-y-3 border-t border-border pt-5"><h2 id="private-evidence-heading" className="text-lg font-semibold">Private current-location evidence</h2><p className="text-sm text-muted-foreground">Your exact coordinates, accuracy, and capture time are private evidence for the newsroom and never appear in the story.</p><button className={`${buttonClass} border border-border`} disabled={capturing || transitionPending} onClick={() => void captureLocation()} type="button">{capturing ? "Capturing location…" : "Capture current location"}</button><p aria-live="polite" className="text-sm" role={location ? "status" : undefined}>{locationMessage}</p>{location ? <p className="rounded-md border border-border p-3 text-sm">Private capture: {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)} · accuracy {Math.round(location.accuracy)} m · {new Date(location.capturedAt).toLocaleString()}</p> : null}<label className="block text-sm font-medium">Detailed locality confirmation<input aria-required="true" className={fieldClass} maxLength={200} name="locality" onChange={(event) => setLocality(event.target.value)} value={locality} /></label><div className="flex flex-wrap gap-2"><button className={`${buttonClass} bg-foreground text-background`} disabled={!canTransition || transitionPending} onClick={() => transition(submitAction)} type="button">{transitionPending ? "Working…" : "Submit for review"}</button>{canDirectPublish ? <button className={`${buttonClass} border border-border`} disabled={!canTransition || transitionPending} onClick={() => transition(directAction)} type="button">Publish directly</button> : null}</div>{actionMessage(transitionState)}</section> : null}
       </fieldset>
+      {cleanupRequired ? <section aria-live="polite" className="space-y-2 rounded-md border border-border p-3" role="status"><p className="text-sm">The story was submitted, but local recovery cleanup failed. Editing remains locked.</p><button className={`${buttonClass} border border-border`} onClick={retryTransitionCleanup} type="button">Retry cleanup and refresh</button></section> : null}
     </form>
   );
 }

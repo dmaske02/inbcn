@@ -33,6 +33,46 @@ create table private.reporter_story_correction_states (
 revoke all on table private.reporter_story_correction_states
 from public, anon, authenticated, service_role;
 
+create table private.reporter_story_corrections (
+  id uuid primary key default gen_random_uuid(),
+  story_id uuid not null references public.stories (id) on delete restrict,
+  revision_id uuid not null,
+  actor_id uuid not null references public.profiles (id) on delete restrict,
+  reason text not null check (length(btrim(reason)) between 1 and 2000),
+  changed_fields text[] not null check (
+    cardinality(changed_fields) between 1 and 10
+    and changed_fields <@ array[
+      'category_id', 'content', 'featured_media_id', 'language_id', 'seo_description',
+      'seo_keywords', 'seo_title', 'slug', 'summary', 'title'
+    ]::text[]
+  ),
+  created_at timestamptz not null,
+  constraint reporter_story_corrections_revision_fkey
+    foreign key (revision_id, story_id)
+    references public.story_revisions (id, story_id)
+    on delete restrict
+);
+
+revoke all on table private.reporter_story_corrections
+from public, anon, authenticated, service_role;
+
+create function private.reject_reporter_story_correction_mutation()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  raise exception using errcode = '55000', message = 'REPORTER_CORRECTION_HISTORY_IMMUTABLE';
+end;
+$$;
+
+revoke all on function private.reject_reporter_story_correction_mutation()
+from public, anon, authenticated, service_role;
+
+create trigger reporter_story_corrections_are_append_only
+before update or delete on private.reporter_story_corrections
+for each row execute function private.reject_reporter_story_correction_mutation();
+
 create or replace function public.guard_reporter_story_provenance()
 returns trigger
 language plpgsql
@@ -463,6 +503,7 @@ declare
   canonical_media_ids uuid[];
   canonical_snapshot jsonb;
   changed_fields text[];
+  correction_event_id uuid := gen_random_uuid();
 begin
   if actor_id is null or actor_role not in ('editor', 'admin')
     or not exists (
@@ -651,6 +692,13 @@ begin
       updated_at = correction_time
   where id = current_story.id;
 
+  insert into private.reporter_story_corrections (
+    id, story_id, revision_id, actor_id, reason, changed_fields, created_at
+  ) values (
+    correction_event_id, current_story.id, current_revision.id, actor_id,
+    btrim(p_reason), changed_fields, correction_time
+  );
+
   insert into public.audit_events (
     actor_id, action, subject_type, subject_id, metadata, created_at
   ) values (
@@ -659,9 +707,9 @@ begin
     'story',
     current_story.id,
     jsonb_build_object(
+      'correction_event_id', correction_event_id,
       'revision_id', current_revision.id,
-      'changed_fields', to_jsonb(changed_fields),
-      'reason', btrim(p_reason)
+      'changed_fields', to_jsonb(changed_fields)
     ),
     correction_time
   );
