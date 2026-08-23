@@ -67,4 +67,12 @@ async function list(profileId: string): Promise<readonly ReporterLiveRequest[]> 
   return data.map(mapRequest);
 }
 
-export const liveRequestRepository = { create, getAccess: getCurrentMembership, list } as const;
+async function get(profileId: string, id: string): Promise<ReporterLiveRequest | null> {
+  const { data, error } = await (await createClient()).from("reporter_live_requests")
+    .select("id, title, purpose, intended_locality, expected_starts_at, expected_duration_minutes, supporting_notes, status, decision_reason, approved_starts_at, approved_ends_at, termination_reason, created_at")
+    .eq("id", id).eq("profile_id", profileId).maybeSingle();
+  if (error) throw new LiveRequestRepositoryError(error.message);
+  return data ? mapRequest(data) : null;
+}
+
+export const liveRequestRepository = { create, get, getAccess: getCurrentMembership, list } as const;

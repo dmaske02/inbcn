@@ -3,10 +3,11 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("live request UI uses safe native controls and contains no location capture", async () => {
-  const [form, actions, layout, requestPage] = await Promise.all([
+  const [form, actions, layout, list, requestPage] = await Promise.all([
     readFile(new URL("./live-request-form.tsx", import.meta.url), "utf8"),
     readFile(new URL("./live-request.actions.ts", import.meta.url), "utf8"),
     readFile(new URL("../../app/(protected)/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("./live-request-list.tsx", import.meta.url), "utf8"),
     readFile(new URL("../../app/(protected)/live/request/page.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(form, /type="datetime-local"/u);
@@ -15,6 +16,7 @@ test("live request UI uses safe native controls and contains no location capture
   assert.doesNotMatch(form, /geolocation|latitude|longitude|coordinates/iu);
   assert.match(actions, /requireReporterSession/u);
   assert.match(layout, /href="\/live"/u);
+  assert.match(list, /href=\{`\/live\/\$\{request\.id\}`\}/u);
   assert.match(requestPage, /will be server-recorded/u);
   assert.doesNotMatch(requestPage, /session is recorded/u);
 });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createLiveRequestService, LiveRequestError } from "./live-request.service.ts";
+import { createLiveRequestService, getLiveRequest, LiveRequestError } from "./live-request.service.ts";
 
 const profileId = "11111111-1111-4111-8111-111111111111";
 const input = {
@@ -29,4 +29,17 @@ test("grace membership cannot create a live request", async () => {
     list: async () => [],
   });
   await assert.rejects(() => service.create(profileId, input), (error) => error instanceof LiveRequestError && error.code === "FORBIDDEN");
+});
+
+test("reporter live studio lookup remains scoped to the current reporter", async () => {
+  let received;
+  const service = createLiveRequestService({
+    getAccess: async () => ({ status: "active", canBroadcastLive: true }),
+    create: async () => { throw new Error("unused"); },
+    get: async (profileId, requestId) => { received = { profileId, requestId }; return null; },
+    list: async () => [],
+  });
+  await service.get(profileId, "22222222-2222-4222-8222-222222222222");
+  assert.deepEqual(received, { profileId, requestId: "22222222-2222-4222-8222-222222222222" });
+  assert.equal(await getLiveRequest(profileId, "not-a-uuid"), null);
 });

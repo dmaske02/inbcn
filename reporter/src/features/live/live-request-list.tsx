@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import type { ReporterLiveRequest } from "./live-request.repository";
 
 function date(value: string): string {
@@ -13,6 +15,7 @@ export function LiveRequestList({ requests }: Readonly<{ requests: readonly Repo
           <h2 className="font-semibold">{request.title}</h2>
           <p className="mt-1 text-sm text-muted-foreground">{request.status.replaceAll("_", " ")} · requested for {date(request.expectedStartsAt)}</p>
           {request.status === "approved" && request.approvedStartsAt && request.approvedEndsAt ? <p className="mt-2 text-sm">Approved window: {date(request.approvedStartsAt)} – {date(request.approvedEndsAt)}.</p> : null}
+          {request.status === "approved" ? <Link className="mt-3 inline-block rounded-md bg-foreground px-3 py-2 text-sm font-medium text-background" href={`/live/${request.id}`}>Open broadcast studio</Link> : null}
           {request.decisionReason ? <p className="mt-2 text-sm">Editorial note: {request.decisionReason}</p> : null}
           {request.terminationReason ? <p className="mt-2 text-sm">Termination note: {request.terminationReason}</p> : null}
         </li>

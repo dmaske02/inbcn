@@ -1,8 +1,11 @@
+import { z } from "zod";
+
 import type { LiveRequestInput } from "./live-request.model.ts";
 import type { ReporterLiveRequest } from "./live-request.repository.ts";
 
 type LiveRequestRepository = Readonly<{
   create(profileId: string, input: LiveRequestInput): Promise<ReporterLiveRequest>;
+  get(profileId: string, id: string): Promise<ReporterLiveRequest | null>;
   getAccess(profileId: string): Promise<Readonly<{ status: string; canBroadcastLive: boolean }>>;
   list(profileId: string): Promise<readonly ReporterLiveRequest[]>;
 }>;
@@ -38,6 +41,10 @@ export function createLiveRequestService(repository: LiveRequestRepository) {
         throw safeError(error);
       }
     },
+    async get(profileId: string, id: string) {
+      const parsed = z.uuid().safeParse(id);
+      return parsed.success ? repository.get(profileId, parsed.data.toLowerCase()) : null;
+    },
     list: (profileId: string) => repository.list(profileId),
   } as const;
 }
@@ -53,4 +60,8 @@ export async function createLiveRequest(profileId: string, input: LiveRequestInp
 
 export async function getLiveRequests(profileId: string) {
   return (await runtimeService()).list(profileId);
+}
+
+export async function getLiveRequest(profileId: string, id: string) {
+  return z.uuid().safeParse(id).success ? (await runtimeService()).get(profileId, id) : null;
 }
