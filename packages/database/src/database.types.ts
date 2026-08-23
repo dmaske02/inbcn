@@ -1566,6 +1566,33 @@ export type Database = {
       }
     }
     Views: {
+      public_replays: {
+        Row: {
+          id: string
+          status: string
+          title: string
+          description: string
+          duration_seconds: number
+          recording_started_at: string
+          recording_ended_at: string
+          published_at: string
+          language_code: string
+          category_slug: string
+          category_name: string
+          thumbnail_url: string
+          thumbnail_alt_text: string
+          thumbnail_width: number | null
+          thumbnail_height: number | null
+          reporter_public_slug: string
+          reporter_legal_display_name: string
+          reporter_avatar_url: string
+          reporter_public_status: string
+          reporter_home_district: string
+          reporter_bio: string | null
+          reporter_beats: string[]
+        }
+        Relationships: []
+      }
       public_media: {
         Row: {
           alt_text: string | null
@@ -1664,6 +1691,10 @@ export type Database = {
       claim_livekit_webhook_event: {
         Args: { p_event_id: string; p_event_type: string; p_egress_id: string }
         Returns: Json
+      }
+      get_public_replay_storage_key: {
+        Args: { p_replay_id: string }
+        Returns: string | null
       }
       claim_reporter_access_sync: { Args: { p_profile_id: string }; Returns: Json }
       claim_kyc_webhook_event: { Args: { p_event_id: string; p_event_type: string }; Returns: Json }

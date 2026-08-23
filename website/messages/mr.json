@@ -200,6 +200,25 @@
       "home": "मुख्यपृष्ठावर परत जा"
     }
   },
+  "replays": {
+    "home": "मुख्यपृष्ठ",
+    "breadcrumb": "ब्रेडक्रंब",
+    "replay": "प्रसारण रिप्ले",
+    "published": "प्रकाशित",
+    "playerTitle": "रिप्ले व्हिडिओ",
+    "playerLabel": "{title} चालू करा",
+    "playerFallback": "तुमचा ब्राउझर हा रिप्ले चालवू शकत नाही.",
+    "details": "रिप्ले तपशील",
+    "recorded": "रेकॉर्ड केले",
+    "duration": "कालावधी",
+    "durationSeconds": "{seconds} सेकंद",
+    "reporter": { "profile": "सत्यापित वार्ताहर प्रोफाइल पहा" },
+    "notFound": {
+      "title": "रिप्ले सापडला नाही",
+      "description": "हा प्रसारण रिप्ले सार्वजनिकरीत्या उपलब्ध नाही.",
+      "home": "मुख्यपृष्ठावर परत जा"
+    }
+  },
   "liveTvPage": {
     "home": "मुख्यपृष्ठ",
     "title": "थेट टीव्ही",

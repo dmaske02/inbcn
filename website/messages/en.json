@@ -200,6 +200,25 @@
       "home": "Return home"
     }
   },
+  "replays": {
+    "home": "Home",
+    "breadcrumb": "Breadcrumb",
+    "replay": "Broadcast replay",
+    "published": "Published",
+    "playerTitle": "Replay video",
+    "playerLabel": "Play {title}",
+    "playerFallback": "Your browser cannot play this replay.",
+    "details": "Replay details",
+    "recorded": "Recorded",
+    "duration": "Duration",
+    "durationSeconds": "{seconds} seconds",
+    "reporter": { "profile": "View verified reporter profile" },
+    "notFound": {
+      "title": "Replay not found",
+      "description": "This broadcast replay is not publicly available.",
+      "home": "Return home"
+    }
+  },
   "liveTvPage": {
     "home": "Home",
     "title": "Live TV",

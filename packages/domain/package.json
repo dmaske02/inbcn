@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./server/aws-s3-presigner": "./src/server/aws-s3-presigner.ts"
+  },
   "scripts": { "typecheck": "tsc --noEmit" },
   "devDependencies": { "typescript": "^5" }
 }

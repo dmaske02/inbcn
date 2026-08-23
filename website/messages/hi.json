@@ -200,6 +200,25 @@
       "home": "मुखपृष्ठ पर लौटें"
     }
   },
+  "replays": {
+    "home": "मुखपृष्ठ",
+    "breadcrumb": "ब्रेडक्रंब",
+    "replay": "प्रसारण रिप्ले",
+    "published": "प्रकाशित",
+    "playerTitle": "रिप्ले वीडियो",
+    "playerLabel": "{title} चलाएं",
+    "playerFallback": "आपका ब्राउज़र यह रिप्ले नहीं चला सकता।",
+    "details": "रिप्ले विवरण",
+    "recorded": "रिकॉर्ड किया गया",
+    "duration": "अवधि",
+    "durationSeconds": "{seconds} सेकंड",
+    "reporter": { "profile": "सत्यापित रिपोर्टर प्रोफ़ाइल देखें" },
+    "notFound": {
+      "title": "रिप्ले नहीं मिला",
+      "description": "यह प्रसारण रिप्ले सार्वजनिक रूप से उपलब्ध नहीं है।",
+      "home": "मुखपृष्ठ पर लौटें"
+    }
+  },
   "liveTvPage": {
     "home": "मुखपृष्ठ",
     "title": "लाइव टीवी",

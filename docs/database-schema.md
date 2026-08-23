@@ -56,7 +56,13 @@ The baseline migration is stored in
 - `public_live_replays` is the closed-by-default publication projection with
   only replay, request, category, thumbnail, duration, and publication facts.
   It contains no storage key, provider field, profile/account UUID, private
-  reason, signed URL, or exact location. A later task owns anonymous exposure.
+  reason, signed URL, or exact location.
+- `public_replays` is the owner-executed, security-barrier anonymous projection
+  for currently published, completed, non-held replays. It exposes localized
+  category, safe thumbnail, and `public_reporter_profiles` attribution fields,
+  but no request/profile UUID or private recording/provider facts.
+  `get_public_replay_storage_key` rechecks that projection and returns the
+  canonical MP4 key only to `service_role` for same-origin website streaming.
 
 ## Reporter foundation
 

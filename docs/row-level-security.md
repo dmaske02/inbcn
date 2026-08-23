@@ -90,8 +90,13 @@ updates and receive no editorial privileges.
   Publication/rejection/hold RPCs recheck the signed role against the active
   matching profile and row-lock before mutation.
 - `public_live_replays`: RLS is enabled and all table privileges are revoked
-  from `public`, `anon`, `authenticated`, and `service_role`. Task 6 owns any
-  future anonymous read policy and grant.
+  from `public`, `anon`, `authenticated`, and `service_role`.
+- `public_replays`: anonymous and authenticated roles may select only this
+  fixed owner-executed security-barrier view. Its database-time predicate hides
+  unpublished, incomplete, held, and expired rows. Base replay, recording, and
+  request tables remain closed. The empty-search-path
+  `get_public_replay_storage_key` function is executable only by `service_role`,
+  reuses the current public projection, and returns only a canonical MP4 key.
 
 ## Reporter transition functions
 
