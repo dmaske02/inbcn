@@ -76,7 +76,12 @@ export function RecordingReview({
           <div><dt className="text-muted-foreground">Retention</dt><dd>{recording.deletionDueAt ? `Eligible after ${date(recording.deletionDueAt)}` : "No scheduled deletion"}</dd></div>
         </dl>
         {recording.rejectionReason ? <p className="mt-5 text-sm"><span className="font-medium">Private rejection reason:</span> {recording.rejectionReason}</p> : null}
-        {recording.legalHoldReason ? <p className="mt-3 text-sm"><span className="font-medium">Private legal-hold reason:</span> {recording.legalHoldReason}</p> : null}
+        {recording.legalHoldReason ? (
+          <p className="mt-3 text-sm">
+            <span className="font-medium">Latest private legal-hold reason:</span> {recording.legalHoldReason}
+            {recording.legalHoldChangedAt ? ` (${date(recording.legalHoldChangedAt)})` : ""}
+          </p>
+        ) : null}
       </section>
 
       {previewUrl ? (

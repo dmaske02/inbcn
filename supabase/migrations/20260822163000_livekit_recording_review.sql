@@ -11,14 +11,19 @@ comment on column public.webhook_events.provider_subject_id is
 
 create table public.live_recording_editorial_private (
   recording_id uuid primary key references public.live_recordings (id) on delete restrict,
-  rejection_reason text check (
-    rejection_reason is null or length(btrim(rejection_reason)) between 1 and 2000
+  rejection_reason text not null check (
+    length(btrim(rejection_reason)) between 1 and 2000
   ),
-  legal_hold_reason text check (
-    legal_hold_reason is null or length(btrim(legal_hold_reason)) between 1 and 2000
-  ),
-  created_at timestamptz not null default clock_timestamp(),
-  updated_at timestamptz not null default clock_timestamp()
+  created_at timestamptz not null default clock_timestamp()
+);
+
+create table public.live_recording_legal_hold_events (
+  id uuid primary key default gen_random_uuid(),
+  recording_id uuid not null references public.live_recordings (id) on delete restrict,
+  actor_id uuid not null references public.profiles (id) on delete restrict,
+  legal_hold boolean not null,
+  reason text not null check (length(btrim(reason)) between 1 and 2000),
+  created_at timestamptz not null default clock_timestamp()
 );
 
 create table public.public_live_replays (
@@ -40,22 +45,33 @@ create table public.public_live_replays (
 
 create index public_live_replays_published_idx
   on public.public_live_replays (published_at desc, id desc);
+create index live_recording_legal_hold_events_recording_created_idx
+  on public.live_recording_legal_hold_events (recording_id, created_at desc, id desc);
+create index live_recording_legal_hold_events_actor_idx
+  on public.live_recording_legal_hold_events (actor_id);
 
 comment on table public.live_recording_editorial_private is
-  'Private rejection and legal-hold reasons. Reasons must never enter generic audits or public projections.';
+  'Private immutable rejection reasons. Reasons must never enter generic audits or public projections.';
+comment on table public.live_recording_legal_hold_events is
+  'Append-only private legal-hold state changes. Actor and reason must never enter generic audits or public projections.';
 comment on table public.public_live_replays is
   'Closed-by-default replay projection. Task 6 owns any anonymous policy or grant.';
 
 alter table public.live_recording_editorial_private enable row level security;
+alter table public.live_recording_legal_hold_events enable row level security;
 alter table public.public_live_replays enable row level security;
 
 revoke all on table public.live_recording_editorial_private
 from public, anon, authenticated, service_role;
+revoke all on table public.live_recording_legal_hold_events
+from public, anon, authenticated, service_role;
 revoke all on table public.public_live_replays
 from public, anon, authenticated, service_role;
 
-grant select (recording_id, rejection_reason, legal_hold_reason, created_at, updated_at)
+grant select (recording_id, rejection_reason, created_at)
 on table public.live_recording_editorial_private to authenticated;
+grant select (id, recording_id, legal_hold, reason, created_at)
+on table public.live_recording_legal_hold_events to authenticated;
 
 create policy "Active staff can read private recording decisions"
 on public.live_recording_editorial_private
@@ -69,6 +85,41 @@ using (
       and profiles.role in ('editor', 'admin') and profiles.is_active
   )
 );
+
+create policy "Active staff can read private recording legal hold events"
+on public.live_recording_legal_hold_events
+for select to authenticated
+using (
+  (select auth.jwt() -> 'app_metadata' ->> 'role') in ('editor', 'admin')
+  and exists (
+    select 1 from public.profiles
+    where profiles.id = (select auth.uid())
+      and profiles.role::text = (select auth.jwt() -> 'app_metadata' ->> 'role')
+      and profiles.role in ('editor', 'admin') and profiles.is_active
+  )
+);
+
+create function public.prevent_live_recording_private_mutation()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  raise exception using errcode = '55000', message = 'LIVE_RECORDING_PRIVATE_EVENT_IMMUTABLE';
+end;
+$$;
+
+revoke all on function public.prevent_live_recording_private_mutation()
+from public, anon, authenticated, service_role;
+
+create trigger prevent_live_recording_editorial_private_mutation
+before update or delete on public.live_recording_editorial_private
+for each row execute function public.prevent_live_recording_private_mutation();
+
+create trigger prevent_live_recording_legal_hold_event_mutation
+before update or delete on public.live_recording_legal_hold_events
+for each row execute function public.prevent_live_recording_private_mutation();
 
 create policy "Active editors can read live requests"
 on public.reporter_live_requests
@@ -187,6 +238,7 @@ declare
   current_event public.webhook_events%rowtype;
   current_recording public.live_recordings%rowtype;
   current_request public.reporter_live_requests%rowtype;
+  target_request_id uuid;
   processing_time timestamptz := clock_timestamp();
   canonical_key text;
   updated_count integer;
@@ -211,7 +263,11 @@ begin
     or (p_recording_status = 'failed' and (
       p_storage_key is not null or p_duration_seconds is not null or p_bytes is not null
       or p_provider_ended_at is null or p_failure_code is null
-      or p_failure_code not in ('provider-egress-failed', 'provider-egress-aborted')
+      or p_failure_code not in (
+        'provider-egress-failed',
+        'provider-egress-aborted',
+        'provider-egress-limit-reached'
+      )
     )) then
     raise exception using errcode = '22023', message = 'LIVEKIT_WEBHOOK_RESULT_INVALID';
   end if;
@@ -225,19 +281,31 @@ begin
     return jsonb_build_object('state', 'lease-lost');
   end if;
 
-  select * into current_recording
+  -- Resolve the parent without locking so every live flow can acquire the
+  -- canonical request row before its recording row.
+  select live_request_id into target_request_id
   from public.live_recordings
-  where id = p_recording_id
-  for update;
-  if not found or current_recording.egress_id is distinct from current_event.provider_subject_id then
+  where id = p_recording_id;
+  if not found then
     raise exception using errcode = '22023', message = 'LIVEKIT_WEBHOOK_TARGET_MISMATCH';
   end if;
 
   select * into current_request
   from public.reporter_live_requests
-  where id = current_recording.live_request_id
+  where id = target_request_id
   for update;
-  if not found or current_request.livekit_room_name is null
+  if not found then
+    raise exception using errcode = '22023', message = 'LIVEKIT_WEBHOOK_TARGET_MISMATCH';
+  end if;
+
+  select * into current_recording
+  from public.live_recordings
+  where id = p_recording_id
+  for update;
+  if not found
+    or current_recording.live_request_id is distinct from current_request.id
+    or current_recording.egress_id is distinct from current_event.provider_subject_id
+    or current_request.livekit_room_name is null
     or current_request.livekit_room_name is distinct from
       'reporter-live-' || replace(current_request.id::text, '-', '') then
     raise exception using errcode = '22023', message = 'LIVEKIT_WEBHOOK_TARGET_MISMATCH';
@@ -501,10 +569,8 @@ begin
   end if;
 
   insert into public.live_recording_editorial_private (
-    recording_id, rejection_reason, created_at, updated_at
-  ) values (current_recording.id, normalized_reason, decision_time, decision_time)
-  on conflict (recording_id) do update
-  set rejection_reason = excluded.rejection_reason, updated_at = excluded.updated_at;
+    recording_id, rejection_reason, created_at
+  ) values (current_recording.id, normalized_reason, decision_time);
   update public.live_recordings
   set replay_status = 'rejected', replay_rejected_at = decision_time
   where id = current_recording.id;
@@ -533,7 +599,7 @@ declare
   actor_id uuid := auth.uid();
   actor_role text := auth.jwt() -> 'app_metadata' ->> 'role';
   current_recording public.live_recordings%rowtype;
-  current_private public.live_recording_editorial_private%rowtype;
+  latest_hold_event public.live_recording_legal_hold_events%rowtype;
   normalized_reason text := btrim(p_reason);
   change_time timestamptz := clock_timestamp();
 begin
@@ -557,20 +623,27 @@ begin
   if current_recording.recording_status not in ('completed', 'failed') then
     raise exception using errcode = '55000', message = 'LIVE_RECORDING_LEGAL_HOLD_INVALID_STATE';
   end if;
-  select * into current_private from public.live_recording_editorial_private
-  where recording_id = current_recording.id for update;
+  select * into latest_hold_event
+  from public.live_recording_legal_hold_events
+  where recording_id = current_recording.id
+  order by created_at desc, id desc
+  limit 1
+  for update;
   if current_recording.legal_hold is not distinct from p_legal_hold then
-    if current_private.legal_hold_reason is distinct from normalized_reason then
+    if latest_hold_event.id is null
+      or latest_hold_event.actor_id is distinct from actor_id
+      or latest_hold_event.legal_hold is distinct from p_legal_hold
+      or latest_hold_event.reason is distinct from normalized_reason then
       raise exception using errcode = '23505', message = 'LIVE_RECORDING_DECISION_CONFLICT';
     end if;
     return current_recording.id;
   end if;
 
-  insert into public.live_recording_editorial_private (
-    recording_id, legal_hold_reason, created_at, updated_at
-  ) values (current_recording.id, normalized_reason, change_time, change_time)
-  on conflict (recording_id) do update
-  set legal_hold_reason = excluded.legal_hold_reason, updated_at = excluded.updated_at;
+  insert into public.live_recording_legal_hold_events (
+    recording_id, actor_id, legal_hold, reason, created_at
+  ) values (
+    current_recording.id, actor_id, p_legal_hold, normalized_reason, change_time
+  );
   update public.live_recordings
   set legal_hold = p_legal_hold
   where id = current_recording.id;

@@ -88,7 +88,11 @@ async function completeWebhook(input: Readonly<{
   bytes: number | null;
   providerStartedAt: string;
   providerEndedAt: string | null;
-  failureCode: "provider-egress-failed" | "provider-egress-aborted" | null;
+  failureCode:
+    | "provider-egress-failed"
+    | "provider-egress-aborted"
+    | "provider-egress-limit-reached"
+    | null;
 }>) {
   const { data, error } = await createAdminClient().rpc("complete_livekit_webhook_event", {
     p_event_id: input.eventId,

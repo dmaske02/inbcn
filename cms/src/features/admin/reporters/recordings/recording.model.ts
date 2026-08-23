@@ -35,6 +35,7 @@ const detailRowSchema = listRowSchema.extend({
   rejection_reason: z.string().trim().min(1).max(2000).nullable(),
   legal_hold: z.boolean(),
   legal_hold_reason: z.string().trim().min(1).max(2000).nullable(),
+  legal_hold_changed_at: nullableTimestamp,
   deletion_due_at: nullableTimestamp,
 }).strict();
 
@@ -65,6 +66,7 @@ export type RecordingDetail = RecordingListItem & Readonly<{
   rejectionReason: string | null;
   legalHold: boolean;
   legalHoldReason: string | null;
+  legalHoldChangedAt: string | null;
   deletionDueAt: string | null;
 }>;
 
@@ -134,6 +136,7 @@ export function parseRecordingDetailRow(value: unknown): RecordingDetail {
     rejectionReason: row.rejection_reason,
     legalHold: row.legal_hold,
     legalHoldReason: row.legal_hold_reason,
+    legalHoldChangedAt: row.legal_hold_changed_at,
     deletionDueAt: row.deletion_due_at,
   };
 }

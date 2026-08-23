@@ -80,8 +80,15 @@ updates and receive no editorial privileges.
   membership/trust/access-generation, request-window, room, and recording checks
   immediately before the server issues a publisher token.
 - `live_recording_editorial_private`: only active signed editors/admins may read
-  bounded private decision reasons. Publication/rejection/hold RPCs recheck the
-  signed role against the active matching profile and row-lock before mutation.
+  the immutable bounded rejection reason. Direct inserts, updates, and deletes
+  remain revoked; a trigger also rejects mutation after insertion.
+- `live_recording_legal_hold_events`: only active signed editors/admins may read
+  the safe event columns. Each actual admin hold-state change appends its actor,
+  state, private bounded reason, and database time. Direct DML remains revoked
+  and an immutable trigger rejects updates/deletes. Exact retries lock and
+  compare the latest event; same-state calls with a different reason conflict.
+  Publication/rejection/hold RPCs recheck the signed role against the active
+  matching profile and row-lock before mutation.
 - `public_live_replays`: RLS is enabled and all table privileges are revoked
   from `public`, `anon`, `authenticated`, and `service_role`. Task 6 owns any
   future anonymous read policy and grant.

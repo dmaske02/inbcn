@@ -42,7 +42,11 @@ type Completion = Readonly<{
   providerStartedAt: string;
   providerEndedAt: string | null;
   providerUpdatedAt: string;
-  failureCode: "provider-egress-failed" | "provider-egress-aborted" | null;
+  failureCode:
+    | "provider-egress-failed"
+    | "provider-egress-aborted"
+    | "provider-egress-limit-reached"
+    | null;
 }>;
 
 type Repository = Readonly<{
@@ -124,7 +128,7 @@ function locationHasExactKey(location: unknown, key: string): boolean {
 export function mapEgressStatus(value: unknown): "recording" | "completed" | "failed" | null {
   if (value === 0 || value === 1 || value === 2) return "recording";
   if (value === 3) return "completed";
-  if (value === 4 || value === 5) return "failed";
+  if (value === 4 || value === 5 || value === 6) return "failed";
   return null;
 }
 
@@ -204,7 +208,9 @@ function safeCompletion(input: Readonly<{
     if (!exactEmptyArray(files)) throw new LiveKitWebhookError("webhook-payload-mismatch", 422);
     failureCode = input.egress.status === 4
       ? "provider-egress-failed"
-      : "provider-egress-aborted";
+      : input.egress.status === 5
+        ? "provider-egress-aborted"
+        : "provider-egress-limit-reached";
   }
 
   return {

@@ -96,8 +96,8 @@ test("maps installed LiveKit 2.17 numeric statuses without string aliases", () =
   assert.equal(mapEgressStatus(3), "completed");
   assert.equal(mapEgressStatus(4), "failed");
   assert.equal(mapEgressStatus(5), "failed");
+  assert.equal(mapEgressStatus(6), "failed");
   assert.equal(mapEgressStatus("EGRESS_COMPLETE"), null);
-  assert.equal(mapEgressStatus(6), null);
 });
 
 test("the real WebhookReceiver rejects an invalid signed hash before any receipt write", async () => {
@@ -196,8 +196,12 @@ test("started and updated events preserve recording state without accepting outp
   }
 });
 
-test("failed and aborted ends persist fixed safe codes rather than provider errors", async () => {
-  for (const [status, failureCode] of [[4, "provider-egress-failed"], [5, "provider-egress-aborted"]]) {
+test("terminal failure ends persist fixed safe codes without provider errors or partial file facts", async () => {
+  for (const [status, failureCode] of [
+    [4, "provider-egress-failed"],
+    [5, "provider-egress-aborted"],
+    [6, "provider-egress-limit-reached"],
+  ]) {
     const { service, calls } = setup(webhook({ egressInfo: { status, fileResults: [] } }));
     assert.deepEqual(await service.process("signed", "Bearer valid"), {
       duplicate: false,
@@ -206,8 +210,17 @@ test("failed and aborted ends persist fixed safe codes rather than provider erro
     const completion = calls.at(-1)[1];
     assert.equal(completion.failureCode, failureCode);
     assert.equal(completion.storageKey, null);
+    assert.equal(completion.durationSeconds, null);
+    assert.equal(completion.bytes, null);
     assert.equal(JSON.stringify(completion).includes("provider detail"), false);
   }
+
+  const { service, calls } = setup(webhook({ egressInfo: { status: 6 } }));
+  await assert.rejects(
+    service.process("signed", "Bearer valid"),
+    (error) => error instanceof LiveKitWebhookError && error.code === "webhook-payload-mismatch",
+  );
+  assert.equal(calls.some(([name]) => name === "complete"), false);
 });
 
 test("exact egress, room, key, file count, status, size, duration, and timestamps fail closed", async () => {
@@ -305,8 +318,18 @@ test("the additive SQL makes receipt completion atomic, terminal monotonic, priv
   ), "utf8")).replace(/\s+/gu, " ").toLowerCase();
   const complete = sql.slice(sql.indexOf("create function public.complete_livekit_webhook_event"), sql.indexOf("create function public.fail_livekit_webhook_event"));
   assert.match(sql, /create function public\.claim_livekit_webhook_event/u);
-  assert.match(complete, /from public\.webhook_events.*for update.*from public\.live_recordings.*for update.*from public\.reporter_live_requests.*for update/u);
+  const receiptLock = complete.indexOf("from public.webhook_events");
+  const targetLookup = complete.indexOf("select live_request_id into target_request_id");
+  const requestLock = complete.indexOf("from public.reporter_live_requests", targetLookup);
+  const recordingLock = complete.indexOf("from public.live_recordings", requestLock);
+  assert.ok(receiptLock >= 0 && targetLookup > receiptLock && requestLock > targetLookup && recordingLock > requestLock);
+  assert.doesNotMatch(complete.slice(targetLookup, requestLock), /for update/u);
+  assert.match(complete.slice(requestLock, recordingLock), /for update/u);
+  assert.match(complete.slice(recordingLock), /for update/u);
+  assert.match(complete, /current_recording\.live_request_id is distinct from current_request\.id/u);
+  assert.match(complete, /current_recording\.egress_id is distinct from current_event\.provider_subject_id/u);
   assert.match(complete, /current_recording\.recording_status in \('completed', 'failed'\).*processing_status = 'processed'/u);
+  assert.match(complete, /provider-egress-limit-reached/u);
   assert.match(complete, /reporter-live\/.*current_request\.id::text.*current_recording\.id::text.*[.]mp4/u);
   assert.match(complete, /'a reporter live recording requires editorial attention[.]'/u);
   assert.doesNotMatch(complete, /p_provider_error|p_location|manifest|room_sid|authorization|raw_body/u);

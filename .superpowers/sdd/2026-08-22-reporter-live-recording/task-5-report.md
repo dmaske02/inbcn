@@ -3,10 +3,11 @@
 ## Delivered
 
 - Added `POST /api/webhooks/livekit` with the installed LiveKit 2.17 `WebhookReceiver`, signed raw-body hash verification, an exact `application/webhook+json` boundary, the shared streaming 1 MiB reader, fixed `no-store` responses, and retryable `503` lease handling.
-- Added service-role-only LiveKit receipt RPCs that bind the event UUID/type to one exact Egress ID. Completion locks receipt, recording, then request and commits the monotonic recording transition and processed receipt in one transaction. Terminal callbacks become durable stale receipts without rewriting terminal facts.
-- Successful completion accepts exactly one canonical MP4 and bounded nanosecond duration/byte facts. Failure stores only one of two fixed safe codes and emits a generic alert only on the newly durable failure. Raw bodies, authorization, provider errors/details/locations, room SIDs, manifests, credentials, and arbitrary metadata are never persisted.
+- Added service-role-only LiveKit receipt RPCs that bind the event UUID/type to one exact Egress ID. Completion locks the receipt, performs an unlocked parent-ID lookup, then locks the canonical request before the recording and rechecks both associations. It commits the monotonic recording transition and processed receipt in one transaction. Terminal callbacks become durable stale receipts without rewriting terminal facts.
+- Successful completion accepts exactly one canonical MP4 and bounded nanosecond duration/byte facts. Failure stores only one of three fixed safe codes, including LiveKit's numeric `EGRESS_LIMIT_REACHED` status, and emits a generic alert only on the newly durable failure. Raw bodies, authorization, provider errors/details/locations, room SIDs, manifests, credentials, arbitrary metadata, and partial failure file facts are never persisted.
 - Added editor/admin recording list and protected detail review. Strict Zod parsing fails closed for every recording, request, category, thumbnail, and private-reason database row before the DTO reaches React.
-- Added exact/idempotent publish and reject transitions plus admin-only legal hold. Private reasons live in `live_recording_editorial_private`; generic audits contain only fixed state/changed-field facts. The old reasonless legal-hold RPC is removed.
+- Added exact/idempotent publish and reject transitions plus admin-only legal hold. Rejection reasons remain immutable in `live_recording_editorial_private`; every actual hold change appends an immutable private event with actor, state, reason, and database time. Exact hold retries compare the latest locked event and current state. Generic audits contain only fixed state/changed-field facts. The old reasonless legal-hold RPC is removed.
+- Publication retains CMS-local list/detail invalidation and awaits the existing signed cross-application `revalidateWebsite("all")` mechanism; website revalidation failures return the existing fixed safe action error and can be retried through the idempotent publish transition.
 - Added closed-by-default `public_live_replays`. The allowlist contains only replay/editorial/request/category/thumbnail/timing facts; no storage key, Egress/provider field, profile/account UUID, private reason, signed URL, or location. RLS is enabled and all table privileges remain revoked, including `service_role`; Task 6 owns exposure.
 - Added 60-second private preview signing using a minimal server-only Node `crypto` AWS SigV4 implementation for the configured S3-compatible endpoint/bucket/region/path style. The dependency registry/cache was unavailable, so the approved native signer was verified against AWS's published S3 query-string signature vector. The preview is generated only after request-time authentication, returned only on eligible protected detail, and never stored.
 
@@ -26,6 +27,10 @@ The following app-visible installed guides were read before changing the route, 
 - `node_modules/next/dist/docs/01-app/03-api-reference/04-functions/connection.md`
 
 The implementation follows the installed guidance: thin independently authenticated Server Actions, server-only minimal DTO/data access, strict untrusted input validation, awaited `params`, request-time generation for the expiring preview, targeted post-mutation revalidation, and fixed route responses.
+
+For review round 1, the installed mutating-data, revalidating, Server Actions,
+and data-security guides above were reread before replacing CMS-local public
+path invalidation with the awaited cross-application publisher mechanism.
 
 ## TDD evidence
 
@@ -61,6 +66,47 @@ The signer tests include the official AWS S3 SigV4 query vector:
 signature: aeeed9bbccd4d02ee5c0109b86d86835f995330da4c265957d157751f604d404
 ```
 
+## Review round 1
+
+### RED
+
+The review contracts were changed before production code and run against
+`9174a6e`:
+
+```text
+Reporter focused suite: 12 tests, 9 pass, 3 fail
+  EGRESS_LIMIT_REACHED mapped to null instead of terminal failed
+  status 6 could not produce its fixed safe completion code
+  completion SQL locked recording before request
+
+CMS focused suite: 9 tests, 5 pass, 4 fail
+  detail DTO rejected the legal-hold event timestamp
+  preview service inherited the same strict DTO failure
+  migration retained a mutable singleton legal-hold reason
+  publication used CMS-local public replay invalidation
+```
+
+The append-only review then captured two smaller RED mutations before their
+fixes: the immutable trigger function still had default execute privilege, and
+the new actor foreign key lacked its required index. The same contract covers
+latest actor/state/reason comparison for exact retries.
+
+### GREEN
+
+```text
+Reporter focused LiveKit suite: 12 tests, 12 pass, 0 fail
+CMS focused recording suite: 9 tests, 9 pass, 0 fail
+Reporter full suite: 300 tests, 300 pass, 0 fail
+CMS full suite: 634 tests, 634 pass, 0 fail
+```
+
+The SQL contract deterministically extracts only
+`complete_livekit_webhook_event` and asserts receipt lock → unlocked recording
+parent lookup → request lock → recording lock, followed by under-lock request
+and Egress association checks. The legal-hold contract asserts append-only
+insertion, latest-event locking, actor/state/reason exact retry, immutable
+update/delete triggers, closed DML grants, and indexes for both foreign keys.
+
 ## Final verification
 
 ```text
@@ -84,11 +130,16 @@ npm run build --workspace @inbcn/reporter
   passed; /api/webhooks/livekit emitted
 
 npm run build --workspace @inbcn/cms
-  compiled and typechecked, then stopped at the existing production gate:
-  NEXT_PUBLIC_CMS_URL is required in production.
+  review-round rerun stopped at the sandbox Turbopack CSS worker port bind:
+  Operation not permitted (os error 1)
 ```
 
-A diagnostic CMS build with a non-secret placeholder URL was also attempted; the sandbox stopped Turbopack while binding its CSS worker port with `Operation not permitted (os error 1)`. The single required root build was attempted and stopped in the website at the existing `NEXT_PUBLIC_APP_URL is required in production` configuration gate before reaching CMS/reporter.
+Before review round 1, the CMS build compiled and typechecked, then stopped at
+the existing `NEXT_PUBLIC_CMS_URL` production gate. A diagnostic build with a
+non-secret placeholder URL was also sandbox-blocked on the same Turbopack
+worker-port operation. The original required root build stopped in the website
+at the existing `NEXT_PUBLIC_APP_URL` production gate before reaching
+CMS/reporter.
 
 ## External gates not run
 
@@ -99,7 +150,10 @@ A diagnostic CMS build with a non-secret placeholder URL was also attempted; the
 
 - The route verifies the signed raw string before any receipt write and never logs or persists the string or Authorization JWT.
 - Receipt claim identity is immutable across retries; active leases are never acknowledged with `2xx`; receipt and recording completion cannot partially commit.
+- Receipt completion never locks a recording before its request. After the receipt lock, the parent ID lookup takes no row lock; the request and recording are then locked in the same order as the live-session reservation flow and rechecked under lock.
 - Canonical room/key association is checked in both the service boundary and database transition. Provider timestamps and file duration are coherent at nanosecond precision before conversion; duration and bytes are bounded.
 - Browser table privileges for `live_recordings` were narrowed to safe review columns. The one privileged CMS read selects only `id`, `live_request_id`, and `storage_key` for the exact authenticated detail target, and the key is canonicalized again before signing.
 - Signed URLs appear only in the protected client detail DTO, expire in 60 seconds, and are not accepted by actions, audits, projections, or persistence.
 - Exact-same terminal editorial facts return without a second audit. Conflicting facts fail; decisions cannot be reversed or silently edited. Legal hold changes retention eligibility only and never publishes.
+- Legal-hold reasons are append-only immutable events. Direct DML and trigger-function execution are revoked; an immutable trigger provides defense in depth. The CMS can read only event ID, recording, state, reason, and database time—not the actor UUID—and exposes only the latest coherent state/reason/time DTO.
+- Website revalidation receives only the allowlisted `all` event through the existing server-only signed publisher; no caller-controlled path, endpoint, secret, or provider fact crosses that boundary.

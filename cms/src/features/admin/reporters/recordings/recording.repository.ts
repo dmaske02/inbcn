@@ -82,17 +82,24 @@ async function get(id: string): Promise<Readonly<{ row: unknown; storageKey: str
   const recording = recordingResult.data;
   if (!recording) return null;
 
-  const [requestResult, privateResult, storageResult] = await Promise.all([
+  const [requestResult, privateResult, holdResult, storageResult] = await Promise.all([
     client.from("reporter_live_requests")
       .select(requestFields).eq("id", recording.live_request_id).maybeSingle(),
     client.from("live_recording_editorial_private")
-      .select("recording_id, rejection_reason, legal_hold_reason")
+      .select("recording_id, rejection_reason")
       .eq("recording_id", id).maybeSingle(),
+    client.from("live_recording_legal_hold_events")
+      .select("id, recording_id, legal_hold, reason, created_at")
+      .eq("recording_id", id)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(1).maybeSingle(),
     createAdminClient().from("live_recordings")
       .select("id, live_request_id, storage_key")
       .eq("id", id).eq("live_request_id", recording.live_request_id).maybeSingle(),
   ]);
-  if (requestResult.error || privateResult.error || storageResult.error || !requestResult.data) {
+  if (requestResult.error || privateResult.error || holdResult.error
+    || storageResult.error || !requestResult.data) {
     throw new RecordingReviewRepositoryError();
   }
   if (!storageResult.data || storageResult.data.id !== id
@@ -101,6 +108,11 @@ async function get(id: string): Promise<Readonly<{ row: unknown; storageKey: str
   }
   const request = requestResult.data;
   const privateFacts = privateResult.data;
+  const latestHold = holdResult.data;
+  if ((latestHold && latestHold.legal_hold !== recording.legal_hold)
+    || (!latestHold && recording.legal_hold)) {
+    throw new RecordingReviewRepositoryError();
+  }
   return {
     row: {
       ...listRow(recording, request),
@@ -115,7 +127,8 @@ async function get(id: string): Promise<Readonly<{ row: unknown; storageKey: str
       rejected_at: recording.replay_rejected_at,
       rejection_reason: privateFacts?.rejection_reason ?? null,
       legal_hold: recording.legal_hold,
-      legal_hold_reason: privateFacts?.legal_hold_reason ?? null,
+      legal_hold_reason: latestHold?.reason ?? null,
+      legal_hold_changed_at: latestHold?.created_at ?? null,
       deletion_due_at: recording.retention_delete_at,
     },
     storageKey: storageResult.data.storage_key,

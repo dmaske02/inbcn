@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireAdminUser } from "../../auth/server";
+import { revalidateWebsite } from "@/features/admin/public-revalidation";
 import {
   publishRecording,
   RecordingReviewError,
@@ -29,13 +30,9 @@ function safeError(error: unknown): RecordingActionState {
   };
 }
 
-function refresh(id: string, published = false): void {
+function refresh(id: string): void {
   revalidatePath("/admin/reporters/recordings");
   revalidatePath(`/admin/reporters/recordings/${id}`);
-  if (published) {
-    revalidatePath(`/replays/${id}`);
-    revalidatePath("/[locale]/replays/[id]", "page");
-  }
 }
 
 export async function publishRecordingAction(
@@ -51,7 +48,8 @@ export async function publishRecordingAction(
       categoryId: text(formData, "categoryId"),
       thumbnailMediaId: text(formData, "thumbnailMediaId"),
     });
-    refresh(id, true);
+    refresh(id);
+    await revalidateWebsite("all");
     return { status: "success", message: "Recording published." };
   } catch (error) {
     return safeError(error);

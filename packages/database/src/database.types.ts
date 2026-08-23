@@ -720,27 +720,51 @@ export type Database = {
       live_recording_editorial_private: {
         Row: {
           recording_id: string
-          rejection_reason: string | null
-          legal_hold_reason: string | null
+          rejection_reason: string
           created_at: string
-          updated_at: string
         }
         Insert: {
           recording_id: string
-          rejection_reason?: string | null
-          legal_hold_reason?: string | null
+          rejection_reason: string
           created_at?: string
-          updated_at?: string
         }
         Update: {
           recording_id?: string
-          rejection_reason?: string | null
-          legal_hold_reason?: string | null
+          rejection_reason?: string
           created_at?: string
-          updated_at?: string
         }
         Relationships: [
           { foreignKeyName: "live_recording_editorial_private_recording_id_fkey"; columns: ["recording_id"]; isOneToOne: true; referencedRelation: "live_recordings"; referencedColumns: ["id"] },
+        ]
+      }
+      live_recording_legal_hold_events: {
+        Row: {
+          id: string
+          recording_id: string
+          actor_id: string
+          legal_hold: boolean
+          reason: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          recording_id: string
+          actor_id: string
+          legal_hold: boolean
+          reason: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          recording_id?: string
+          actor_id?: string
+          legal_hold?: boolean
+          reason?: string
+          created_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "live_recording_legal_hold_events_recording_id_fkey"; columns: ["recording_id"]; isOneToOne: false; referencedRelation: "live_recordings"; referencedColumns: ["id"] },
+          { foreignKeyName: "live_recording_legal_hold_events_actor_id_fkey"; columns: ["actor_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
         ]
       }
       public_live_replays: {
@@ -1688,7 +1712,11 @@ export type Database = {
           p_bytes: number | null
           p_provider_started_at: string
           p_provider_ended_at: string | null
-          p_failure_code: string | null
+          p_failure_code:
+            | "provider-egress-failed"
+            | "provider-egress-aborted"
+            | "provider-egress-limit-reached"
+            | null
         }
         Returns: Json
       }

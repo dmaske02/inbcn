@@ -47,9 +47,12 @@ The baseline migration is stored in
   partial unique index allows only one pending/recording segment per request.
   A service-only final authorization rechecks current reporter/request access
   and durable recording state immediately before publisher token issuance.
-- `live_recording_editorial_private` stores bounded rejection and legal-hold
-  reasons for active editor/admin review only; reasons never enter generic
-  audit metadata or public data.
+- `live_recording_editorial_private` stores one immutable bounded rejection
+  reason per rejected recording for active editor/admin review only.
+- `live_recording_legal_hold_events` stores an append-only event for each
+  actual legal-hold state change, including the admin actor, new state,
+  bounded private reason, and database clock. Private reasons and actors never
+  enter generic audit metadata or public data.
 - `public_live_replays` is the closed-by-default publication projection with
   only replay, request, category, thumbnail, duration, and publication facts.
   It contains no storage key, provider field, profile/account UUID, private

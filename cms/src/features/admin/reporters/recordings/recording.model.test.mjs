@@ -52,6 +52,7 @@ const detailRow = {
   rejection_reason: null,
   legal_hold: false,
   legal_hold_reason: null,
+  legal_hold_changed_at: null,
   deletion_due_at: "2026-11-20T07:01:12.000Z",
 };
 
@@ -95,7 +96,14 @@ test("database rows are strict, bounded, and expose no provider or account facts
     recordingEndedAt: "2026-08-22T07:01:12.000Z",
     createdAt: "2026-08-22T06:59:00.000Z",
   });
-  assert.equal(parseRecordingDetailRow(detailRow).rejectionReason, null);
+  assert.deepEqual(
+    {
+      rejectionReason: parseRecordingDetailRow(detailRow).rejectionReason,
+      legalHoldReason: parseRecordingDetailRow(detailRow).legalHoldReason,
+      legalHoldChangedAt: parseRecordingDetailRow(detailRow).legalHoldChangedAt,
+    },
+    { rejectionReason: null, legalHoldReason: null, legalHoldChangedAt: null },
+  );
 
   for (const unsafe of [
     { storage_key: "secret.mp4" },
@@ -229,6 +237,22 @@ test("the migration keeps receipt completion atomic and the public projection al
   assert.doesNotMatch(normalized.match(/create table public\.public_live_replays[\s\S]*?;/u)?.[0] ?? "", /(storage_key|egress_id|profile_id|provider|reason|location|signed_url)/u);
   assert.match(normalized, /create table public\.live_recording_editorial_private/u);
   assert.match(normalized, /revoke all on table public\.live_recording_editorial_private from public, anon, authenticated/u);
+  const privateTable = normalized.match(/create table public\.live_recording_editorial_private[\s\S]*?;/u)?.[0] ?? "";
+  assert.doesNotMatch(privateTable, /legal_hold_reason/u);
+  assert.match(normalized, /create table public\.live_recording_legal_hold_events/u);
+  assert.match(normalized, /recording_id uuid not null[\s\S]*actor_id uuid not null[\s\S]*legal_hold boolean not null[\s\S]*reason text not null[\s\S]*created_at timestamptz not null default clock_timestamp\(\)/u);
+  assert.match(normalized, /on public\.live_recording_legal_hold_events \(actor_id\)/u);
+  assert.match(normalized, /revoke all on table public\.live_recording_legal_hold_events from public, anon, authenticated, service_role/u);
+  assert.match(normalized, /before update or delete on public\.live_recording_legal_hold_events/u);
+  assert.match(normalized, /revoke all on function public\.prevent_live_recording_private_mutation\(\) from public, anon, authenticated, service_role/u);
+  const holdFunction = normalized.slice(
+    normalized.indexOf("create function public.set_live_recording_legal_hold"),
+    normalized.indexOf("revoke all on function public.claim_livekit_webhook_event"),
+  );
+  assert.match(holdFunction, /from public\.live_recording_legal_hold_events[\s\S]*order by created_at desc, id desc[\s\S]*limit 1[\s\S]*for update/u);
+  assert.match(holdFunction, /insert into public\.live_recording_legal_hold_events/u);
+  assert.match(holdFunction, /latest_hold_event\.actor_id is distinct from actor_id/u);
+  assert.doesNotMatch(holdFunction, /update public\.live_recording_legal_hold_events|on conflict/u);
 
   for (const rpc of [
     "publish_live_recording",
@@ -243,9 +267,10 @@ test("the migration keeps receipt completion atomic and the public projection al
   assert.doesNotMatch(normalized.match(/insert into public\.audit_events[\s\S]*?;/u)?.[0] ?? "", /(reason|storage|egress|provider|location)/u);
 });
 
-test("protected pages and actions reauthenticate, revalidate, and keep private fields out of client contracts", async () => {
-  const [actions, listPage, detailPage, review, navigation] = await Promise.all([
+test("protected pages and actions reauthenticate, revalidate both apps, and keep private fields out of client contracts", async () => {
+  const [actions, repositorySource, listPage, detailPage, review, navigation] = await Promise.all([
     readFile(new URL("./recording.actions.ts", import.meta.url), "utf8"),
+    readFile(new URL("./recording.repository.ts", import.meta.url), "utf8"),
     readFile(new URL("../../../../../../cms/src/app/admin/(protected)/reporters/recordings/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../../../../../../cms/src/app/admin/(protected)/reporters/recordings/[id]/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("./recording-review.tsx", import.meta.url), "utf8"),
@@ -255,7 +280,11 @@ test("protected pages and actions reauthenticate, revalidate, and keep private f
   assert.equal(actions.match(/requireAdminUser\(\)/gu)?.length, 3);
   assert.match(actions, /revalidatePath\("\/admin\/reporters\/recordings"\)/u);
   assert.match(actions, /revalidatePath\(`\/admin\/reporters\/recordings\/\$\{id\}`\)/u);
-  assert.match(actions, /revalidatePath\(`\/replays\/\$\{id\}`\)/u);
+  assert.match(actions, /import \{ revalidateWebsite \} from "@\/features\/admin\/public-revalidation"/u);
+  assert.match(actions, /await revalidateWebsite\("all"\)/u);
+  assert.match(actions, /try \{[\s\S]*await publishRecording\([\s\S]*await revalidateWebsite\("all"\);[\s\S]*\} catch \(error\) \{[\s\S]*return safeError\(error\);/u);
+  assert.doesNotMatch(actions, /revalidatePath\([^\n]*replays/u);
+  assert.match(repositorySource, /from\("live_recording_legal_hold_events"\)[\s\S]*order\("created_at", \{ ascending: false \}\)[\s\S]*order\("id", \{ ascending: false \}\)[\s\S]*limit\(1\)/u);
   assert.match(listPage, /requireAdminUser\(\)/u);
   assert.match(detailPage, /params: Promise<\{ id: string \}>/u);
   assert.match(detailPage, /await connection\(\);[\s\S]*requireAdminUser\(\)/u);
