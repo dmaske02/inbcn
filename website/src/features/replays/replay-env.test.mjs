@@ -37,6 +37,18 @@ test("private replay delivery configuration is optional but all-or-none", () => 
   }
 });
 
+test("false path-style default stays inert while true activates complete storage validation", () => {
+  const disabled = loadEnvironment({ LIVEKIT_S3_FORCE_PATH_STYLE: "false" });
+  assert.equal(disabled.status, 0, disabled.stderr);
+  assert.equal(JSON.parse(disabled.stdout).forcePathStyle, false);
+
+  const enabled = loadEnvironment({ LIVEKIT_S3_FORCE_PATH_STYLE: "true" });
+  assert.notEqual(enabled.status, 0);
+  for (const name of ["SUPABASE_SERVICE_ROLE_KEY", "LIVEKIT_S3_ACCESS_KEY", "LIVEKIT_S3_SECRET", "LIVEKIT_S3_BUCKET", "LIVEKIT_S3_REGION"]) {
+    assert.match(enabled.stderr, new RegExp(name, "u"));
+  }
+});
+
 test("complete replay credentials remain server-only", async () => {
   const complete = loadEnvironment({
     SUPABASE_SERVICE_ROLE_KEY: "service-role",

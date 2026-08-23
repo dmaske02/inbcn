@@ -71,3 +71,23 @@ Docker/Postgres and credentialed provider environments were unavailable, so the 
 - Credentialed LiveKit/S3 GET, HEAD, browser range playback, and provider-failure E2E.
 
 These require the project Postgres/Supabase environment and real private object-storage credentials.
+
+## Review round 1
+
+Two reviewer findings were reproduced with behavioral regressions before production edits:
+
+- A ranged HEAD request received a representative S3 `200` metadata response without `Content-Range`; the delivery service returned fixed `503` instead of `200`.
+- `LIVEKIT_S3_FORCE_PATH_STYLE=false` as the only replay-storage setting caused environment loading to fail with all five required-field errors instead of remaining an inert optional default.
+
+The root causes were two overly broad truthiness branches. Partial-content status and `Content-Range` validation now apply only to ranged GET; ranged HEAD continues to send the validated `Range` but accepts S3's `200` metadata contract, returns no body, omits `Content-Range`, and preserves the fixed safe header allowlist. Replay-storage all-or-none validation now activates for an actual storage field/endpoint or when path style is exactly `true`; `false` alone remains inactive, while `true` alone still requires the complete configuration.
+
+Review-fix verification on the final tree:
+
+- Focused affected delivery/environment suite: 11 passed, 0 failed.
+- Complete website suite: 251 passed, 0 failed.
+- Full monorepo `npm test` gate passed for website, CMS, and reporter.
+- Website typecheck and lint passed.
+- Next.js 16.3 production build passed with the documented placeholder public URLs and `LIVEKIT_S3_FORCE_PATH_STYLE=false`, emitting both replay routes.
+- `git diff --check` passed.
+
+The response self-review reconfirmed that ranged GET remains `206` with a syntactically and numerically validated `Content-Range`; ranged HEAD is `200` without a body or provider-only headers; malformed and upstream-unsatisfied ranges retain fixed redacted `416` behavior; provider failures retain fixed redacted `503` behavior. The configuration self-review reconfirmed that partial actual credentials, an endpoint, or `true` path style fail closed, while absent configuration and the example's explicit `false` default do not require credentials.

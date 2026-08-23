@@ -75,13 +75,16 @@ export function createReplayDelivery(dependencies: DeliveryDependencies) {
         await upstream.body?.cancel().catch(() => undefined);
         return fixedResponse(416, method);
       }
-      const expectedStatus = range ? 206 : 200;
+      const isRangedGet = method === "GET" && range !== null;
+      const expectedStatus = isRangedGet ? 206 : 200;
       const type = upstream.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
       const length = safeLength(upstream.headers.get("content-length"));
-      const contentRange = range ? safeContentRange(upstream.headers.get("content-range")) : null;
+      const contentRange = isRangedGet
+        ? safeContentRange(upstream.headers.get("content-range"))
+        : null;
       if (upstream.status !== expectedStatus
         || (type !== "video/mp4" && type !== "application/octet-stream")
-        || !length || (range && !contentRange)
+        || !length || (isRangedGet && !contentRange)
         || (method === "GET" && !upstream.body)) {
         await upstream.body?.cancel().catch(() => undefined);
         return fixedResponse(503, method);

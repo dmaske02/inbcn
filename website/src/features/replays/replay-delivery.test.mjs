@@ -110,6 +110,39 @@ test("HEAD returns metadata without a body and uses a signed HEAD request", asyn
   assert.equal(method, "HEAD");
 });
 
+test("ranged HEAD accepts S3's 200 metadata response without Content-Range", async () => {
+  let fetchInit;
+  const serve = delivery({
+    fetchObject: async (_url, init) => {
+      fetchInit = init;
+      return new Response(null, {
+        status: 200,
+        headers: {
+          "content-type": "application/octet-stream",
+          "content-length": "10",
+          "x-amz-request-id": "must-not-leak",
+        },
+      });
+    },
+  });
+
+  const response = await serve(new Request("https://inbcn.test", {
+    method: "HEAD",
+    headers: { range: "bytes=10-19" },
+  }), replayId);
+
+  assert.equal(fetchInit.method, "HEAD");
+  assert.equal(new Headers(fetchInit.headers).get("range"), "bytes=10-19");
+  assert.equal(response.status, 200);
+  assert.equal(response.body, null);
+  assert.deepEqual(Object.fromEntries(response.headers), {
+    "accept-ranges": "bytes",
+    "cache-control": "private, no-store, max-age=0",
+    "content-length": "10",
+    "content-type": "video/mp4",
+  });
+});
+
 test("rejects malformed, multiple, and suffix ranges before signing or fetching", async () => {
   for (const range of ["bytes=10-20,30-40", "bytes=-500", "items=0-1", "bytes=20-10", "bytes=1 - 2"]) {
     let called = false;
