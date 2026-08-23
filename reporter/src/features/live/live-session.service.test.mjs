@@ -352,15 +352,25 @@ test("a terminated existing reservation cannot mint a cached-token refresh", asy
   assert.equal(tokenCalls, 0);
 });
 
-test("fresh concurrent reservation is retryable and starts no provider work", async () => {
-  const setup = dependencies({ reserve: async () => ({ state: "busy" }) });
+test("a busy quarantined reservation stays retryable after lease expiry without provider history, start, or token work", async () => {
+  let tokenCalls = 0;
+  const setup = dependencies({
+    reserve: async () => ({ state: "busy" }),
+    generateToken: async () => { tokenCalls += 1; return "must-not-return"; },
+  });
 
   await assert.rejects(
     () => createLiveSessionService(setup.value).request({ profileId, accessGeneration: 7, requestId }),
     (error) => error instanceof LiveSessionError && error.code === "STARTING",
   );
+  assert.equal(setup.calls.list, 0);
   assert.equal(setup.calls.createRoom, 0);
   assert.equal(setup.calls.start, 0);
+  assert.equal(setup.calls.authorizeFinal, 0);
+  assert.equal(setup.calls.complete, 0);
+  assert.deepEqual(setup.calls.fail, []);
+  assert.deepEqual(setup.calls.reconcile, []);
+  assert.equal(tokenCalls, 0);
 });
 
 test("stale reservation reconciles one exact active Egress without starting another", async () => {

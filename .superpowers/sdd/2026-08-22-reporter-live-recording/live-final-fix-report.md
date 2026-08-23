@@ -219,3 +219,100 @@ Docker remains installed with its daemon unavailable at
 `~/.docker/run/docker.sock`, so local Postgres reset, runtime verifier,
 generated-type refresh, and advisors remain external gates. LiveKit and S3
 credentials are still unset, so no credentialed provider success was inferred.
+
+## Final fix round 3 — legacy upgrade and mutation coverage
+
+Reviewed base: `df465bc`
+
+The two closure findings are fixed at the additive database state-machine
+boundary. Deployments that already ran the old `163000` reconciliation may
+contain a pending, claimed recording with a bound Egress but no durable terminal
+fact. `165000` now quarantines only the precisely identifiable legacy shape:
+`recording_status = pending`, non-null Egress and claim, plus the exact
+`live_recording.reconciliation_required` audit for that recording. A
+`SHARE ROW EXCLUSIVE` writer lock covers the backfill. Those rows receive the
+private value `unknown`; the migration does not guess completed versus failed
+and does not quarantine unrelated pending/bound rows. The operator cost is
+therefore limited to already-alerted legacy reconciliations, which remain
+retryable but require an exact provider terminal reconciliation or callback.
+
+The marker constraint now owns both value and local-state correspondence:
+
+- `unknown`, `completed`, and `failed` markers may coexist with local `pending`;
+- local `completed` may retain only a `completed` marker;
+- local `failed` may retain only a `failed` marker;
+- a private monotonic trigger prevents clearing `unknown` or changing a known
+  `completed`/`failed` fact. `unknown` may resolve only to a terminal value.
+
+The same-signature `reserve_reporter_live_recording` and
+`fail_reporter_live_recording_start` functions are replaced in `165000` with
+marker fences. Reserve retains request → reporter profile → profile → recording
+lock order and returns `busy` before fresh-lease/reclaim logic for every marked
+row, so an expired quarantine cannot list provider history, start Egress, or
+issue a token. Start completion and local room/Egress failure CAS operations
+require a null marker, and final authorization continues to reject every marker.
+Unmarked rows retain the prior lease, failure-alert, and authorization behavior.
+The obsolete direct service-role INSERT/UPDATE column grants are revoked;
+service reads remain available, while every mutation now crosses a guarded
+security-definer RPC. This closes the privilege-level bypass around the same
+marker constraints and CAS checks.
+
+Delayed `egress_started`/nonterminal update receipts on any marker are processed
+as stale without changing the row. Known terminal values reject a conflicting
+terminal observation. An exact terminal callback for the immutable
+receipt/Egress/request/output binding may atomically resolve `unknown`, finalize
+the matching local state, and process the receipt. The reconciliation RPC may
+similarly resolve `unknown` under the existing request-before-recording locks;
+it cannot change a known terminal value. No raw provider fact, Egress ID, claim
+token, or marker was added to public responses, audit metadata, or notifications.
+
+### Round-3 migration-history decision
+
+Migrations through `164000` remain untouched. `165000` was introduced only by
+round 2 and had not passed the closure review or deployment gate; the round-3
+plan explicitly treats that additive migration as unapplied and requires the
+upgrade fix within it. It was therefore strengthened in place rather than
+creating a second compensating migration. Fresh chains and targets applied only
+through `164000` converge on the corrected contract. Deployment must confirm
+that `165000` is absent from `supabase_migrations.schema_migrations`; a target
+that independently applied the rejected round-2 file needs a new compensating
+migration instead of silently reusing this history entry.
+
+Manual database RPC/type shapes do not change. The final migration explicitly
+revokes and regrants all six same-signature service functions, and the
+rollback-only verifier checks exact identities, intended execute privileges,
+the relational constraint, enabled monotonic trigger, quarantined legacy data,
+private column privileges, absence of direct service recording writes, and final
+catalog definitions.
+
+### Round-3 TDD and verification evidence
+
+- Exact upgrade/retry RED on `df465bc`: 1/6 passed and 5/6 failed. The failures
+  reproduced the missing legacy `unknown` backfill/monotonic guard, reserve
+  lease-reclaim fence, local failure fence, unknown terminal resolution, and
+  grant/verifier parity before production edits.
+- Exact marker GREEN: 6/6. The companion service regression proves a DB `busy`
+  quarantine reaches no provider history, room creation, Egress start,
+  reconciliation, failure, final authorization, or token dependency.
+- The pre-landing SQL pass then caught the inherited direct service-write grant
+  as an invariant bypass. Its privilege contract failed 5/6 before the grant
+  removal and returned to 6/6 afterward.
+- Focused schema/reservation/session/recovery/webhook/marker matrix: 79/79.
+- Full `npm test`: website 251/251, CMS 637/637, reporter 323/323.
+- Root `npm run typecheck` and `npm run lint` passed across every workspace.
+- Production builds with non-secret Supabase/app URL placeholders and inert
+  `LIVEKIT_S3_FORCE_PATH_STYLE=false` passed for website and reporter on Next.js
+  16.3 Turbopack, and for CMS on webpack (26 pages, including the termination
+  route). CMS default Turbopack again failed only when the macOS execution
+  sandbox denied the PostCSS worker a local port; this is the documented
+  environment limitation, not a compilation/type failure.
+- `git diff --check` passed. After removing the one direct-write privilege
+  bypass found on the first pre-landing pass, the repeated raw-data, privilege,
+  state-transition, lock-order, caller/type, and migration-history review found
+  no open critical or informational issue.
+
+Docker remains installed with its daemon unavailable at
+`~/.docker/run/docker.sock`, so the local Postgres reset, runtime rollback
+verifier, generated-type refresh, and advisors could not run. LiveKit and S3
+credentials remain unset, so credentialed provider/storage E2E remains an
+external deployment gate and no provider success was invented.

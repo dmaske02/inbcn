@@ -22,37 +22,89 @@ async function sourceOrEmpty(url) {
 
 function sqlFunction(sql, name) {
   const match = sql.match(
-    new RegExp(`create or replace function public\\.${name}\\b[\\s\\S]*?\\$\\$;`, "u"),
+    new RegExp(`create or replace function (?:public|private)\\.${name}\\b[\\s\\S]*?\\$\\$;`, "u"),
   );
   assert.ok(match, `missing replacement for ${name}`);
   return match[0].replace(/\s+/gu, " ").toLowerCase();
 }
 
-test("the additive migration closes the terminal-reconciliation callback interleaving", async () => {
+test("the additive upgrade quarantines only the identifiable legacy reconciliation shape", async () => {
   const sql = await sourceOrEmpty(migrationUrl);
   const compact = sql.replace(/\s+/gu, " ").toLowerCase();
 
   assert.match(compact, /alter table public\.live_recordings add column terminal_reconciliation_status text/u);
-  assert.match(compact, /constraint live_recordings_terminal_reconciliation_status_check check \( terminal_reconciliation_status is null or terminal_reconciliation_status in \('completed', 'failed'\) \)/u);
+  assert.match(compact, /terminal_reconciliation_status in \('unknown', 'completed', 'failed'\)/u);
+  assert.match(compact, /recording_status = 'pending' and terminal_reconciliation_status in \('unknown', 'completed', 'failed'\)/u);
+  assert.match(compact, /recording_status = 'completed' and terminal_reconciliation_status = 'completed'/u);
+  assert.match(compact, /recording_status = 'failed' and terminal_reconciliation_status = 'failed'/u);
+
+  const lock = compact.indexOf("lock table public.live_recordings in share row exclusive mode");
+  const backfillStart = compact.indexOf("update public.live_recordings as legacy_recording");
+  const backfillEnd = compact.indexOf(";", backfillStart);
+  assert.ok(lock >= 0 && backfillStart > lock && backfillEnd > backfillStart);
+  const backfill = compact.slice(backfillStart, backfillEnd);
+  assert.match(backfill, /set terminal_reconciliation_status = 'unknown'/u);
+  assert.match(backfill, /legacy_recording\.recording_status = 'pending'/u);
+  assert.match(backfill, /legacy_recording\.egress_id is not null/u);
+  assert.match(backfill, /legacy_recording\.recording_claim_token is not null/u);
+  assert.match(backfill, /exists \( select 1 from public\.audit_events as reconciliation_audit/u);
+  assert.match(backfill, /reconciliation_audit\.action = 'live_recording\.reconciliation_required'/u);
+  assert.match(backfill, /reconciliation_audit\.subject_type = 'live_recording'/u);
+  assert.match(backfill, /reconciliation_audit\.subject_id = legacy_recording\.id/u);
+
+  const guard = sqlFunction(sql, "guard_live_recording_terminal_reconciliation");
+  assert.match(guard, /old\.terminal_reconciliation_status in \('completed', 'failed'\).*new\.terminal_reconciliation_status is distinct from old\.terminal_reconciliation_status.*raise exception/u);
+  assert.match(guard, /old\.terminal_reconciliation_status = 'unknown'.*new\.terminal_reconciliation_status is null.*raise exception/u);
+  assert.match(compact, /create trigger live_recordings_terminal_reconciliation_is_monotonic before update of terminal_reconciliation_status on public\.live_recordings/u);
+});
+
+test("expired quarantined claims stay busy before provider history or start work", async () => {
+  const sql = await sourceOrEmpty(migrationUrl);
+  const reserve = sqlFunction(sql, "reserve_reporter_live_recording");
+
+  const requestLock = reserve.indexOf("from public.reporter_live_requests");
+  const reporterLock = reserve.indexOf("from public.reporter_profiles", requestLock);
+  const profileLock = reserve.indexOf("from public.profiles", reporterLock);
+  const recordingLock = reserve.indexOf("from public.live_recordings", profileLock);
+  const markerFence = reserve.indexOf("terminal_reconciliation_status is not null", recordingLock);
+  const freshLease = reserve.indexOf("recording_claimed_at >= reservation_time - interval '5 minutes'", recordingLock);
+  const reclaim = reserve.indexOf("set recording_claim_token = claim_token", recordingLock);
+
+  assert.ok(requestLock >= 0 && reporterLock > requestLock && profileLock > reporterLock
+    && recordingLock > profileLock && markerFence > recordingLock
+    && freshLease > markerFence && reclaim > freshLease);
+  assert.match(reserve.slice(markerFence, freshLease), /return jsonb_build_object\('state', 'busy'\)/u);
+});
+
+test("marked start completion and local room or Egress failure cannot overwrite the marker", async () => {
+  const sql = await sourceOrEmpty(migrationUrl);
+  const completeStart = sqlFunction(sql, "complete_reporter_live_recording_start");
+  const failStart = sqlFunction(sql, "fail_reporter_live_recording_start");
+  const authorize = sqlFunction(sql, "authorize_reporter_live_session");
+
+  assert.match(completeStart, /recording_claim_token = p_claim_token and terminal_reconciliation_status is null/u);
+  assert.match(failStart, /recording_claim_token = p_claim_token and terminal_reconciliation_status is null/u);
+  assert.match(authorize, /current_recording\.terminal_reconciliation_status is not null.*reporter_live_session_forbidden/u);
+});
+
+test("delayed nonterminal callbacks are stale while an exact terminal callback resolves quarantine", async () => {
+  const sql = await sourceOrEmpty(migrationUrl);
 
   const reconcile = sqlFunction(sql, "report_reporter_live_recording_reconciliation");
   const completeWebhook = sqlFunction(sql, "complete_livekit_webhook_event");
-  const completeStart = sqlFunction(sql, "complete_reporter_live_recording_start");
-  const authorize = sqlFunction(sql, "authorize_reporter_live_session");
 
-  assert.match(reconcile, /terminal_reconciliation_status is not null and current_recording\.terminal_reconciliation_status is distinct from p_provider_status.*return false/u);
-  assert.match(reconcile, /set egress_id = p_egress_id, terminal_reconciliation_status = coalesce\(terminal_reconciliation_status, p_provider_status\)/u);
-  assert.match(reconcile, /terminal_reconciliation_status is null or terminal_reconciliation_status = p_provider_status/u);
+  assert.match(reconcile, /terminal_reconciliation_status in \('completed', 'failed'\) and current_recording\.terminal_reconciliation_status is distinct from p_provider_status.*return false/u);
+  assert.match(reconcile, /set egress_id = p_egress_id, terminal_reconciliation_status = case when terminal_reconciliation_status in \('completed', 'failed'\) then terminal_reconciliation_status else p_provider_status end/u);
+  assert.match(reconcile, /terminal_reconciliation_status is null or terminal_reconciliation_status = 'unknown' or terminal_reconciliation_status = p_provider_status/u);
 
   const staleReceipt = completeWebhook.indexOf("terminal_reconciliation_status is not null");
   const pendingToRecording = completeWebhook.indexOf("if p_recording_status = 'recording'");
   assert.ok(staleReceipt >= 0 && pendingToRecording > staleReceipt);
   assert.match(completeWebhook, /terminal_reconciliation_status is not null and p_recording_status = 'recording'.*processing_status = 'processed'.*return jsonb_build_object\('state', 'stale'\)/u);
-  assert.match(completeWebhook, /terminal_reconciliation_status is not null and current_recording\.terminal_reconciliation_status is distinct from p_recording_status.*livekit_webhook_terminal_mismatch/u);
+  assert.match(completeWebhook, /terminal_reconciliation_status in \('completed', 'failed'\) and current_recording\.terminal_reconciliation_status is distinct from p_recording_status.*livekit_webhook_terminal_mismatch/u);
+  assert.match(completeWebhook, /terminal_reconciliation_status = case when terminal_reconciliation_status is null then null else 'completed' end/u);
+  assert.match(completeWebhook, /terminal_reconciliation_status = case when terminal_reconciliation_status is null then null else 'failed' end/u);
   assert.doesNotMatch(completeWebhook, /terminal_reconciliation_status\s*=\s*null/u);
-
-  assert.match(completeStart, /terminal_reconciliation_status is null/u);
-  assert.match(authorize, /current_recording\.terminal_reconciliation_status is not null.*reporter_live_session_forbidden/u);
 });
 
 test("terminal reconciliation retains receipt-first and request-before-recording lock order", async () => {
@@ -78,11 +130,15 @@ test("terminal reconciliation marker is private, typed, and deployment-verifiabl
     readFile(verificationUrl, "utf8"),
   ]);
   const compact = sql.replace(/\s+/gu, " ").toLowerCase();
+  const verificationCompact = verification.replace(/\s+/gu, " ");
 
   assert.match(compact, /never exposed to browsers, public projections, audit metadata, or notifications/u);
   assert.doesNotMatch(compact, /grant (?:select|insert|update)[^;]*terminal_reconciliation_status[^;]*to (?:public|anon|authenticated)/u);
+  assert.match(compact, /revoke insert \( live_request_id, live_stream_id, egress_id, recording_status, storage_key, duration_seconds, bytes, checksum, provider_error, private_metadata \), update \( live_stream_id, egress_id, recording_status, storage_key, duration_seconds, bytes, checksum, provider_error, private_metadata \) on table public\.live_recordings from service_role/u);
   for (const name of [
+    "reserve_reporter_live_recording",
     "complete_reporter_live_recording_start",
+    "fail_reporter_live_recording_start",
     "authorize_reporter_live_session",
     "complete_livekit_webhook_event",
     "report_reporter_live_recording_reconciliation",
@@ -95,5 +151,11 @@ test("terminal reconciliation marker is private, typed, and deployment-verifiabl
   assert.equal(types.match(/\bterminal_reconciliation_status[?:]*: string \| null/gu)?.length, 3);
   assert.match(verification, /terminal_reconciliation_status/u);
   assert.match(verification, /live_recordings_terminal_reconciliation_status_check/u);
+  assert.match(verification, /live_recordings_terminal_reconciliation_is_monotonic/u);
+  assert.match(verification, /reserve_reporter_live_recording/u);
+  assert.match(verification, /fail_reporter_live_recording_start/u);
+  assert.match(verification, /live_recording\.reconciliation_required/u);
   assert.match(verification, /information_schema\.column_privileges/u);
+  assert.match(verification, /privilege_type in \('INSERT', 'UPDATE'\)/u);
+  assert.match(verificationCompact, /table_name = 'live_recordings' and grantee = 'service_role' and privilege_type in \('INSERT', 'UPDATE'\)/u);
 });
