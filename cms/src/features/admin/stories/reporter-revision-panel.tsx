@@ -101,6 +101,11 @@ export function ReporterRevisionPanel({
   const canonical = review.canonical_story;
   const reporter = review.reporter;
   const reviewCommands = commands.filter((command) => command in labels);
+  const exactLocationAvailable = review.private_location !== null
+    && review.private_location.latitude !== null
+    && review.private_location.longitude !== null
+    && review.private_location.accuracy_meters !== null
+    && review.private_location.captured_at !== null;
 
   return (
     <div className="space-y-5">
@@ -143,7 +148,18 @@ export function ReporterRevisionPanel({
 
       <Card padding="none" className="border-signal/50">
         <CardHeader><h2 className="text-lg font-semibold">Private newsroom evidence</h2><p className="text-sm text-muted-foreground">Exact coordinates must never be copied into public story fields, URLs, logs, or audit metadata.</p></CardHeader>
-        <CardContent>{review.private_location ? <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3"><div><dt className="text-muted-foreground">Exact latitude / longitude</dt><dd>{review.private_location.latitude}, {review.private_location.longitude}</dd></div><div><dt className="text-muted-foreground">Accuracy</dt><dd>{review.private_location.accuracy_meters} metres</dd></div><div><dt className="text-muted-foreground">Captured</dt><dd>{format(review.private_location.captured_at)}</dd></div><div><dt className="text-muted-foreground">Locality</dt><dd>{review.private_location.locality}</dd></div></dl> : <p className="text-sm text-muted-foreground">Private location evidence has expired or is unavailable.</p>}</CardContent>
+        <CardContent>
+          {review.private_location ? (
+            <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+              {exactLocationAvailable ? <>
+                <div><dt className="text-muted-foreground">Exact latitude / longitude</dt><dd>{review.private_location.latitude}, {review.private_location.longitude}</dd></div>
+                <div><dt className="text-muted-foreground">Accuracy</dt><dd>{review.private_location.accuracy_meters} metres</dd></div>
+                <div><dt className="text-muted-foreground">Captured</dt><dd>{format(review.private_location.captured_at)}</dd></div>
+              </> : <div><dt className="text-muted-foreground">Exact evidence</dt><dd>Expired or unavailable</dd></div>}
+              <div><dt className="text-muted-foreground">Locality</dt><dd>{review.private_location.locality}</dd></div>
+            </dl>
+          ) : <p className="text-sm text-muted-foreground">Private location evidence is unavailable.</p>}
+        </CardContent>
       </Card>
 
       {["pending_review", "approved", "scheduled", "published"].includes(canonical.status) ? <Card padding="none"><CardHeader><h2 className="text-lg font-semibold">Editorial correction</h2><p className="text-sm text-muted-foreground">Correct the canonical newsroom version with a required audit reason. Immutable reporter-submitted revisions remain unchanged.</p></CardHeader><CardContent><EditorialCorrectionForm references={references} review={review} story={story} /></CardContent></Card> : null}

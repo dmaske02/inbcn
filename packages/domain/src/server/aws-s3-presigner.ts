@@ -68,7 +68,7 @@ export function createAwsS3Presigner(config: PresignerConfig) {
   }
   const endpoint = endpointFor(config);
 
-  function sign(method: "GET" | "HEAD", key: string, expiresInSeconds: number, now = new Date()): string {
+  function sign(method: "DELETE" | "GET" | "HEAD", key: string, expiresInSeconds: number, now = new Date()): string {
     if (!key || key.length > 1024 || key.startsWith("/") || key.includes("\\")
       || !Number.isInteger(expiresInSeconds)
       || expiresInSeconds < 1 || expiresInSeconds > 604_800
@@ -105,6 +105,8 @@ export function createAwsS3Presigner(config: PresignerConfig) {
   }
 
   return {
+    signDelete: (key: string, expiresInSeconds: number, now?: Date) =>
+      sign("DELETE", key, expiresInSeconds, now),
     signGet: (key: string, expiresInSeconds: number, now?: Date) =>
       sign("GET", key, expiresInSeconds, now),
     signHead: (key: string, expiresInSeconds: number, now?: Date) =>

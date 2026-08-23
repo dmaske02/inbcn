@@ -88,6 +88,7 @@ export type Database = {
           verified_adult: boolean | null
           submitted_at: string | null
           completion_deadline: string | null
+          completion_reminded_at: string | null
           reviewed_by: string | null
           reviewed_at: string | null
           decision_reason: string | null
@@ -124,6 +125,7 @@ export type Database = {
           verified_adult?: boolean | null
           submitted_at?: string | null
           completion_deadline?: string | null
+          completion_reminded_at?: string | null
           reviewed_by?: string | null
           reviewed_at?: string | null
           decision_reason?: string | null
@@ -160,6 +162,7 @@ export type Database = {
           verified_adult?: boolean | null
           submitted_at?: string | null
           completion_deadline?: string | null
+          completion_reminded_at?: string | null
           reviewed_by?: string | null
           reviewed_at?: string | null
           decision_reason?: string | null
@@ -367,6 +370,7 @@ export type Database = {
           membership_started_at: string
           membership_expires_at: string
           membership_grace_ends_at: string
+          renewal_reminded_for: string | null
           can_publish_directly: boolean
           direct_publish_granted_by: string | null
           direct_publish_granted_at: string | null
@@ -410,6 +414,7 @@ export type Database = {
           membership_started_at: string
           membership_expires_at: string
           membership_grace_ends_at: string
+          renewal_reminded_for?: string | null
           can_publish_directly?: boolean
           direct_publish_granted_by?: string | null
           direct_publish_granted_at?: string | null
@@ -453,6 +458,7 @@ export type Database = {
           membership_started_at?: string
           membership_expires_at?: string
           membership_grace_ends_at?: string
+          renewal_reminded_for?: string | null
           can_publish_directly?: boolean
           direct_publish_granted_by?: string | null
           direct_publish_granted_at?: string | null
@@ -633,6 +639,11 @@ export type Database = {
           recording_claimed_at: string | null
           recording_attempt_count: number
           storage_key: string | null
+          storage_deleted_at: string | null
+          deletion_lease_token: string | null
+          deletion_lease_claimed_at: string | null
+          deletion_attempt_count: number
+          deletion_failure_detail: string | null
           duration_seconds: number | null
           bytes: number | null
           checksum: string | null
@@ -663,6 +674,11 @@ export type Database = {
           recording_claimed_at?: string | null
           recording_attempt_count?: number
           storage_key?: string | null
+          storage_deleted_at?: string | null
+          deletion_lease_token?: string | null
+          deletion_lease_claimed_at?: string | null
+          deletion_attempt_count?: number
+          deletion_failure_detail?: string | null
           duration_seconds?: number | null
           bytes?: number | null
           checksum?: string | null
@@ -693,6 +709,11 @@ export type Database = {
           recording_claimed_at?: string | null
           recording_attempt_count?: number
           storage_key?: string | null
+          storage_deleted_at?: string | null
+          deletion_lease_token?: string | null
+          deletion_lease_claimed_at?: string | null
+          deletion_attempt_count?: number
+          deletion_failure_detail?: string | null
           duration_seconds?: number | null
           bytes?: number | null
           checksum?: string | null
@@ -1280,39 +1301,42 @@ export type Database = {
       }
       story_locations: {
         Row: {
-          accuracy_meters: number
-          captured_at: string
+          accuracy_meters: number | null
+          captured_at: string | null
+          exact_coordinates_deleted_at: string | null
           id: string
-          latitude: number
+          latitude: number | null
           legal_hold: boolean
           locality: string
-          longitude: number
+          longitude: number | null
           received_at: string
           retention_due_at: string | null
           revision_id: string
           story_id: string
         }
         Insert: {
-          accuracy_meters: number
-          captured_at: string
+          accuracy_meters?: number | null
+          captured_at?: string | null
+          exact_coordinates_deleted_at?: string | null
           id?: string
-          latitude: number
+          latitude?: number | null
           legal_hold?: boolean
           locality: string
-          longitude: number
+          longitude?: number | null
           received_at?: string
           retention_due_at?: string | null
           revision_id: string
           story_id: string
         }
         Update: {
-          accuracy_meters?: number
-          captured_at?: string
+          accuracy_meters?: number | null
+          captured_at?: string | null
+          exact_coordinates_deleted_at?: string | null
           id?: string
-          latitude?: number
+          latitude?: number | null
           legal_hold?: boolean
           locality?: string
-          longitude?: number
+          longitude?: number | null
           received_at?: string
           retention_due_at?: string | null
           revision_id?: string
@@ -1695,6 +1719,10 @@ export type Database = {
         Args: { p_event_id: string; p_event_type: string; p_egress_id: string }
         Returns: Json
       }
+      claim_reporter_lifecycle: {
+        Args: { p_limit: number }
+        Returns: Json
+      }
       get_public_replay_storage_key: {
         Args: { p_replay_id: string }
         Returns: string | null
@@ -1754,6 +1782,15 @@ export type Database = {
         }
         Returns: Json
       }
+      complete_reporter_recording_deletion: {
+        Args: {
+          p_recording_id: string
+          p_lease_token: string
+          p_object_key: string
+          p_result: string
+        }
+        Returns: boolean
+      }
       complete_reporter_order: {
         Args: { p_payment_id: string; p_order_creation_token: string; p_razorpay_order_id: string }
         Returns: boolean
@@ -1808,6 +1845,19 @@ export type Database = {
       }
       fail_reporter_live_recording_start: {
         Args: { p_recording_id: string; p_claim_token: string; p_failure_code: string }
+        Returns: boolean
+      }
+      fail_reporter_lifecycle_refund: {
+        Args: { p_payment_id: string; p_lease_token: string; p_failure_code: string }
+        Returns: boolean
+      }
+      fail_reporter_recording_deletion: {
+        Args: {
+          p_recording_id: string
+          p_lease_token: string
+          p_object_key: string
+          p_failure_code: string
+        }
         Returns: boolean
       }
       report_reporter_live_recording_reconciliation: {

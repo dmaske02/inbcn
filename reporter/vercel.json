@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/reporter-lifecycle",
+      "schedule": "15 2 * * *"
+    }
+  ]
+}

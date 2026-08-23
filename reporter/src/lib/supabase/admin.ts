@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { env } from "@/config/env";
+import { env } from "../../config/env.ts";
 import type { Database } from "./types";
 
 function getAdminCredentials() {

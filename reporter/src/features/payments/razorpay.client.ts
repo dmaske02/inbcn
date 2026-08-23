@@ -41,8 +41,25 @@ const orderCollectionSchema = z.object({
   items: z.array(orderSchema),
 });
 
+const refundSchema = z.object({
+  id: providerId,
+  entity: z.literal("refund").optional(),
+  payment_id: providerId,
+  amount: z.number().int(),
+  currency: z.string(),
+  receipt: z.string().trim().min(1).max(40).nullable(),
+  status: z.enum(["pending", "processed", "failed"]),
+});
+
+const refundCollectionSchema = z.object({
+  entity: z.literal("collection"),
+  count: z.number().int().nonnegative(),
+  items: z.array(refundSchema),
+});
+
 export type RazorpayOrder = z.infer<typeof orderSchema>;
 export type RazorpayPayment = z.infer<typeof paymentSchema>;
+export type RazorpayRefund = z.infer<typeof refundSchema>;
 
 export class RazorpayClientError extends Error {
   readonly code: "provider-request-failed" | "provider-response-invalid";
@@ -79,6 +96,7 @@ export function createRazorpayClient(options: RazorpayClientOptions) {
           authorization,
           accept: "application/json",
           ...(init?.body ? { "content-type": "application/json" } : {}),
+          ...(init?.headers as Readonly<Record<string, string>> | undefined),
         },
       });
     } catch {
@@ -156,6 +174,55 @@ export function createRazorpayClient(options: RazorpayClientOptions) {
       if (!parsed.success || parsed.data.id !== id) {
         throw new RazorpayClientError("provider-response-invalid");
       }
+      return parsed.data;
+    },
+
+    async findRefundByReceipt(
+      paymentIdInput: string,
+      receipt: string,
+    ): Promise<RazorpayRefund | null> {
+      const paymentId = providerId.parse(paymentIdInput);
+      const parsed = refundCollectionSchema.safeParse(await request(
+        `/payments/${encodeURIComponent(paymentId)}/refunds?count=100`,
+        { signal: AbortSignal.timeout(10_000) },
+      ));
+      if (!parsed.success) throw new RazorpayClientError("provider-response-invalid");
+      const matches = parsed.data.items.filter((item) => item.receipt === receipt);
+      if (matches.length > 1) throw new RazorpayClientError("provider-response-invalid");
+      return matches[0] ?? null;
+    },
+
+    async createFullRefund(input: Readonly<{
+      paymentId: string;
+      receipt: string;
+      idempotencyKey: string;
+      internalPaymentId: string;
+    }>): Promise<RazorpayRefund> {
+      const paymentId = providerId.parse(input.paymentId);
+      const internalPaymentId = exactInternalId(input.internalPaymentId);
+      const receiptPrefix = `${internalPaymentId}:`;
+      const attempt = input.receipt.startsWith(receiptPrefix)
+        ? input.receipt.slice(receiptPrefix.length)
+        : "";
+      if (!/^[A-Za-z0-9_-]{10,100}$/u.test(input.idempotencyKey)
+        || !/^[1-9][0-9]*$/u.test(attempt)
+        || input.idempotencyKey !== `${internalPaymentId}_${attempt}`) {
+        throw new RazorpayClientError("provider-request-failed", true);
+      }
+      const parsed = refundSchema.safeParse(await request(
+        `/payments/${encodeURIComponent(paymentId)}/refund`,
+        {
+          method: "POST",
+          signal: AbortSignal.timeout(10_000),
+          headers: { "X-Refund-Idempotency": input.idempotencyKey },
+          body: JSON.stringify({
+            amount: REPORTER_PAYMENT_AMOUNT_PAISE,
+            receipt: input.receipt,
+            notes: { payment_id: internalPaymentId },
+          }),
+        },
+      ));
+      if (!parsed.success) throw new RazorpayClientError("provider-response-invalid");
       return parsed.data;
     },
   } as const;

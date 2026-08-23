@@ -86,6 +86,27 @@ updates and receive no editorial privileges.
   locks request before recording, requires exact provider-confirmed terminal
   facts, preserves prior audit evidence, and emits no provider identifier,
   object key, reason, location, or payload in its generic resolution audit.
+- `claim_reporter_lifecycle`: the daily claim boundary and its refund/recording
+  completion and failure functions are `SECURITY DEFINER`, use an empty search
+  path, and are executable only by `service_role`. Exact signatures are revoked
+  from `PUBLIC`, `anon`, and `authenticated`. The claim accepts only a bounded
+  page size (maximum 25), uses the PostgreSQL clock, orders due work by
+  `(due_at, id, kind)`, and returns provider identifiers or object keys only for
+  the exact leased server-side work item. Browser routes receive only aggregate
+  counts.
+- Lifecycle refund completion delegates to the existing exact Razorpay request
+  recorder and signed-webhook confirmation path. Ambiguous failure keeps the
+  same lease, attempt, receipt, and idempotency key; fixed safe failure codes are
+  the only persisted provider error facts. Recording completion/failure locks
+  the live request before its recording, verifies the exact lease and canonical
+  key, and rechecks private/rejected status, public replay absence, legal hold,
+  retention, and terminal reconciliation. A trigger prevents publication or a
+  hold mutation after object deletion has begun.
+- Exact-coordinate lifecycle work locks the final story before its location,
+  rechecks the database-owned retention date and legal hold, and clears only
+  latitude, longitude, accuracy, and capture time. Locality and receipt time
+  remain available under the existing owner/editor/admin location policies;
+  anonymous users and generic audits never receive exact evidence.
 - `live_recording_editorial_private`: only active signed editors/admins may read
   the immutable bounded rejection reason. Direct inserts, updates, and deletes
   remain revoked; a trigger also rejects mutation after insertion.

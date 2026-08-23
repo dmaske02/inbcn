@@ -215,7 +215,11 @@ async function getEditor(profileId: string, id: string): Promise<ReporterStoryEd
       .eq("revision_id", revision.id)
       .maybeSingle();
     if (error) repositoryFailure(error);
-    if (data) {
+    if (data
+      && data.latitude !== null
+      && data.longitude !== null
+      && data.accuracy_meters !== null
+      && data.captured_at !== null) {
       location = {
         latitude: data.latitude,
         longitude: data.longitude,
