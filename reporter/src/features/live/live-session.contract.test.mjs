@@ -31,6 +31,7 @@ test("reservation migration provides a service-role-only five-minute CAS protoco
     "reserve_reporter_live_recording",
     "complete_reporter_live_recording_start",
     "fail_reporter_live_recording_start",
+    "authorize_reporter_live_session",
   ]) {
     const fn = sqlFunction(sql, name);
     assert.match(fn, /security definer set search_path = ''/u);
@@ -38,7 +39,7 @@ test("reservation migration provides a service-role-only five-minute CAS protoco
     assert.match(compact, new RegExp(`grant execute on function public\\.${name}[^;]* to service_role`, "u"));
   }
   const reserve = sqlFunction(sql, "reserve_reporter_live_recording");
-  assert.match(reserve, /from public\.reporter_profiles.*for update.*from public\.profiles.*for update.*from public\.reporter_live_requests.*for update.*from public\.live_recordings.*for update/u);
+  assert.match(reserve, /from public\.reporter_live_requests.*for update.*from public\.reporter_profiles.*for update.*from public\.profiles.*for update.*from public\.live_recordings.*for update/u);
   assert.match(reserve, /request_owner is distinct from p_profile_id/u);
   assert.match(reserve, /current_request\.profile_id is distinct from request_owner/u);
   assert.match(reserve, /current_profile\.role is distinct from 'reporter' or not current_profile\.is_active/u);
@@ -47,7 +48,7 @@ test("reservation migration provides a service-role-only five-minute CAS protoco
   assert.match(reserve, /membership_expires_at < reservation_time/u);
   assert.match(reserve, /not current_reporter\.can_broadcast_live/u);
   assert.match(reserve, /current_request\.status is distinct from 'approved'/u);
-  assert.match(reserve, /reservation_time < current_request\.approved_starts_at.*reservation_time > current_request\.approved_ends_at/u);
+  assert.match(reserve, /reservation_time < current_request\.approved_starts_at.*reservation_time >= current_request\.approved_ends_at/u);
   assert.match(reserve, /livekit_room_name is distinct from 'reporter-live-' \|\| replace/u);
   assert.match(reserve, /recording_claimed_at >= reservation_time - interval '5 minutes'/u);
   assert.match(reserve, /jsonb_build_object\('state', 'busy'\)/u);
@@ -57,6 +58,17 @@ test("reservation migration provides a service-role-only five-minute CAS protoco
   assert.match(failed, /'live_recording\.start_failed'/u);
   assert.match(failed, /where role = 'admin' and is_active/u);
   assert.doesNotMatch(failed, /jsonb_build_object\([^)]*(?:egress|storage|provider_error)/u);
+  const authorize = sqlFunction(sql, "authorize_reporter_live_session");
+  assert.match(authorize, /from public\.reporter_live_requests.*for update.*from public\.reporter_profiles.*for update.*from public\.profiles.*for update.*from public\.live_recordings.*for update/u);
+  assert.match(authorize, /current_recording\.live_request_id is distinct from current_request\.id/u);
+  assert.match(authorize, /current_recording\.recording_status not in \('recording', 'failed'\)/u);
+  assert.match(authorize, /authorization_time >= current_request\.approved_ends_at/u);
+  assert.match(authorize, /current_request\.status is distinct from 'approved'/u);
+  assert.match(authorize, /current_reporter\.public_status is distinct from 'active'/u);
+  assert.match(authorize, /current_reporter\.membership_expires_at < authorization_time/u);
+  assert.match(authorize, /not current_reporter\.can_broadcast_live/u);
+  assert.match(authorize, /current_reporter\.access_sync_generation is distinct from p_access_generation/u);
+  assert.match(authorize, /'request_id', current_request\.id/u);
 });
 
 test("manual types expose reservation columns and RPCs", async () => {
@@ -64,9 +76,70 @@ test("manual types expose reservation columns and RPCs", async () => {
   for (const field of ["recording_claim_token", "recording_claimed_at", "recording_attempt_count"]) {
     assert.match(types, new RegExp(`\\b${field}:`, "u"));
   }
-  for (const fn of ["reserve_reporter_live_recording", "complete_reporter_live_recording_start", "fail_reporter_live_recording_start"]) {
+  for (const fn of ["reserve_reporter_live_recording", "complete_reporter_live_recording_start", "fail_reporter_live_recording_start", "authorize_reporter_live_session"]) {
     assert.match(types, new RegExp(`\\b${fn}:`, "u"));
   }
+});
+
+test("session route safely contains authorization and params exceptions and canonicalizes UUIDs", async () => {
+  const { createSessionHandler } = await import("../../app/api/live/[requestId]/session/route.ts");
+  const { LiveSessionError } = await import("./live-session.service.ts");
+  for (const scenario of [
+    {
+      handler: () => createSessionHandler({
+      authorize: async () => { throw new Error("raw-auth-secret"); },
+      requestSession: async () => { throw new Error("must not run"); },
+      }),
+      params: () => Promise.resolve({ requestId: "unused" }),
+    },
+    {
+      handler: () => createSessionHandler({
+      authorize: async () => ({ ok: true, state: "reporter", userId: "profile", accessGeneration: 4 }),
+      requestSession: async () => { throw new Error("must not run"); },
+      }),
+      params: () => Promise.reject(new Error("raw-param-secret")),
+    },
+  ]) {
+    const response = await scenario.handler()(new Request("https://reporter.test"), { params: scenario.params() });
+    assert.equal(response.status, 503);
+    assert.match(response.headers.get("cache-control"), /no-store/u);
+    assert.doesNotMatch(await response.text(), /raw|secret/u);
+  }
+
+  let receivedRequestId;
+  const handler = createSessionHandler({
+    authorize: async () => ({ ok: true, state: "reporter", userId: "profile", accessGeneration: 4 }),
+    requestSession: async (input) => {
+      receivedRequestId = input.requestId;
+      return { serverUrl: "wss://livekit.test", token: "token", roomName: "room", startsAt: "start", endsAt: "end", recordingState: "recording" };
+    },
+  });
+  const response = await handler(new Request("https://reporter.test"), {
+    params: Promise.resolve({ requestId: "22222222-2222-4222-8222-2222222222AA" }),
+  });
+  assert.equal(response.status, 200);
+  assert.equal(receivedRequestId, "22222222-2222-4222-8222-2222222222aa");
+
+  const unauthenticated = await createSessionHandler({
+    authorize: async () => ({ ok: false, reason: "unauthenticated" }),
+    requestSession: async () => { throw new Error("must not run"); },
+  })(new Request("https://reporter.test"), { params: Promise.resolve({ requestId: "unused" }) });
+  assert.equal(unauthenticated.status, 401);
+
+  const invalid = await handler(new Request("https://reporter.test"), {
+    params: Promise.resolve({ requestId: "not-a-uuid" }),
+  });
+  assert.equal(invalid.status, 400);
+
+  const starting = await createSessionHandler({
+    authorize: async () => ({ ok: true, state: "reporter", userId: "profile", accessGeneration: 4 }),
+    requestSession: async () => { throw new LiveSessionError("STARTING", 503); },
+  })(new Request("https://reporter.test"), {
+    params: Promise.resolve({ requestId: "22222222-2222-4222-8222-222222222222" }),
+  });
+  assert.equal(starting.status, 503);
+  assert.equal(starting.headers.get("retry-after"), "30");
+  assert.match(starting.headers.get("cache-control"), /no-store/u);
 });
 
 test("session route is POST-only, awaits params, authorizes, validates UUID, and maps safe errors", async () => {
@@ -100,4 +173,36 @@ test("private storage configuration is all-or-none and never public", async () =
     assert.match(`${error.stdout ?? ""}${error.stderr ?? ""}`, /LIVEKIT_S3_ACCESS_KEY is required/u);
     return true;
   });
+});
+
+test("reporter environment rejects LiveKit URLs containing credentials, path, query, or fragment", async () => {
+  for (const url of [
+    "https://user:password@livekit.example.test",
+    "https://livekit.example.test/private",
+    "https://livekit.example.test/?token=private",
+    "https://livekit.example.test/#private",
+    "https://livekit.example.test/?",
+    "https://livekit.example.test/#",
+  ]) {
+    await assert.rejects(execFileAsync(process.execPath, [
+      "--conditions=react-server",
+      "--experimental-strip-types",
+      "--input-type=module",
+      "-e",
+      'await import("./src/config/env.ts")',
+    ], {
+      cwd: new URL("../../..", import.meta.url),
+      env: {
+        ...process.env,
+        LIVEKIT_URL: url,
+        LIVEKIT_API_KEY: "api-key",
+        LIVEKIT_API_SECRET: "api-secret",
+      },
+    }), (error) => {
+      const output = `${error.stdout ?? ""}${error.stderr ?? ""}`;
+      assert.match(output, /LIVEKIT_URL/u);
+      assert.doesNotMatch(output, /password|token=private/u);
+      return true;
+    });
+  }
 });

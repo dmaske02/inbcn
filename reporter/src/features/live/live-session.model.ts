@@ -19,7 +19,7 @@ export function sessionPolicy(input: SessionPolicyInput): SessionPolicyResult {
   if (![now, startsAt, endsAt].every(Number.isFinite) || endsAt <= startsAt) {
     return { ok: false, reason: "invalid-window" };
   }
-  return now < startsAt || now > endsAt
+  return now < startsAt || now >= endsAt
     ? { ok: false, reason: "outside-window" }
     : { ok: true };
 }

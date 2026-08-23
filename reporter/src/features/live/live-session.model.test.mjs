@@ -16,7 +16,14 @@ test("approved active membership is allowed at the window boundary", () => {
   }), { ok: true });
 });
 
-test("post-window and non-active memberships are denied", () => {
+test("the exclusive end boundary, post-window, and non-active memberships are denied", () => {
+  assert.deepEqual(sessionPolicy({
+    status: "approved",
+    now: endsAt,
+    startsAt,
+    endsAt,
+    activeMember: true,
+  }), { ok: false, reason: "outside-window" });
   assert.deepEqual(sessionPolicy({
     status: "approved",
     now: "2026-08-22T10:30:00.001Z",

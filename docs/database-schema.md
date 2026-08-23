@@ -43,6 +43,8 @@ The baseline migration is stored in
   facts, private provider metadata, replay fields, retention deadline, and hold.
   Provider starts use service-only UUID claims and a five-minute DB lease; a
   partial unique index allows only one pending/recording segment per request.
+  A service-only final authorization rechecks current reporter/request access
+  and durable recording state immediately before publisher token issuance.
 
 ## Reporter foundation
 

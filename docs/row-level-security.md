@@ -72,8 +72,11 @@ updates and receive no editorial privileges.
 - `live_recordings`: there is no anonymous or reporter base-table access.
   Active editors/admins can read the private review records; the service role
   receives only explicit lifecycle columns and cannot set legal hold directly.
-  Provider starts use service-role-only reserve/complete/fail security-definer
-  RPCs with empty search paths and CAS claims; all other execute grants are revoked.
+  Provider starts use service-role-only reserve/complete/fail/final-authorization
+  security-definer RPCs with empty search paths and CAS claims; all other execute
+  grants are revoked. Final authorization repeats current ownership, active
+  membership/trust/access-generation, request-window, room, and recording checks
+  immediately before the server issues a publisher token.
 
 ## Reporter transition functions
 

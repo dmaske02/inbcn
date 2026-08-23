@@ -2,7 +2,7 @@ import "server-only";
 
 import type { Json } from "@inbcn/database";
 
-import type { PrivateStorageConfig } from "./egress.server.ts";
+import type { PrivateStorageConfig, RecordingStartResult } from "./egress.server.ts";
 import type { LiveKitRoomInput } from "./livekit.server.ts";
 
 type LiveSessionErrorCode =
@@ -35,6 +35,7 @@ type LiveConfiguration = Readonly<{
 }>;
 
 type ReservationFacts = Readonly<{
+  requestId: string;
   recordingId: string;
   roomName: string;
   startsAt: string;
@@ -53,6 +54,14 @@ type Reservation =
       reclaimed: boolean;
     }>);
 
+type FinalAuthorizationFacts = Readonly<{
+  requestId: string;
+  roomName: string;
+  startsAt: string;
+  endsAt: string;
+  recordingState: "failed" | "recording";
+}>;
+
 type Dependencies = Readonly<{
   getConfig(): LiveConfiguration;
   now(): string;
@@ -61,6 +70,12 @@ type Dependencies = Readonly<{
     accessGeneration: number;
     requestId: string;
   }>): Promise<Reservation>;
+  authorizeFinal(input: Readonly<{
+    profileId: string;
+    accessGeneration: number;
+    requestId: string;
+    recordingId: string;
+  }>): Promise<FinalAuthorizationFacts>;
   complete(input: Readonly<{
     recordingId: string;
     claimToken: string;
@@ -72,9 +87,9 @@ type Dependencies = Readonly<{
     failureCode: "egress-start-failed" | "room-create-failed";
   }>): Promise<boolean>;
   createRoom(input: LiveKitRoomInput): Promise<void>;
-  startRecording(input: Readonly<{ roomName: string; storageKey: string }>): Promise<string>;
+  startRecording(input: Readonly<{ roomName: string; storageKey: string }>): Promise<RecordingStartResult>;
   listActiveRecordings(roomName: string): Promise<readonly Readonly<{
-    egressId: string;
+    egressId: string | null;
     storageKey: string | null;
   }>[]>;
   generateToken(input: Readonly<{
@@ -104,10 +119,14 @@ const ROOM_OPTIONS = Object.freeze({
 
 function ttlSeconds(endsAt: string, now: string): number {
   const remaining = Date.parse(endsAt) - Date.parse(now);
-  if (!Number.isFinite(remaining) || remaining < 0) {
+  if (!Number.isFinite(remaining) || remaining <= 0) {
     throw new LiveSessionError("FORBIDDEN", 403);
   }
   return Math.ceil(remaining / 1_000) + 60;
+}
+
+function validEgressId(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length >= 1 && value.trim().length <= 255;
 }
 
 async function safeFail(
@@ -146,23 +165,38 @@ export function createLiveSessionService(dependencies: Dependencies) {
         throw new LiveSessionError("STARTING", 503);
       }
 
-      const issueToken = () => dependencies.generateToken({
-        apiKey: config.apiKey,
-        apiSecret: config.apiSecret,
-        profileId: input.profileId,
-        requestId: input.requestId,
-        roomName: reservation.roomName,
-        ttlSeconds: ttlSeconds(reservation.endsAt, dependencies.now()),
-      });
-      if (reservation.state === "existing") {
+      const issueAuthorizedSession = async (): Promise<ReporterLiveSession> => {
+        let authorized: FinalAuthorizationFacts;
+        try {
+          authorized = await dependencies.authorizeFinal({
+            profileId: input.profileId,
+            accessGeneration: input.accessGeneration,
+            requestId: reservation.requestId,
+            recordingId: reservation.recordingId,
+          });
+        } catch (error) {
+          if (error instanceof LiveSessionError) throw error;
+          throw new LiveSessionError("UNAVAILABLE", 503);
+        }
+        const token = await dependencies.generateToken({
+          apiKey: config.apiKey,
+          apiSecret: config.apiSecret,
+          profileId: input.profileId,
+          requestId: authorized.requestId,
+          roomName: authorized.roomName,
+          ttlSeconds: ttlSeconds(authorized.endsAt, dependencies.now()),
+        });
         return {
           serverUrl: config.serverUrl,
-          token: await issueToken(),
-          roomName: reservation.roomName,
-          startsAt: reservation.startsAt,
-          endsAt: reservation.endsAt,
-          recordingState: "recording",
+          token,
+          roomName: authorized.roomName,
+          startsAt: authorized.startsAt,
+          endsAt: authorized.endsAt,
+          recordingState: authorized.recordingState,
         };
+      };
+      if (reservation.state === "existing") {
+        return issueAuthorizedSession();
       }
 
       try {
@@ -172,8 +206,8 @@ export function createLiveSessionService(dependencies: Dependencies) {
         throw new LiveSessionError("UNAVAILABLE", 503);
       }
 
-      const storageKey = `reporter-live/${input.requestId}/${reservation.recordingId}.mp4`;
-      let egressId: string;
+      const storageKey = `reporter-live/${reservation.requestId}/${reservation.recordingId}.mp4`;
+      let egressId: string | undefined;
       if (reservation.reclaimed) {
         let active;
         try {
@@ -183,35 +217,38 @@ export function createLiveSessionService(dependencies: Dependencies) {
         }
         const exact = active.filter((item) => item.storageKey === storageKey);
         if (exact.length === 1) {
-          egressId = exact[0].egressId;
+          if (!validEgressId(exact[0].egressId)) {
+            throw new LiveSessionError("STARTING", 503);
+          }
+          egressId = exact[0].egressId.trim();
         } else if (active.length > 0) {
           throw new LiveSessionError("STARTING", 503);
-        } else {
-          egressId = "";
         }
-      } else {
-        egressId = "";
       }
 
       if (!egressId) {
+        let startResult: RecordingStartResult;
         try {
-          egressId = await dependencies.startRecording({
+          startResult = await dependencies.startRecording({
             roomName: reservation.roomName,
             storageKey,
           });
         } catch {
+          throw new LiveSessionError("STARTING", 503);
+        }
+        if (startResult.state === "ambiguous") {
+          throw new LiveSessionError("STARTING", 503);
+        }
+        if (startResult.state === "definitive-failure") {
           if (!await safeFail(dependencies, reservation, "egress-start-failed")) {
             throw new LiveSessionError("STARTING", 503);
           }
-          return {
-            serverUrl: config.serverUrl,
-            token: await issueToken(),
-            roomName: reservation.roomName,
-            startsAt: reservation.startsAt,
-            endsAt: reservation.endsAt,
-            recordingState: "failed",
-          };
+          return issueAuthorizedSession();
         }
+        if (!validEgressId(startResult.egressId)) {
+          throw new LiveSessionError("STARTING", 503);
+        }
+        egressId = startResult.egressId.trim();
       }
 
       let completed = false;
@@ -226,14 +263,7 @@ export function createLiveSessionService(dependencies: Dependencies) {
       }
       if (!completed) throw new LiveSessionError("STARTING", 503);
 
-      return {
-        serverUrl: config.serverUrl,
-        token: await issueToken(),
-        roomName: reservation.roomName,
-        startsAt: reservation.startsAt,
-        endsAt: reservation.endsAt,
-        recordingState: "recording",
-      };
+      return issueAuthorizedSession();
     },
   } as const;
 }
@@ -249,11 +279,13 @@ function reservationFromJson(value: Json): Reservation {
   const data = jsonRecord(value);
   if (data.state === "busy") return { state: "busy" };
   if ((data.state === "claimed" || data.state === "existing")
+    && typeof data.request_id === "string"
     && typeof data.recording_id === "string"
     && typeof data.room_name === "string"
     && typeof data.starts_at === "string"
     && typeof data.ends_at === "string") {
     const facts = {
+      requestId: data.request_id,
       recordingId: data.recording_id,
       roomName: data.room_name,
       startsAt: data.starts_at,
@@ -268,6 +300,30 @@ function reservationFromJson(value: Json): Reservation {
     }
   }
   throw new LiveSessionError("UNAVAILABLE", 503);
+}
+
+function authorizationFromJson(value: Json): FinalAuthorizationFacts {
+  const data = jsonRecord(value);
+  if (typeof data.request_id === "string"
+    && typeof data.room_name === "string"
+    && typeof data.starts_at === "string"
+    && typeof data.ends_at === "string"
+    && (data.recording_state === "recording" || data.recording_state === "failed")) {
+    return {
+      requestId: data.request_id,
+      roomName: data.room_name,
+      startsAt: data.starts_at,
+      endsAt: data.ends_at,
+      recordingState: data.recording_state,
+    };
+  }
+  throw new LiveSessionError("UNAVAILABLE", 503);
+}
+
+function rpcError(error: Readonly<{ code?: string }> | null) {
+  if (!error) return;
+  const forbidden = error.code === "42501" || error.code === "P0002";
+  throw new LiveSessionError(forbidden ? "FORBIDDEN" : "UNAVAILABLE", forbidden ? 403 : 503);
 }
 
 async function runtimeService() {
@@ -309,10 +365,18 @@ async function runtimeService() {
         p_access_generation: input.accessGeneration,
         p_request_id: input.requestId,
       });
-      if (error) {
-        throw new LiveSessionError(error.code === "42501" || error.code === "P0002" ? "FORBIDDEN" : "UNAVAILABLE", error.code === "42501" || error.code === "P0002" ? 403 : 503);
-      }
+      rpcError(error);
       return reservationFromJson(data);
+    },
+    async authorizeFinal(input) {
+      const { data, error } = await createAdminClient().rpc("authorize_reporter_live_session", {
+        p_profile_id: input.profileId,
+        p_access_generation: input.accessGeneration,
+        p_request_id: input.requestId,
+        p_recording_id: input.recordingId,
+      });
+      rpcError(error);
+      return authorizationFromJson(data);
     },
     async complete(input) {
       const { data, error } = await createAdminClient().rpc("complete_reporter_live_recording_start", {

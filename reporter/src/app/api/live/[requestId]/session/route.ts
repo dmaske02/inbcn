@@ -24,29 +24,29 @@ export function createSessionHandler(dependencies: Dependencies) {
     _request: Request,
     context: Readonly<{ params: Promise<{ requestId: string }> }>,
   ): Promise<Response> {
-    const actor = await dependencies.authorize();
-    if (!actor.ok) {
-      const status = actor.reason === "unauthenticated" || actor.reason === "session-expired"
-        ? 401
-        : actor.reason === "profile-unavailable" ? 503 : 403;
-      return Response.json({ code: status === 503 ? "live-session-unavailable" : "live-session-forbidden" }, {
-        status,
-        headers: noStoreHeaders,
-      });
-    }
-    if (actor.state !== "reporter" || typeof actor.accessGeneration !== "number") {
-      return Response.json({ code: "live-session-forbidden" }, { status: 403, headers: noStoreHeaders });
-    }
-    const { requestId } = await context.params;
-    if (!z.uuid().safeParse(requestId).success) {
-      return Response.json({ code: "invalid-request" }, { status: 400, headers: noStoreHeaders });
-    }
-
     try {
+      const actor = await dependencies.authorize();
+      if (!actor.ok) {
+        const status = actor.reason === "unauthenticated" || actor.reason === "session-expired"
+          ? 401
+          : actor.reason === "profile-unavailable" ? 503 : 403;
+        return Response.json({ code: status === 503 ? "live-session-unavailable" : "live-session-forbidden" }, {
+          status,
+          headers: noStoreHeaders,
+        });
+      }
+      if (actor.state !== "reporter" || typeof actor.accessGeneration !== "number") {
+        return Response.json({ code: "live-session-forbidden" }, { status: 403, headers: noStoreHeaders });
+      }
+      const { requestId } = await context.params;
+      const parsedRequestId = z.uuid().safeParse(requestId);
+      if (!parsedRequestId.success) {
+        return Response.json({ code: "invalid-request" }, { status: 400, headers: noStoreHeaders });
+      }
       return Response.json(await dependencies.requestSession({
         profileId: actor.userId,
         accessGeneration: actor.accessGeneration,
-        requestId,
+        requestId: parsedRequestId.data.toLowerCase(),
       }), { headers: noStoreHeaders });
     } catch (error) {
       if (error instanceof LiveSessionError) {

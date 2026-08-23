@@ -15,7 +15,12 @@ const optionalHttpUrl = z.preprocess(
 );
 const optionalLiveKitUrl = z.preprocess(
   emptyStringToUndefined,
-  z.url({ protocol: /^(?:https?|wss?)$/ }).optional(),
+  z.url({ protocol: /^(?:https?|wss?)$/ }).refine((value) => {
+    const parsed = new URL(value);
+    return !parsed.username && !parsed.password && parsed.pathname === "/"
+      && !parsed.search && !parsed.hash
+      && (parsed.href === parsed.origin || parsed.href === `${parsed.origin}/`);
+  }, "LIVEKIT_URL must contain only a protocol and host.").optional(),
 );
 
 const environmentSchema = z

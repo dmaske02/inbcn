@@ -1632,6 +1632,10 @@ export type Database = {
         Args: { p_recording_id: string; p_claim_token: string; p_egress_id: string }
         Returns: boolean
       }
+      authorize_reporter_live_session: {
+        Args: { p_profile_id: string; p_access_generation: number; p_request_id: string; p_recording_id: string }
+        Returns: Json
+      }
       fail_razorpay_webhook_event: {
         Args: { p_event_id: string; p_processing_token: string; p_failure_detail: string }
         Returns: boolean

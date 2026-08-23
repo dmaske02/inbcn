@@ -6,6 +6,7 @@ import {
   EncodedFileType,
   EncodingOptionsPreset,
   S3Upload,
+  ServerError,
 } from "livekit-server-sdk";
 
 export type PrivateStorageConfig = Readonly<{
@@ -18,6 +19,24 @@ export type PrivateStorageConfig = Readonly<{
 }>;
 
 type EgressClientBoundary = Pick<EgressClient, "listEgress" | "startRoomCompositeEgress">;
+
+export type RecordingStartResult =
+  | Readonly<{ state: "started"; egressId: string }>
+  | Readonly<{ state: "definitive-failure" }>
+  | Readonly<{ state: "ambiguous" }>;
+
+function validEgressId(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length >= 1 && value.trim().length <= 255;
+}
+
+function isDefinitiveStartFailure(error: unknown): boolean {
+  const retryableOrAmbiguousStatus = [408, 409, 421, 423, 424, 425, 429, 499];
+  return error instanceof ServerError
+    && Number.isInteger(error.status)
+    && error.status >= 400
+    && error.status < 500
+    && !retryableOrAmbiguousStatus.includes(error.status);
+}
 
 function requestedPaths(info: Awaited<ReturnType<EgressClientBoundary["listEgress"]>>[number]): string[] {
   const paths = new Set(info.fileResults.map(({ filename }) => filename).filter(Boolean));
@@ -54,18 +73,26 @@ export function createEgressProvider(
           }),
         },
       });
-      const egress = await client.startRoomCompositeEgress(input.roomName, output, {
-        encodingOptions: EncodingOptionsPreset.H264_720P_30,
-      });
-      return egress.egressId;
+      try {
+        const egress = await client.startRoomCompositeEgress(input.roomName, output, {
+          encodingOptions: EncodingOptionsPreset.H264_720P_30,
+        });
+        if (!validEgressId(egress.egressId)) return { state: "ambiguous" } as const;
+        return { state: "started", egressId: egress.egressId.trim() } as const;
+      } catch (error) {
+        return isDefinitiveStartFailure(error)
+          ? { state: "definitive-failure" } as const
+          : { state: "ambiguous" } as const;
+      }
     },
     async listActiveRecordings(roomName: string) {
       const active = await client.listEgress({ roomName, active: true });
-      const recordings: { egressId: string; storageKey: string | null }[] = [];
+      const recordings: { egressId: string | null; storageKey: string | null }[] = [];
       for (const info of active) {
+        const egressId = validEgressId(info.egressId) ? info.egressId.trim() : null;
         const paths = requestedPaths(info);
-        if (paths.length === 0) recordings.push({ egressId: info.egressId, storageKey: null });
-        for (const storageKey of paths) recordings.push({ egressId: info.egressId, storageKey });
+        if (paths.length === 0) recordings.push({ egressId, storageKey: null });
+        for (const storageKey of paths) recordings.push({ egressId, storageKey });
       }
       return recordings;
     },
@@ -91,6 +118,6 @@ export async function startRoomRecording(request: Readonly<{
   storage: PrivateStorageConfig;
   roomName: string;
   storageKey: string;
-}>): Promise<string> {
+}>): Promise<RecordingStartResult> {
   return createConfiguredEgressProvider(request).startRecording(request);
 }

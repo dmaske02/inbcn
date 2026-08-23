@@ -60,14 +60,6 @@ begin
     raise exception using errcode = '42501', message = 'REPORTER_LIVE_SESSION_FORBIDDEN';
   end if;
 
-  select * into current_reporter
-  from public.reporter_profiles
-  where profile_id = p_profile_id
-  for update;
-  select * into current_profile
-  from public.profiles
-  where id = p_profile_id
-  for update;
   select * into current_request
   from public.reporter_live_requests
   where id = p_request_id
@@ -76,6 +68,14 @@ begin
     or current_request.profile_id is distinct from p_profile_id then
     raise exception using errcode = '42501', message = 'REPORTER_LIVE_SESSION_FORBIDDEN';
   end if;
+  select * into current_reporter
+  from public.reporter_profiles
+  where profile_id = p_profile_id
+  for update;
+  select * into current_profile
+  from public.profiles
+  where id = p_profile_id
+  for update;
 
   reservation_time := clock_timestamp();
   if current_reporter.profile_id is null or current_profile.id is null
@@ -92,7 +92,7 @@ begin
     or current_request.approved_starts_at is null
     or current_request.approved_ends_at is null
     or reservation_time < current_request.approved_starts_at
-    or reservation_time > current_request.approved_ends_at
+    or reservation_time >= current_request.approved_ends_at
     or current_request.livekit_room_name is null
     or current_request.livekit_room_name is distinct from
       'reporter-live-' || replace(current_request.id::text, '-', '') then
@@ -108,6 +108,7 @@ begin
   if found and current_recording.recording_status = 'recording' then
     return jsonb_build_object(
       'state', 'existing',
+      'request_id', current_request.id,
       'recording_id', current_recording.id,
       'recording_state', 'recording',
       'room_name', current_request.livekit_room_name,
@@ -129,6 +130,7 @@ begin
     where id = current_recording.id;
     return jsonb_build_object(
       'state', 'claimed',
+      'request_id', current_request.id,
       'recording_id', current_recording.id,
       'claim_token', claim_token,
       'reclaimed', true,
@@ -147,6 +149,7 @@ begin
 
   return jsonb_build_object(
     'state', 'claimed',
+    'request_id', current_request.id,
     'recording_id', current_recording.id,
     'claim_token', claim_token,
     'reclaimed', false,
@@ -232,13 +235,111 @@ begin
 end;
 $$;
 
+create function public.authorize_reporter_live_session(
+  p_profile_id uuid,
+  p_access_generation bigint,
+  p_request_id uuid,
+  p_recording_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  request_owner uuid;
+  current_request public.reporter_live_requests%rowtype;
+  current_reporter public.reporter_profiles%rowtype;
+  current_profile public.profiles%rowtype;
+  current_recording public.live_recordings%rowtype;
+  authorization_time timestamptz;
+begin
+  if auth.role() is distinct from 'service_role' then
+    raise exception using errcode = '42501', message = 'REPORTER_LIVE_SESSION_FORBIDDEN';
+  end if;
+  if p_profile_id is null or p_access_generation is null
+    or p_request_id is null or p_recording_id is null then
+    raise exception using errcode = '22023', message = 'REPORTER_LIVE_SESSION_INVALID';
+  end if;
+
+  select profile_id into request_owner
+  from public.reporter_live_requests
+  where id = p_request_id;
+  if not found then
+    raise exception using errcode = 'P0002', message = 'REPORTER_LIVE_REQUEST_NOT_FOUND';
+  end if;
+  if request_owner is distinct from p_profile_id then
+    raise exception using errcode = '42501', message = 'REPORTER_LIVE_SESSION_FORBIDDEN';
+  end if;
+
+  select * into current_request
+  from public.reporter_live_requests
+  where id = p_request_id
+  for update;
+  if not found or current_request.profile_id is distinct from request_owner
+    or current_request.profile_id is distinct from p_profile_id then
+    raise exception using errcode = '42501', message = 'REPORTER_LIVE_SESSION_FORBIDDEN';
+  end if;
+  select * into current_reporter
+  from public.reporter_profiles
+  where profile_id = p_profile_id
+  for update;
+  select * into current_profile
+  from public.profiles
+  where id = p_profile_id
+  for update;
+  select * into current_recording
+  from public.live_recordings
+  where id = p_recording_id
+  for update;
+
+  authorization_time := clock_timestamp();
+  if current_reporter.profile_id is null or current_profile.id is null
+    or current_profile.role is distinct from 'reporter' or not current_profile.is_active
+    or current_reporter.public_status is distinct from 'active'
+    or current_reporter.membership_started_at > authorization_time
+    or current_reporter.membership_expires_at < authorization_time
+    or not current_reporter.can_broadcast_live
+    or current_reporter.access_sync_status is distinct from 'succeeded'
+    or current_reporter.access_sync_desired_role is distinct from 'reporter'
+    or current_reporter.access_sync_generation is distinct from p_access_generation
+    or current_reporter.access_sync_claim_token is not null
+    or current_request.status is distinct from 'approved'
+    or current_request.approved_starts_at is null
+    or current_request.approved_ends_at is null
+    or authorization_time < current_request.approved_starts_at
+    or authorization_time >= current_request.approved_ends_at
+    or current_request.livekit_room_name is null
+    or current_request.livekit_room_name is distinct from
+      'reporter-live-' || replace(current_request.id::text, '-', '')
+    or current_recording.id is null
+    or current_recording.live_request_id is distinct from current_request.id
+    or current_recording.recording_status not in ('recording', 'failed')
+    or (current_recording.recording_status = 'failed'
+      and current_recording.provider_error is distinct from 'egress-start-failed') then
+    raise exception using errcode = '42501', message = 'REPORTER_LIVE_SESSION_FORBIDDEN';
+  end if;
+
+  return jsonb_build_object(
+    'request_id', current_request.id,
+    'room_name', current_request.livekit_room_name,
+    'starts_at', current_request.approved_starts_at,
+    'ends_at', current_request.approved_ends_at,
+    'recording_state', current_recording.recording_status
+  );
+end;
+$$;
+
 revoke all on function public.reserve_reporter_live_recording(uuid, bigint, uuid)
 from public, anon, authenticated, service_role;
 revoke all on function public.complete_reporter_live_recording_start(uuid, uuid, text)
 from public, anon, authenticated, service_role;
 revoke all on function public.fail_reporter_live_recording_start(uuid, uuid, text)
 from public, anon, authenticated, service_role;
+revoke all on function public.authorize_reporter_live_session(uuid, bigint, uuid, uuid)
+from public, anon, authenticated, service_role;
 
 grant execute on function public.reserve_reporter_live_recording(uuid, bigint, uuid) to service_role;
 grant execute on function public.complete_reporter_live_recording_start(uuid, uuid, text) to service_role;
 grant execute on function public.fail_reporter_live_recording_start(uuid, uuid, text) to service_role;
+grant execute on function public.authorize_reporter_live_session(uuid, bigint, uuid, uuid) to service_role;

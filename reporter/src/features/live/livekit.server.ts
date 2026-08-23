@@ -14,13 +14,18 @@ export type LiveKitRoomInput = Readonly<{
 }>;
 
 export function liveKitUrls(value: string) {
-  const api = new URL(value);
-  const server = new URL(value);
-  if (api.protocol === "ws:") api.protocol = "http:";
-  if (api.protocol === "wss:") api.protocol = "https:";
-  if (server.protocol === "http:") server.protocol = "ws:";
-  if (server.protocol === "https:") server.protocol = "wss:";
-  return { apiUrl: api.toString(), serverUrl: server.toString() } as const;
+  const parsed = new URL(value);
+  if (!["http:", "https:", "ws:", "wss:"].includes(parsed.protocol)
+    || parsed.username || parsed.password || parsed.pathname !== "/"
+    || parsed.search || parsed.hash
+    || (parsed.href !== parsed.origin && parsed.href !== `${parsed.origin}/`)) {
+    throw new TypeError("LiveKit URL must be an origin URL.");
+  }
+  const secure = parsed.protocol === "https:" || parsed.protocol === "wss:";
+  return {
+    apiUrl: `${secure ? "https" : "http"}://${parsed.host}`,
+    serverUrl: `${secure ? "wss" : "ws"}://${parsed.host}`,
+  } as const;
 }
 
 export function createRoomProvider(client: Pick<RoomServiceClient, "createRoom">) {

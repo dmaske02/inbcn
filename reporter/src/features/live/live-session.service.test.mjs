@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { TokenVerifier } from "livekit-server-sdk";
+import { ServerError, TokenVerifier } from "livekit-server-sdk";
 
 import {
   LiveSessionError,
   createLiveSessionService,
 } from "./live-session.service.ts";
-import { generatePublisherToken } from "./livekit.server.ts";
+import { generatePublisherToken, liveKitUrls } from "./livekit.server.ts";
 import { createEgressProvider } from "./egress.server.ts";
 
 const profileId = "11111111-1111-4111-8111-111111111111";
@@ -32,6 +32,7 @@ const config = {
 function reservation(overrides = {}) {
   return {
     state: "claimed",
+    requestId,
     recordingId,
     claimToken: "44444444-4444-4444-8444-444444444444",
     reclaimed: false,
@@ -43,18 +44,26 @@ function reservation(overrides = {}) {
 }
 
 function dependencies(overrides = {}) {
-  const calls = { complete: 0, createRoom: 0, fail: [], list: 0, start: 0 };
+  const calls = { authorizeFinal: 0, complete: 0, createRoom: 0, fail: [], list: 0, start: 0 };
   return {
     calls,
     value: {
       getConfig: () => config,
       now: () => now,
       reserve: async () => reservation(),
+      authorizeFinal: async () => {
+        calls.authorizeFinal += 1;
+        return { requestId, roomName, startsAt, endsAt, recordingState: "recording" };
+      },
       complete: async () => { calls.complete += 1; return true; },
       fail: async (input) => { calls.fail.push(input.failureCode); return true; },
       createRoom: async (input) => { calls.createRoom += 1; calls.room = input; },
       listActiveRecordings: async () => { calls.list += 1; return []; },
-      startRecording: async (input) => { calls.start += 1; calls.recording = input; return "EG_1"; },
+      startRecording: async (input) => {
+        calls.start += 1;
+        calls.recording = input;
+        return { state: "started", egressId: "EG_1" };
+      },
       generateToken: async () => "publisher-token",
       ...overrides,
     },
@@ -94,7 +103,10 @@ test("Egress adapter requests one MP4 Room Composite output in private S3 storag
   }, config.storage);
   const storageKey = `reporter-live/${requestId}/${recordingId}.mp4`;
 
-  assert.equal(await provider.startRecording({ roomName, storageKey }), "EG_1");
+  assert.deepEqual(await provider.startRecording({ roomName, storageKey }), {
+    state: "started",
+    egressId: "EG_1",
+  });
   assert.equal(received[0], roomName);
   assert.equal(received[1].fileType, 1);
   assert.equal(received[1].filepath, storageKey);
@@ -103,6 +115,70 @@ test("Egress adapter requests one MP4 Room Composite output in private S3 storag
   assert.equal(received[1].output.value.accessKey, config.storage.accessKey);
   assert.equal(received[1].output.value.secret, config.storage.secret);
   assert.deepEqual(received[2], { encodingOptions: 0 });
+});
+
+test("Egress adapter classifies only terminal non-retryable 4xx responses as definitive", async () => {
+  for (const status of [400, 401, 403, 404, 422]) {
+    const provider = createEgressProvider({
+      startRoomCompositeEgress: async () => { throw new ServerError("terminal", "private", status); },
+      listEgress: async () => [],
+    }, config.storage);
+    assert.deepEqual(await provider.startRecording({ roomName, storageKey: "private.mp4" }), {
+      state: "definitive-failure",
+    });
+  }
+});
+
+test("Egress adapter preserves transport, response-loss, retryable HTTP, parse, and invalid-id outcomes as ambiguous", async () => {
+  const errors = [
+    new Error("transport or parse detail"),
+    new ServerError("timeout", "private", 408),
+    new ServerError("conflict", "private", 409),
+    new ServerError("misdirected", "private", 421),
+    new ServerError("locked", "private", 423),
+    new ServerError("dependency", "private", 424),
+    new ServerError("too early", "private", 425),
+    new ServerError("throttle", "private", 429),
+    new ServerError("client closed", "private", 499),
+    new ServerError("upstream", "private", 500),
+  ];
+  for (const error of errors) {
+    const provider = createEgressProvider({
+      startRoomCompositeEgress: async () => { throw error; },
+      listEgress: async () => [],
+    }, config.storage);
+    assert.deepEqual(await provider.startRecording({ roomName, storageKey: "private.mp4" }), {
+      state: "ambiguous",
+    });
+  }
+  for (const egressId of ["", "   ", "x".repeat(256)]) {
+    const provider = createEgressProvider({
+      startRoomCompositeEgress: async () => ({ egressId }),
+      listEgress: async () => [],
+    }, config.storage);
+    assert.deepEqual(await provider.startRecording({ roomName, storageKey: "private.mp4" }), {
+      state: "ambiguous",
+    });
+  }
+});
+
+test("LiveKit URL conversion accepts only origin URLs and returns origins", () => {
+  assert.deepEqual(liveKitUrls("wss://livekit.example.test/"), {
+    apiUrl: "https://livekit.example.test",
+    serverUrl: "wss://livekit.example.test",
+  });
+  assert.deepEqual(liveKitUrls("https://livekit.example.test"), {
+    apiUrl: "https://livekit.example.test",
+    serverUrl: "wss://livekit.example.test",
+  });
+  for (const value of [
+    "https://user:secret@livekit.example.test",
+    "https://livekit.example.test/private",
+    "https://livekit.example.test/?secret=value",
+    "https://livekit.example.test/#secret",
+    "https://livekit.example.test/?",
+    "https://livekit.example.test/#",
+  ]) assert.throws(() => liveKitUrls(value));
 });
 
 test("Egress reconciliation reads the exact path from the current provider request shape", async () => {
@@ -157,7 +233,10 @@ test("publisher TTL is calculated at token issuance after provider startup", asy
   let issuedTtl = null;
   const setup = dependencies({
     now: () => clock,
-    startRecording: async () => { clock = "2026-08-22T10:10:00.000Z"; return "EG_1"; },
+    startRecording: async () => {
+      clock = "2026-08-22T10:10:00.000Z";
+      return { state: "started", egressId: "EG_1" };
+    },
     generateToken: async (input) => { issuedTtl = input.ttlSeconds; return "publisher-token"; },
   });
 
@@ -182,6 +261,28 @@ test("sequential duplicate reuses recording and issues a fresh token without pro
   assert.equal((await service.request({ profileId, accessGeneration: 7, requestId })).token, "publisher-token-1");
   assert.equal((await service.request({ profileId, accessGeneration: 7, requestId })).token, "publisher-token-2");
   assert.equal(setup.calls.createRoom, 0);
+  assert.equal(setup.calls.start, 0);
+  assert.equal(setup.calls.authorizeFinal, 2);
+});
+
+test("active duplicate issues no token when final DB authorization is revoked", async () => {
+  let tokenCalls = 0;
+  const setup = dependencies({
+    reserve: async () => reservation({
+      state: "existing",
+      recordingState: "recording",
+      claimToken: undefined,
+      reclaimed: undefined,
+    }),
+    authorizeFinal: async () => { throw new LiveSessionError("FORBIDDEN", 403); },
+    generateToken: async () => { tokenCalls += 1; return "must-not-return"; },
+  });
+
+  await assert.rejects(
+    () => createLiveSessionService(setup.value).request({ profileId, accessGeneration: 7, requestId }),
+    (error) => error instanceof LiveSessionError && error.code === "FORBIDDEN",
+  );
+  assert.equal(tokenCalls, 0);
   assert.equal(setup.calls.start, 0);
 });
 
@@ -210,6 +311,24 @@ test("stale reservation reconciles one exact active Egress without starting anot
   assert.equal(setup.calls.complete, 1);
 });
 
+test("stale exact-path reconciliation with an invalid Egress id is ambiguous and starts nothing", async () => {
+  let tokenCalls = 0;
+  const storageKey = `reporter-live/${requestId}/${recordingId}.mp4`;
+  const setup = dependencies({
+    reserve: async () => reservation({ reclaimed: true }),
+    listActiveRecordings: async () => [{ egressId: "   ", storageKey }],
+    generateToken: async () => { tokenCalls += 1; return "must-not-return"; },
+  });
+
+  await assert.rejects(
+    () => createLiveSessionService(setup.value).request({ profileId, accessGeneration: 7, requestId }),
+    (error) => error instanceof LiveSessionError && error.code === "STARTING",
+  );
+  assert.equal(setup.calls.start, 0);
+  assert.equal(setup.calls.complete, 0);
+  assert.equal(tokenCalls, 0);
+});
+
 test("unavailable stale reconciliation starts no second Egress", async () => {
   const setup = dependencies({
     reserve: async () => reservation({ reclaimed: true }),
@@ -224,22 +343,49 @@ test("unavailable stale reconciliation starts no second Egress", async () => {
   assert.deepEqual(setup.calls.fail, []);
 });
 
-test("configured Egress failure is safely recorded but still returns publisher token", async () => {
-  const setup = dependencies({ startRecording: async () => { throw new Error("secret endpoint detail"); } });
+test("definitive Egress failure is safely recorded and returns a token only after final authorization", async () => {
+  const setup = dependencies({
+    startRecording: async () => ({ state: "definitive-failure" }),
+    authorizeFinal: async () => {
+      setup.calls.authorizeFinal += 1;
+      return { requestId, roomName, startsAt, endsAt, recordingState: "failed" };
+    },
+  });
 
   const result = await createLiveSessionService(setup.value).request({ profileId, accessGeneration: 7, requestId });
 
   assert.equal(result.recordingState, "failed");
   assert.deepEqual(setup.calls.fail, ["egress-start-failed"]);
   assert.equal(result.token, "publisher-token");
-  assert.equal(JSON.stringify(result).includes("secret"), false);
+  assert.equal(setup.calls.authorizeFinal, 1);
 });
 
-test("Egress failure returns no token until the failed-state alert CAS is confirmed", async () => {
+test("Egress failure returns no token until the failed-state alert CAS is confirmed", async (context) => {
+  for (const failure of [
+    { name: "false CAS", fail: async () => false },
+    { name: "throwing CAS", fail: async () => { throw new Error("private database detail"); } },
+  ]) {
+    await context.test(failure.name, async () => {
+      let tokenCalls = 0;
+      const setup = dependencies({
+        startRecording: async () => ({ state: "definitive-failure" }),
+        fail: failure.fail,
+        generateToken: async () => { tokenCalls += 1; return "must-not-return"; },
+      });
+
+      await assert.rejects(
+        () => createLiveSessionService(setup.value).request({ profileId, accessGeneration: 7, requestId }),
+        (error) => error instanceof LiveSessionError && error.code === "STARTING",
+      );
+      assert.equal(tokenCalls, 0);
+    });
+  }
+});
+
+test("ambiguous Egress start retains the pending claim and returns retryably with no token or alert", async () => {
   let tokenCalls = 0;
   const setup = dependencies({
-    startRecording: async () => { throw new Error("provider unavailable"); },
-    fail: async () => false,
+    startRecording: async () => ({ state: "ambiguous" }),
     generateToken: async () => { tokenCalls += 1; return "must-not-return"; },
   });
 
@@ -247,7 +393,72 @@ test("Egress failure returns no token until the failed-state alert CAS is confir
     () => createLiveSessionService(setup.value).request({ profileId, accessGeneration: 7, requestId }),
     (error) => error instanceof LiveSessionError && error.code === "STARTING",
   );
+  assert.deepEqual(setup.calls.fail, []);
+  assert.equal(setup.calls.complete, 0);
   assert.equal(tokenCalls, 0);
+});
+
+test("provider success persists but termination, trust, generation, or membership revocation returns no token", async (context) => {
+  for (const change of ["termination", "trust", "generation", "membership"]) {
+    await context.test(change, async () => {
+      let tokenCalls = 0;
+      const setup = dependencies({
+        authorizeFinal: async () => { throw new LiveSessionError("FORBIDDEN", 403); },
+        generateToken: async () => { tokenCalls += 1; return "must-not-return"; },
+      });
+
+      await assert.rejects(
+        () => createLiveSessionService(setup.value).request({ profileId, accessGeneration: 7, requestId }),
+        (error) => error instanceof LiveSessionError && error.code === "FORBIDDEN",
+      );
+      assert.equal(setup.calls.complete, 1);
+      assert.equal(tokenCalls, 0);
+    });
+  }
+});
+
+test("definitive failure persists but startup revocation returns no token", async () => {
+  let tokenCalls = 0;
+  const setup = dependencies({
+    startRecording: async () => ({ state: "definitive-failure" }),
+    authorizeFinal: async () => { throw new LiveSessionError("FORBIDDEN", 403); },
+    generateToken: async () => { tokenCalls += 1; return "must-not-return"; },
+  });
+
+  await assert.rejects(
+    () => createLiveSessionService(setup.value).request({ profileId, accessGeneration: 7, requestId }),
+    (error) => error instanceof LiveSessionError && error.code === "FORBIDDEN",
+  );
+  assert.deepEqual(setup.calls.fail, ["egress-start-failed"]);
+  assert.equal(tokenCalls, 0);
+});
+
+test("canonical DB request id drives the storage key, token attribute, and stale reconciliation", async () => {
+  const mixedRequestId = "22222222-2222-4222-8222-2222222222AA";
+  const canonicalRequestId = mixedRequestId.toLowerCase();
+  const expectedKey = `reporter-live/${canonicalRequestId}/${recordingId}.mp4`;
+  let tokenInput;
+  const setup = dependencies({
+    reserve: async () => reservation({ requestId: canonicalRequestId, reclaimed: true }),
+    authorizeFinal: async () => ({
+      requestId: canonicalRequestId,
+      roomName,
+      startsAt,
+      endsAt,
+      recordingState: "recording",
+    }),
+    listActiveRecordings: async () => [{ egressId: "EG_CANONICAL", storageKey: expectedKey }],
+    generateToken: async (input) => { tokenInput = input; return "publisher-token"; },
+  });
+
+  await createLiveSessionService(setup.value).request({
+    profileId,
+    accessGeneration: 7,
+    requestId: mixedRequestId,
+  });
+
+  assert.equal(setup.calls.start, 0);
+  assert.equal(tokenInput.requestId, canonicalRequestId);
 });
 
 test("room creation failure is safely failed and returns no token", async () => {
