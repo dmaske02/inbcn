@@ -87,7 +87,10 @@ create table public.live_recordings (
   updated_at timestamptz not null default clock_timestamp(),
 
   constraint live_recordings_egress_id_check check (
-    egress_id is null or length(btrim(egress_id)) between 1 and 255
+    egress_id is null or (
+      length(egress_id) between 1 and 255
+      and egress_id ~ '^[A-Za-z0-9_-]+$'
+    )
   ),
   constraint live_recordings_storage_key_check check (
     storage_key is null or length(btrim(storage_key)) between 1 and 1024

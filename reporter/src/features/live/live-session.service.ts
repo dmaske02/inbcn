@@ -88,10 +88,17 @@ type Dependencies = Readonly<{
   }>): Promise<boolean>;
   createRoom(input: LiveKitRoomInput): Promise<void>;
   startRecording(input: Readonly<{ roomName: string; storageKey: string }>): Promise<RecordingStartResult>;
-  listActiveRecordings(roomName: string): Promise<readonly Readonly<{
+  listRoomRecordings(roomName: string): Promise<readonly Readonly<{
     egressId: string | null;
     storageKey: string | null;
+    status: number | null;
   }>[]>;
+  reportTerminalReconciliation(input: Readonly<{
+    recordingId: string;
+    claimToken: string;
+    egressId: string;
+    providerStatus: "completed" | "failed";
+  }>): Promise<boolean>;
   generateToken(input: Readonly<{
     apiKey: string;
     apiSecret: string;
@@ -127,7 +134,10 @@ function ttlSeconds(endsAt: string, now: string): number {
 }
 
 function validEgressId(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length >= 1 && value.trim().length <= 255;
+  return typeof value === "string"
+    && value.length >= 1
+    && value.length <= 255
+    && /^[A-Za-z0-9_-]+$/u.test(value);
 }
 
 async function safeFail(
@@ -200,34 +210,49 @@ export function createLiveSessionService(dependencies: Dependencies) {
         return issueAuthorizedSession();
       }
 
-      try {
-        await dependencies.createRoom({ name: reservation.roomName, ...ROOM_OPTIONS });
-      } catch {
-        await safeFail(dependencies, reservation, "room-create-failed");
-        throw new LiveSessionError("UNAVAILABLE", 503);
-      }
-
       const storageKey = `reporter-live/${reservation.requestId}/${reservation.recordingId}.mp4`;
       let egressId: string | undefined;
       if (reservation.reclaimed) {
-        let active;
+        let roomRecordings;
         try {
-          active = await dependencies.listActiveRecordings(reservation.roomName);
+          roomRecordings = await dependencies.listRoomRecordings(reservation.roomName);
         } catch {
           throw new LiveSessionError("STARTING", 503);
         }
-        const exact = active.filter((item) => item.storageKey === storageKey);
-        if (exact.length === 1) {
-          if (!validEgressId(exact[0].egressId)) {
+        const exact = roomRecordings.filter((item) => item.storageKey === storageKey);
+        const match = exact[0];
+        if (roomRecordings.length === 1 && exact.length === 1 && match
+          && validEgressId(match.egressId)) {
+          if (match.status === 0 || match.status === 1 || match.status === 2) {
+            egressId = match.egressId;
+          } else if (match.status === 3 || match.status === 4
+            || match.status === 5 || match.status === 6) {
+            try {
+              await dependencies.reportTerminalReconciliation({
+                recordingId: reservation.recordingId,
+                claimToken: reservation.claimToken,
+                egressId: match.egressId,
+                providerStatus: match.status === 3 ? "completed" : "failed",
+              });
+            } catch {
+              // The pending DB claim remains authoritative and retryable.
+            }
+            throw new LiveSessionError("STARTING", 503);
+          } else {
             throw new LiveSessionError("STARTING", 503);
           }
-          egressId = exact[0].egressId.trim();
-        } else if (active.length > 0) {
+        } else if (roomRecordings.length > 0) {
           throw new LiveSessionError("STARTING", 503);
         }
       }
 
       if (!egressId) {
+        try {
+          await dependencies.createRoom({ name: reservation.roomName, ...ROOM_OPTIONS });
+        } catch {
+          await safeFail(dependencies, reservation, "room-create-failed");
+          throw new LiveSessionError("UNAVAILABLE", 503);
+        }
         let startResult: RecordingStartResult;
         try {
           startResult = await dependencies.startRecording({
@@ -249,7 +274,7 @@ export function createLiveSessionService(dependencies: Dependencies) {
         if (!validEgressId(startResult.egressId)) {
           throw new LiveSessionError("STARTING", 503);
         }
-        egressId = startResult.egressId.trim();
+        egressId = startResult.egressId;
       }
 
       let completed = false;
@@ -397,9 +422,19 @@ async function runtimeService() {
       if (error) throw new LiveSessionError("UNAVAILABLE", 503);
       return data;
     },
+    async reportTerminalReconciliation(input) {
+      const { data, error } = await createAdminClient().rpc("report_reporter_live_recording_reconciliation", {
+        p_recording_id: input.recordingId,
+        p_claim_token: input.claimToken,
+        p_egress_id: input.egressId,
+        p_provider_status: input.providerStatus,
+      });
+      if (error) throw new LiveSessionError("UNAVAILABLE", 503);
+      return data;
+    },
     createRoom,
     startRecording: (request) => egress.startRoomRecording({ ...providerConfig, ...request }),
-    listActiveRecordings: recording.listActiveRecordings,
+    listRoomRecordings: recording.listRoomRecordings,
     generateToken: livekit.generatePublisherToken,
   });
 }

@@ -26,7 +26,10 @@ export type RecordingStartResult =
   | Readonly<{ state: "ambiguous" }>;
 
 function validEgressId(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length >= 1 && value.trim().length <= 255;
+  return typeof value === "string"
+    && value.length >= 1
+    && value.length <= 255
+    && /^[A-Za-z0-9_-]+$/u.test(value);
 }
 
 function isDefinitiveStartFailure(error: unknown): boolean {
@@ -38,18 +41,37 @@ function isDefinitiveStartFailure(error: unknown): boolean {
     && !retryableOrAmbiguousStatus.includes(error.status);
 }
 
-function requestedPaths(info: Awaited<ReturnType<EgressClientBoundary["listEgress"]>>[number]): string[] {
-  const paths = new Set(info.fileResults.map(({ filename }) => filename).filter(Boolean));
-  if (info.request.case === "roomComposite") {
-    for (const output of info.request.value.fileOutputs) paths.add(output.filepath);
-    if (info.request.value.output.case === "file") paths.add(info.request.value.output.value.filepath);
-  }
+function validStatus(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 6;
+}
+
+function requestedFile(
+  info: Awaited<ReturnType<EgressClientBoundary["listEgress"]>>[number],
+  roomName: string,
+): string | null {
+  if (info.roomName !== roomName) return null;
   if (info.request.case === "egress") {
-    for (const output of info.request.value.outputs) {
-      if (output.config.case === "file") paths.add(output.config.value.filepath);
-    }
+    const request = info.request.value;
+    if (request.roomName !== roomName || request.outputs.length !== 1) return null;
+    const output = request.outputs[0]?.config;
+    return output?.case === "file" && output.value.fileType === EncodedFileType.MP4
+      && output.value.filepath.length >= 1 && output.value.filepath.length <= 1_024
+      ? output.value.filepath
+      : null;
   }
-  return [...paths].filter(Boolean);
+  if (info.request.case === "roomComposite") {
+    const request = info.request.value;
+    if (request.roomName !== roomName || request.streamOutputs.length > 0
+      || request.segmentOutputs.length > 0 || request.imageOutputs.length > 0
+      || (request.output.case !== undefined && request.output.case !== "file")) return null;
+    const files = [...request.fileOutputs];
+    if (request.output.case === "file") files.push(request.output.value);
+    if (files.length === 0 || files.some((file) => file.fileType !== EncodedFileType.MP4
+      || file.filepath.length < 1 || file.filepath.length > 1_024)) return null;
+    const paths = new Set(files.map(({ filepath }) => filepath));
+    return paths.size === 1 ? [...paths][0] ?? null : null;
+  }
+  return null;
 }
 
 export function createEgressProvider(
@@ -78,23 +100,24 @@ export function createEgressProvider(
           encodingOptions: EncodingOptionsPreset.H264_720P_30,
         });
         if (!validEgressId(egress.egressId)) return { state: "ambiguous" } as const;
-        return { state: "started", egressId: egress.egressId.trim() } as const;
+        return { state: "started", egressId: egress.egressId } as const;
       } catch (error) {
         return isDefinitiveStartFailure(error)
           ? { state: "definitive-failure" } as const
           : { state: "ambiguous" } as const;
       }
     },
-    async listActiveRecordings(roomName: string) {
-      const active = await client.listEgress({ roomName, active: true });
-      const recordings: { egressId: string | null; storageKey: string | null }[] = [];
-      for (const info of active) {
-        const egressId = validEgressId(info.egressId) ? info.egressId.trim() : null;
-        const paths = requestedPaths(info);
-        if (paths.length === 0) recordings.push({ egressId, storageKey: null });
-        for (const storageKey of paths) recordings.push({ egressId, storageKey });
-      }
-      return recordings;
+    async listRoomRecordings(roomName: string) {
+      const recordings = await client.listEgress({ roomName });
+      return recordings.map((info) => {
+        const storageKey = requestedFile(info, roomName);
+        if (storageKey === null) return { egressId: null, storageKey: null, status: null };
+        return {
+          egressId: validEgressId(info.egressId) ? info.egressId : null,
+          storageKey,
+          status: validStatus(info.status) ? info.status : null,
+        };
+      });
     },
   } as const;
 }

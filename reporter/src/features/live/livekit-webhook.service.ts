@@ -5,8 +5,9 @@ import { z } from "zod";
 
 import { env } from "../../config/env.ts";
 
-const eventIdSchema = z.uuid();
-const egressIdSchema = z.string().trim().min(1).max(255).regex(/^[A-Za-z0-9_-]+$/u);
+const providerIdSchema = z.string().min(1).max(255).regex(/^[A-Za-z0-9_-]+$/u);
+const eventIdSchema = providerIdSchema;
+const egressIdSchema = providerIdSchema;
 const supportedEvents = new Set(["egress_started", "egress_updated", "egress_ended"]);
 const BIGINT_ZERO = BigInt(0);
 const NANOSECONDS_PER_MILLISECOND = BigInt(1_000_000);
@@ -39,9 +40,8 @@ type Completion = Readonly<{
   storageKey: string | null;
   durationSeconds: number | null;
   bytes: number | null;
-  providerStartedAt: string;
+  providerStartedAt: string | null;
   providerEndedAt: string | null;
-  providerUpdatedAt: string;
   failureCode:
     | "provider-egress-failed"
     | "provider-egress-aborted"
@@ -132,20 +132,18 @@ export function mapEgressStatus(value: unknown): "recording" | "completed" | "fa
   return null;
 }
 
-function validateProviderTimes(egress: Record<string, unknown>, nowIso: string, terminal: boolean) {
-  const started = bigint(egress.startedAt);
-  const updated = bigint(egress.updatedAt);
-  const ended = bigint(egress.endedAt);
+function validateFileTimes(file: Record<string, unknown>, nowIso: string) {
+  const started = bigint(file.startedAt);
+  const ended = bigint(file.endedAt);
   const startedAt = bigintIso(started);
-  const updatedAt = bigintIso(updated);
-  const endedAt = terminal ? bigintIso(ended) : null;
+  const endedAt = bigintIso(ended);
   const now = Date.parse(nowIso);
-  if (!started || !updated || !startedAt || !updatedAt || !Number.isFinite(now)
-    || updated < started || Date.parse(updatedAt) > now + FUTURE_SKEW_MS
-    || (terminal && (!ended || !endedAt || ended < started || updated < ended))) {
+  if (!started || !ended || !startedAt || !endedAt || !Number.isFinite(now)
+    || ended <= started || Date.parse(startedAt) > now + FUTURE_SKEW_MS
+    || Date.parse(endedAt) > now + FUTURE_SKEW_MS) {
     throw new LiveKitWebhookError("webhook-payload-mismatch", 422);
   }
-  return { started, ended, startedAt, endedAt, updatedAt };
+  return { startedAt, endedAt };
 }
 
 function safeCompletion(input: Readonly<{
@@ -175,37 +173,34 @@ function safeCompletion(input: Readonly<{
     throw new LiveKitWebhookError("webhook-payload-mismatch", 422);
   }
 
-  const times = validateProviderTimes(input.egress, input.now, status !== "recording");
   let storageKey: string | null = null;
   let durationSeconds: number | null = null;
   let bytes: number | null = null;
+  let providerStartedAt: string | null = null;
+  let providerEndedAt: string | null = null;
   let failureCode: Completion["failureCode"] = null;
   const files = input.egress.fileResults;
 
-  if (status === "recording") {
-    if (!exactEmptyArray(files)) throw new LiveKitWebhookError("webhook-payload-mismatch", 422);
-  } else if (status === "completed") {
+  if (status === "completed") {
     if (!Array.isArray(files) || files.length !== 1) {
       throw new LiveKitWebhookError("webhook-payload-mismatch", 422);
     }
     const file = object(files[0]);
     const duration = file && bigint(file.duration);
     const size = file && bigint(file.size);
-    const fileStarted = file && bigint(file.startedAt);
-    const fileEnded = file && bigint(file.endedAt);
     if (!file || file.filename !== expectedKey || !locationHasExactKey(file.location, expectedKey)
       || !duration || duration <= BIGINT_ZERO || duration > MAX_DURATION_NANOSECONDS
       || !size || size <= BIGINT_ZERO || size > MAX_BYTES
-      || !fileStarted || !fileEnded || fileStarted !== times.started || fileEnded !== times.ended
-      || fileEnded - fileStarted !== duration
       || size > BigInt(Number.MAX_SAFE_INTEGER)) {
       throw new LiveKitWebhookError("webhook-payload-mismatch", 422);
     }
+    const times = validateFileTimes(file, input.now);
     storageKey = expectedKey;
     durationSeconds = Number(duration) / Number(NANOSECONDS_PER_SECOND);
     bytes = Number(size);
-  } else {
-    if (!exactEmptyArray(files)) throw new LiveKitWebhookError("webhook-payload-mismatch", 422);
+    providerStartedAt = times.startedAt;
+    providerEndedAt = times.endedAt;
+  } else if (status === "failed") {
     failureCode = input.egress.status === 4
       ? "provider-egress-failed"
       : input.egress.status === 5
@@ -225,9 +220,8 @@ function safeCompletion(input: Readonly<{
     storageKey,
     durationSeconds,
     bytes,
-    providerStartedAt: times.startedAt,
-    providerEndedAt: times.endedAt,
-    providerUpdatedAt: times.updatedAt,
+    providerStartedAt,
+    providerEndedAt,
     failureCode,
   };
 }

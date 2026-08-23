@@ -20,7 +20,6 @@ function repository() {
     list: async () => [], get: async () => request,
     approve: async (...args) => { calls.push(["approve", ...args]); },
     reject: async (...args) => { calls.push(["reject", ...args]); },
-    terminate: async (...args) => { calls.push(["terminate", ...args]); },
   };
 }
 
@@ -43,21 +42,6 @@ test("admin approval derives the maximum window from the authoritative request",
     () => service.approve(admin, id, { startsAt: "2026-08-22T10:00:00Z", endsAt: "2026-08-22T10:31:00Z" }),
     (error) => error instanceof LiveReviewError && error.code === "INVALID",
   );
-});
-
-test("admin termination requires a bounded trimmed reason", async () => {
-  const repo = repository();
-  const service = createLiveReviewService(repo);
-  await service.terminate(admin, id, "  Safety concern  ");
-  assert.deepEqual(repo.calls, [["terminate", id, "Safety concern"]]);
-  for (const value of [" ", "x".repeat(2001)]) {
-    await assert.rejects(
-      () => service.terminate(admin, id, value),
-      (error) => error instanceof LiveReviewError
-        && error.code === "INVALID"
-        && error.message === "Enter a reason between 1 and 2000 characters.",
-    );
-  }
 });
 
 test("malformed read IDs fail closed as missing rows", async () => {

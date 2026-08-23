@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { createTerminationHandler } from "./route.ts";
+import { createTerminationHandler } from "../../../../../../features/admin/reporters/live/live-termination.route-handler.ts";
 
 test("termination route authorizes, validates, and never exposes auth, params, or provider exceptions", async () => {
   const authFailure = await createTerminationHandler({ authorize: async () => { throw new Error("auth secret"); }, terminate: async () => {} })(new Request("https://cms.test"), { params: Promise.resolve({ id: requestId }) });
@@ -16,3 +17,11 @@ test("termination route authorizes, validates, and never exposes auth, params, o
 });
 
 const requestId = "22222222-2222-4222-8222-222222222222";
+
+test("Next Route Handler exports only supported route names", async () => {
+  const route = await readFile(new URL("./route.ts", import.meta.url), "utf8");
+  const exports = [...route.matchAll(/export const ([A-Za-z0-9_]+)/gu)].map(([, name]) => name).sort();
+  assert.deepEqual(exports, ["POST", "dynamic"]);
+  assert.doesNotMatch(route, /export (?:async )?function createTerminationHandler/u);
+  assert.match(route, /createTerminationHandler/u);
+});

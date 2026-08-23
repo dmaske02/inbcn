@@ -177,14 +177,16 @@ begin
     raise exception using errcode = '42501', message = 'REPORTER_LIVE_SESSION_FORBIDDEN';
   end if;
   if p_recording_id is null or p_claim_token is null
-    or p_egress_id is null or length(btrim(p_egress_id)) not between 1 and 255 then
+    or p_egress_id is null or length(p_egress_id) not between 1 and 255
+    or p_egress_id !~ '^[A-Za-z0-9_-]+$' then
     raise exception using errcode = '22023', message = 'REPORTER_LIVE_RECORDING_START_INVALID';
   end if;
   update public.live_recordings
-  set recording_status = 'recording', egress_id = btrim(p_egress_id),
+  set recording_status = 'recording', egress_id = p_egress_id,
       recording_claim_token = null, recording_claimed_at = null
   where id = p_recording_id and recording_status = 'pending'
-    and recording_claim_token = p_claim_token;
+    and recording_claim_token = p_claim_token
+    and (egress_id is null or egress_id = p_egress_id);
   get diagnostics changed = row_count;
   return changed = 1;
 end;

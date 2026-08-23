@@ -3,7 +3,10 @@
 alter table public.webhook_events
   add column provider_subject_id text,
   add constraint webhook_events_provider_subject_id_check check (
-    provider_subject_id is null or length(btrim(provider_subject_id)) between 1 and 255
+    provider_subject_id is null or (
+      length(provider_subject_id) between 1 and 255
+      and provider_subject_id ~ '^[A-Za-z0-9_-]+$'
+    )
   );
 
 comment on column public.webhook_events.provider_subject_id is
@@ -121,17 +124,6 @@ create trigger prevent_live_recording_legal_hold_event_mutation
 before update or delete on public.live_recording_legal_hold_events
 for each row execute function public.prevent_live_recording_private_mutation();
 
-create policy "Active editors can read live requests"
-on public.reporter_live_requests
-for select to authenticated
-using (
-  (select auth.jwt() -> 'app_metadata' ->> 'role') = 'editor'
-  and exists (
-    select 1 from public.profiles
-    where profiles.id = (select auth.uid()) and profiles.role = 'editor' and profiles.is_active
-  )
-);
-
 -- Remove provider and storage columns from browser-visible table privileges.
 revoke select on table public.live_recordings from authenticated;
 grant select (
@@ -143,7 +135,7 @@ grant select (
 ) on table public.live_recordings to authenticated;
 
 create function public.claim_livekit_webhook_event(
-  p_event_id uuid,
+  p_event_id text,
   p_event_type text,
   p_egress_id text
 )
@@ -162,10 +154,13 @@ begin
     raise exception using errcode = '42501', message = 'LIVEKIT_WEBHOOK_FORBIDDEN';
   end if;
   if p_event_id is null
+    or length(p_event_id) not between 1 and 255
+    or p_event_id !~ '^[A-Za-z0-9_-]+$'
     or p_event_type is null
     or p_event_type not in ('egress_started', 'egress_updated', 'egress_ended')
     or p_egress_id is null
-    or length(btrim(p_egress_id)) not between 1 and 255 then
+    or length(p_egress_id) not between 1 and 255
+    or p_egress_id !~ '^[A-Za-z0-9_-]+$' then
     raise exception using errcode = '22023', message = 'LIVEKIT_WEBHOOK_INVALID';
   end if;
 
@@ -174,7 +169,7 @@ begin
     signature_verified_at, processing_status, attempt_count,
     processing_token, created_at, updated_at
   ) values (
-    'livekit', p_event_id::text, p_event_type, btrim(p_egress_id),
+    'livekit', p_event_id, p_event_type, p_egress_id,
     claim_time, 'pending', 1, claim_token, claim_time, claim_time
   ) on conflict (provider, provider_event_id) do nothing;
   get diagnostics inserted_count = row_count;
@@ -185,11 +180,11 @@ begin
 
   select * into current_event
   from public.webhook_events
-  where provider = 'livekit' and provider_event_id = p_event_id::text
+  where provider = 'livekit' and provider_event_id = p_event_id
   for update;
 
   if current_event.event_type is distinct from p_event_type
-    or current_event.provider_subject_id is distinct from btrim(p_egress_id) then
+    or current_event.provider_subject_id is distinct from p_egress_id then
     raise exception using errcode = '22023', message = 'LIVEKIT_WEBHOOK_EVENT_MISMATCH';
   end if;
   if current_event.processing_status = 'processed' then
@@ -218,7 +213,7 @@ end;
 $$;
 
 create function public.complete_livekit_webhook_event(
-  p_event_id uuid,
+  p_event_id text,
   p_processing_token uuid,
   p_recording_id uuid,
   p_recording_status text,
@@ -246,23 +241,28 @@ begin
   if auth.role() is distinct from 'service_role' then
     raise exception using errcode = '42501', message = 'LIVEKIT_WEBHOOK_FORBIDDEN';
   end if;
-  if p_event_id is null or p_processing_token is null or p_recording_id is null
+  if p_event_id is null or length(p_event_id) not between 1 and 255
+    or p_event_id !~ '^[A-Za-z0-9_-]+$'
+    or p_processing_token is null or p_recording_id is null
     or p_recording_status is null
     or p_recording_status not in ('recording', 'completed', 'failed')
-    or p_provider_started_at is null
     or (p_provider_ended_at is not null and p_provider_ended_at < p_provider_started_at)
     or (p_recording_status = 'recording' and (
       p_storage_key is not null or p_duration_seconds is not null or p_bytes is not null
-      or p_provider_ended_at is not null or p_failure_code is not null
+      or p_provider_started_at is not null or p_provider_ended_at is not null
+      or p_failure_code is not null
     ))
     or (p_recording_status = 'completed' and (
       p_storage_key is null or p_duration_seconds is null or p_duration_seconds <= 0
       or p_duration_seconds > 86400 or p_bytes is null or p_bytes <= 0
-      or p_bytes > 1099511627776 or p_provider_ended_at is null or p_failure_code is not null
+      or p_bytes > 1099511627776 or p_provider_started_at is null
+      or p_provider_ended_at is null or p_provider_ended_at <= p_provider_started_at
+      or p_failure_code is not null
     ))
     or (p_recording_status = 'failed' and (
       p_storage_key is not null or p_duration_seconds is not null or p_bytes is not null
-      or p_provider_ended_at is null or p_failure_code is null
+      or p_provider_started_at is not null or p_provider_ended_at is not null
+      or p_failure_code is null
       or p_failure_code not in (
         'provider-egress-failed',
         'provider-egress-aborted',
@@ -274,7 +274,7 @@ begin
 
   select * into current_event
   from public.webhook_events
-  where provider = 'livekit' and provider_event_id = p_event_id::text
+  where provider = 'livekit' and provider_event_id = p_event_id
   for update;
   if not found or current_event.processing_status <> 'pending'
     or current_event.processing_token <> p_processing_token then
@@ -388,7 +388,7 @@ end;
 $$;
 
 create function public.fail_livekit_webhook_event(
-  p_event_id uuid,
+  p_event_id text,
   p_processing_token uuid,
   p_failure_code text
 )
@@ -403,7 +403,9 @@ begin
   if auth.role() is distinct from 'service_role' then
     raise exception using errcode = '42501', message = 'LIVEKIT_WEBHOOK_FORBIDDEN';
   end if;
-  if p_event_id is null or p_processing_token is null or p_failure_code is null
+  if p_event_id is null or length(p_event_id) not between 1 and 255
+    or p_event_id !~ '^[A-Za-z0-9_-]+$'
+    or p_processing_token is null or p_failure_code is null
     or p_failure_code not in ('payload-mismatch', 'target-mismatch', 'processing-failed') then
     raise exception using errcode = '22023', message = 'LIVEKIT_WEBHOOK_FAILURE_INVALID';
   end if;
@@ -411,10 +413,105 @@ begin
   update public.webhook_events
   set processing_status = 'failed', processing_token = null,
       failure_detail = p_failure_code, updated_at = clock_timestamp()
-  where provider = 'livekit' and provider_event_id = p_event_id::text
+  where provider = 'livekit' and provider_event_id = p_event_id
     and processing_status = 'pending' and processing_token = p_processing_token;
   get diagnostics updated_count = row_count;
   return updated_count = 1;
+end;
+$$;
+
+create function public.report_reporter_live_recording_reconciliation(
+  p_recording_id uuid,
+  p_claim_token uuid,
+  p_egress_id text,
+  p_provider_status text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  target_request_id uuid;
+  current_request public.reporter_live_requests%rowtype;
+  current_recording public.live_recordings%rowtype;
+  alert_time timestamptz := clock_timestamp();
+  alert_required boolean;
+begin
+  if auth.role() is distinct from 'service_role' then
+    raise exception using errcode = '42501', message = 'REPORTER_LIVE_RECONCILIATION_FORBIDDEN';
+  end if;
+  if p_recording_id is null or p_claim_token is null
+    or p_egress_id is null
+    or length(p_egress_id) not between 1 and 255
+    or p_egress_id !~ '^[A-Za-z0-9_-]+$'
+    or p_provider_status is null
+    or p_provider_status not in ('completed', 'failed') then
+    raise exception using errcode = '22023', message = 'REPORTER_LIVE_RECONCILIATION_INVALID';
+  end if;
+
+  -- Resolve the parent without locking, then use the shared request -> recording order.
+  select live_request_id into target_request_id
+  from public.live_recordings
+  where id = p_recording_id;
+  if not found then return false; end if;
+
+  select * into current_request
+  from public.reporter_live_requests
+  where id = target_request_id
+  for update;
+  if not found then return false; end if;
+
+  select * into current_recording
+  from public.live_recordings
+  where id = p_recording_id
+  for update;
+  if not found
+    or current_recording.live_request_id is distinct from current_request.id
+    or current_recording.recording_status <> 'pending'
+    or current_recording.recording_claim_token is distinct from p_claim_token
+    or current_request.livekit_room_name is null
+    or current_request.livekit_room_name is distinct from
+      'reporter-live-' || replace(current_request.id::text, '-', '')
+    or (current_recording.egress_id is not null
+      and current_recording.egress_id is distinct from p_egress_id) then
+    return false;
+  end if;
+
+  select not exists (
+    select 1 from public.audit_events
+    where action = 'live_recording.reconciliation_required'
+      and subject_type = 'live_recording'
+      and subject_id = current_recording.id
+  ) into alert_required;
+
+  update public.live_recordings
+  set egress_id = p_egress_id
+  where id = current_recording.id
+    and recording_status = 'pending'
+    and recording_claim_token = p_claim_token
+    and (egress_id is null or egress_id = p_egress_id);
+  if not found then return false; end if;
+
+  if alert_required then
+    insert into public.audit_events (
+      actor_id, action, subject_type, subject_id, metadata, created_at
+    ) values (
+      null, 'live_recording.reconciliation_required',
+      'live_recording', current_recording.id,
+      '{"status":"reconciliation_required"}'::jsonb, alert_time
+    );
+    insert into public.reporter_notifications (
+      profile_id, notification_type, message, delivery_channel,
+      delivery_status, created_at
+    )
+    select profiles.id, 'live_recording_failure',
+      'A reporter live recording requires provider reconciliation.',
+      'in_app', 'not_applicable', alert_time
+    from public.profiles
+    where profiles.role in ('editor', 'admin') and profiles.is_active;
+  end if;
+  return true;
 end;
 $$;
 
@@ -658,11 +755,13 @@ begin
 end;
 $$;
 
-revoke all on function public.claim_livekit_webhook_event(uuid, text, text)
+revoke all on function public.claim_livekit_webhook_event(text, text, text)
 from public, anon, authenticated, service_role;
-revoke all on function public.complete_livekit_webhook_event(uuid, uuid, uuid, text, text, numeric, bigint, timestamptz, timestamptz, text)
+revoke all on function public.complete_livekit_webhook_event(text, uuid, uuid, text, text, numeric, bigint, timestamptz, timestamptz, text)
 from public, anon, authenticated, service_role;
-revoke all on function public.fail_livekit_webhook_event(uuid, uuid, text)
+revoke all on function public.fail_livekit_webhook_event(text, uuid, text)
+from public, anon, authenticated, service_role;
+revoke all on function public.report_reporter_live_recording_reconciliation(uuid, uuid, text, text)
 from public, anon, authenticated, service_role;
 revoke all on function public.publish_live_recording(uuid, text, text, uuid, uuid)
 from public, anon, authenticated, service_role;
@@ -671,9 +770,10 @@ from public, anon, authenticated, service_role;
 revoke all on function public.set_live_recording_legal_hold(uuid, boolean, text)
 from public, anon, authenticated, service_role;
 
-grant execute on function public.claim_livekit_webhook_event(uuid, text, text) to service_role;
-grant execute on function public.complete_livekit_webhook_event(uuid, uuid, uuid, text, text, numeric, bigint, timestamptz, timestamptz, text) to service_role;
-grant execute on function public.fail_livekit_webhook_event(uuid, uuid, text) to service_role;
+grant execute on function public.claim_livekit_webhook_event(text, text, text) to service_role;
+grant execute on function public.complete_livekit_webhook_event(text, uuid, uuid, text, text, numeric, bigint, timestamptz, timestamptz, text) to service_role;
+grant execute on function public.fail_livekit_webhook_event(text, uuid, text) to service_role;
+grant execute on function public.report_reporter_live_recording_reconciliation(uuid, uuid, text, text) to service_role;
 grant execute on function public.publish_live_recording(uuid, text, text, uuid, uuid) to authenticated;
 grant execute on function public.reject_live_recording(uuid, text) to authenticated;
 grant execute on function public.set_live_recording_legal_hold(uuid, boolean, text) to authenticated;

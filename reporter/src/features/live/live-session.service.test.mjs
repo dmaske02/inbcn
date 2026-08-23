@@ -44,7 +44,7 @@ function reservation(overrides = {}) {
 }
 
 function dependencies(overrides = {}) {
-  const calls = { authorizeFinal: 0, complete: 0, createRoom: 0, fail: [], list: 0, start: 0 };
+  const calls = { authorizeFinal: 0, complete: 0, createRoom: 0, fail: [], list: 0, reconcile: [], start: 0 };
   return {
     calls,
     value: {
@@ -58,7 +58,8 @@ function dependencies(overrides = {}) {
       complete: async () => { calls.complete += 1; return true; },
       fail: async (input) => { calls.fail.push(input.failureCode); return true; },
       createRoom: async (input) => { calls.createRoom += 1; calls.room = input; },
-      listActiveRecordings: async () => { calls.list += 1; return []; },
+      listRoomRecordings: async () => { calls.list += 1; return []; },
+      reportTerminalReconciliation: async (input) => { calls.reconcile.push(input); return true; },
       startRecording: async (input) => {
         calls.start += 1;
         calls.recording = input;
@@ -151,7 +152,7 @@ test("Egress adapter preserves transport, response-loss, retryable HTTP, parse, 
       state: "ambiguous",
     });
   }
-  for (const egressId of ["", "   ", "x".repeat(256)]) {
+  for (const egressId of ["", "   ", "EG/bad", "x".repeat(256)]) {
     const provider = createEgressProvider({
       startRoomCompositeEgress: async () => ({ egressId }),
       listEgress: async () => [],
@@ -181,22 +182,67 @@ test("LiveKit URL conversion accepts only origin URLs and returns origins", () =
   ]) assert.throws(() => liveKitUrls(value));
 });
 
-test("Egress reconciliation reads the exact path from the current provider request shape", async () => {
+test("Egress reconciliation lists active and historical exact-room requests without trusting fileResults", async () => {
+  const storageKey = `reporter-live/${requestId}/${recordingId}.mp4`;
+  let filter;
+  const provider = createEgressProvider({
+    startRoomCompositeEgress: async () => ({ egressId: "unused" }),
+    listEgress: async (input) => { filter = input; return [{
+      egressId: "EG_CURRENT",
+      roomName,
+      status: 3,
+      fileResults: [{ filename: `${storageKey}.untrusted` }],
+      request: {
+        case: "egress",
+        value: {
+          roomName,
+          outputs: [{ config: { case: "file", value: { filepath: storageKey, fileType: 1 } } }],
+        },
+      },
+    }]; },
+  }, config.storage);
+
+  assert.deepEqual(await provider.listRoomRecordings(roomName), [
+    { egressId: "EG_CURRENT", storageKey, status: 3 },
+  ]);
+  assert.deepEqual(filter, { roomName });
+});
+
+test("Egress reconciliation rejects noncanonical room/output requests and ambiguous provider records", async () => {
   const storageKey = `reporter-live/${requestId}/${recordingId}.mp4`;
   const provider = createEgressProvider({
     startRoomCompositeEgress: async () => ({ egressId: "unused" }),
     listEgress: async () => [{
-      egressId: "EG_CURRENT",
-      fileResults: [],
+      egressId: "EG_WRONG_ROOM",
+      roomName: `${roomName}-other`,
+      status: 2,
+      fileResults: [{ filename: storageKey }],
+      request: {
+        case: "roomComposite",
+        value: {
+          roomName: `${roomName}-other`,
+          output: { case: "file", value: { filepath: storageKey, fileType: 1 } },
+          fileOutputs: [], streamOutputs: [], segmentOutputs: [], imageOutputs: [],
+        },
+      },
+    }, {
+      egressId: "EG_WRONG_OUTPUT",
+      roomName,
+      status: 2,
+      fileResults: [{ filename: storageKey }],
       request: {
         case: "egress",
-        value: { outputs: [{ config: { case: "file", value: { filepath: storageKey } } }] },
+        value: {
+          roomName,
+          outputs: [{ config: { case: "file", value: { filepath: `${storageKey}.bak`, fileType: 1 } } }],
+        },
       },
     }],
   }, config.storage);
 
-  assert.deepEqual(await provider.listActiveRecordings(roomName), [
-    { egressId: "EG_CURRENT", storageKey },
+  assert.deepEqual(await provider.listRoomRecordings(roomName), [
+    { egressId: null, storageKey: null, status: null },
+    { egressId: "EG_WRONG_OUTPUT", storageKey: `${storageKey}.bak`, status: 2 },
   ]);
 });
 
@@ -321,7 +367,7 @@ test("stale reservation reconciles one exact active Egress without starting anot
   const storageKey = `reporter-live/${requestId}/${recordingId}.mp4`;
   const setup = dependencies({
     reserve: async () => reservation({ reclaimed: true }),
-    listActiveRecordings: async () => [{ egressId: "EG_RECOVERED", storageKey }],
+    listRoomRecordings: async () => [{ egressId: "EG_RECOVERED", storageKey, status: 2 }],
   });
 
   const result = await createLiveSessionService(setup.value).request({ profileId, accessGeneration: 7, requestId });
@@ -331,12 +377,101 @@ test("stale reservation reconciles one exact active Egress without starting anot
   assert.equal(setup.calls.complete, 1);
 });
 
+test("stale completed or failed exact Egress is bound for operator reconciliation without a restart or token", async (context) => {
+  const storageKey = `reporter-live/${requestId}/${recordingId}.mp4`;
+  for (const [providerStatus, status] of [[3, "completed"], [4, "failed"]]) {
+    await context.test(status, async () => {
+      let tokenCalls = 0;
+      const setup = dependencies({
+        reserve: async () => reservation({ reclaimed: true }),
+        listRoomRecordings: async () => [{ egressId: `EG_${status.toUpperCase()}`, storageKey, status: providerStatus }],
+        generateToken: async () => { tokenCalls += 1; return "must-not-return"; },
+      });
+
+      await assert.rejects(
+        () => createLiveSessionService(setup.value).request({ profileId, accessGeneration: 7, requestId }),
+        (error) => error instanceof LiveSessionError && error.code === "STARTING",
+      );
+      assert.equal(setup.calls.start, 0);
+      assert.equal(setup.calls.complete, 0);
+      assert.equal(tokenCalls, 0);
+      assert.deepEqual(setup.calls.reconcile, [{
+        recordingId,
+        claimToken: "44444444-4444-4444-8444-444444444444",
+        egressId: `EG_${status.toUpperCase()}`,
+        providerStatus: status,
+      }]);
+    });
+  }
+});
+
+test("stale multiple or conflicting room Egresses fail closed without binding, starting, or issuing a token", async (context) => {
+  const storageKey = `reporter-live/${requestId}/${recordingId}.mp4`;
+  for (const [name, roomRecordings] of [
+    ["multiple exact", [
+      { egressId: "EG_ONE", storageKey, status: 2 },
+      { egressId: "EG_TWO", storageKey, status: 2 },
+    ]],
+    ["conflicting output", [{ egressId: "EG_OTHER", storageKey: `${storageKey}.bak`, status: 2 }]],
+    ["unknown status", [{ egressId: "EG_UNKNOWN", storageKey, status: null }]],
+  ]) {
+    await context.test(name, async () => {
+      let tokenCalls = 0;
+      const setup = dependencies({
+        reserve: async () => reservation({ reclaimed: true }),
+        listRoomRecordings: async () => roomRecordings,
+        generateToken: async () => { tokenCalls += 1; return "must-not-return"; },
+      });
+      await assert.rejects(
+        () => createLiveSessionService(setup.value).request({ profileId, accessGeneration: 7, requestId }),
+        (error) => error instanceof LiveSessionError && error.code === "STARTING",
+      );
+      assert.equal(setup.calls.start, 0);
+      assert.equal(setup.calls.complete, 0);
+      assert.deepEqual(setup.calls.reconcile, []);
+      assert.equal(tokenCalls, 0);
+    });
+  }
+});
+
+test("response loss followed by provider completion never starts a second Egress", async () => {
+  const storageKey = `reporter-live/${requestId}/${recordingId}.mp4`;
+  let attempts = 0;
+  let starts = 0;
+  const setup = dependencies({
+    reserve: async () => reservation({ reclaimed: attempts++ > 0 }),
+    listRoomRecordings: async () => [{ egressId: "EG_RESPONSE_LOST", storageKey, status: 3 }],
+    startRecording: async () => { starts += 1; return { state: "ambiguous" }; },
+  });
+  const service = createLiveSessionService(setup.value);
+
+  await assert.rejects(() => service.request({ profileId, accessGeneration: 7, requestId }), LiveSessionError);
+  await assert.rejects(
+    () => service.request({ profileId, accessGeneration: 7, requestId }),
+    (error) => error instanceof LiveSessionError && error.code === "STARTING",
+  );
+  assert.equal(starts, 1);
+  assert.equal(setup.calls.complete, 0);
+  assert.equal(setup.calls.reconcile.length, 1);
+});
+
+test("stale reconciliation with no room Egress match starts exactly one new recording", async () => {
+  const setup = dependencies({
+    reserve: async () => reservation({ reclaimed: true }),
+    listRoomRecordings: async () => [],
+  });
+
+  await createLiveSessionService(setup.value).request({ profileId, accessGeneration: 7, requestId });
+  assert.equal(setup.calls.start, 1);
+  assert.equal(setup.calls.complete, 1);
+});
+
 test("stale exact-path reconciliation with an invalid Egress id is ambiguous and starts nothing", async () => {
   let tokenCalls = 0;
   const storageKey = `reporter-live/${requestId}/${recordingId}.mp4`;
   const setup = dependencies({
     reserve: async () => reservation({ reclaimed: true }),
-    listActiveRecordings: async () => [{ egressId: "   ", storageKey }],
+    listRoomRecordings: async () => [{ egressId: "   ", storageKey, status: 2 }],
     generateToken: async () => { tokenCalls += 1; return "must-not-return"; },
   });
 
@@ -352,7 +487,7 @@ test("stale exact-path reconciliation with an invalid Egress id is ambiguous and
 test("unavailable stale reconciliation starts no second Egress", async () => {
   const setup = dependencies({
     reserve: async () => reservation({ reclaimed: true }),
-    listActiveRecordings: async () => { throw new Error("raw provider detail"); },
+    listRoomRecordings: async () => { throw new Error("raw provider detail"); },
   });
 
   await assert.rejects(
@@ -467,7 +602,7 @@ test("canonical DB request id drives the storage key, token attribute, and stale
       endsAt,
       recordingState: "recording",
     }),
-    listActiveRecordings: async () => [{ egressId: "EG_CANONICAL", storageKey: expectedKey }],
+    listRoomRecordings: async () => [{ egressId: "EG_CANONICAL", storageKey: expectedKey, status: 2 }],
     generateToken: async (input) => { tokenInput = input; return "publisher-token"; },
   });
 

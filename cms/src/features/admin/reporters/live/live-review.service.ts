@@ -11,7 +11,6 @@ type LiveReviewRepository = Readonly<{
   get(id: string): Promise<LiveReviewRequest | null>;
   approve(id: string, startsAt: string, endsAt: string): Promise<void>;
   reject(id: string, reason: string): Promise<void>;
-  terminate(id: string, reason: string): Promise<void>;
 }>;
 
 export class LiveReviewError extends Error {
@@ -81,12 +80,6 @@ export function createLiveReviewService(repository: LiveReviewRepository) {
       const decisionReason = reason(value);
       try { await repository.reject(requestId, decisionReason); } catch (error) { throw safeError(error); }
     },
-    async terminate(admin: AdminIdentity, id: string, value: string) {
-      requireDecision(admin);
-      const requestId = validId(id);
-      const terminationReason = reason(value);
-      try { await repository.terminate(requestId, terminationReason); } catch (error) { throw safeError(error); }
-    },
   } as const;
 }
 
@@ -101,4 +94,3 @@ export async function approveLiveRequest(admin: AdminIdentity, id: string, windo
   return (await runtimeService()).approve(admin, id, window);
 }
 export async function rejectLiveRequest(admin: AdminIdentity, id: string, value: string) { return (await runtimeService()).reject(admin, id, value); }
-export async function terminateLiveRequest(admin: AdminIdentity, id: string, value: string) { return (await runtimeService()).terminate(admin, id, value); }

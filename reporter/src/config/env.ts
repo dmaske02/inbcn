@@ -103,7 +103,7 @@ const environmentSchema = z
       values.LIVEKIT_S3_BUCKET,
       values.LIVEKIT_S3_ENDPOINT,
       values.LIVEKIT_S3_REGION,
-      values.LIVEKIT_S3_FORCE_PATH_STYLE,
+      values.LIVEKIT_S3_FORCE_PATH_STYLE === "true",
     ].some(Boolean)) {
       for (const [name, value] of [
         ["LIVEKIT_S3_ACCESS_KEY", values.LIVEKIT_S3_ACCESS_KEY],

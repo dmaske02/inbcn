@@ -69,6 +69,31 @@ test("reservation migration provides a service-role-only five-minute CAS protoco
   assert.match(authorize, /not current_reporter\.can_broadcast_live/u);
   assert.match(authorize, /current_reporter\.access_sync_generation is distinct from p_access_generation/u);
   assert.match(authorize, /'request_id', current_request\.id/u);
+  const complete = sqlFunction(sql, "complete_reporter_live_recording_start");
+  assert.match(complete, /\(egress_id is null or egress_id = p_egress_id\)/u);
+});
+
+test("review migration adds terminal Egress reconciliation with canonical lock order and fixed operator alerts", async () => {
+  const reviewSql = await readFile(new URL(
+    "../../../../supabase/migrations/20260822163000_livekit_recording_review.sql",
+    import.meta.url,
+  ), "utf8");
+  const compact = reviewSql.replace(/\s+/gu, " ").toLowerCase();
+  const reconcile = sqlFunction(reviewSql.toLowerCase(), "report_reporter_live_recording_reconciliation");
+  const parentLookup = reconcile.indexOf("select live_request_id into target_request_id");
+  const requestLock = reconcile.indexOf("from public.reporter_live_requests", parentLookup);
+  const recordingLock = reconcile.indexOf("from public.live_recordings", requestLock);
+  assert.ok(parentLookup >= 0 && requestLock > parentLookup && recordingLock > requestLock);
+  assert.doesNotMatch(reconcile.slice(parentLookup, requestLock), /for update/u);
+  assert.match(reconcile.slice(requestLock, recordingLock), /for update/u);
+  assert.match(reconcile.slice(recordingLock), /for update/u);
+  assert.match(reconcile, /recording_status = 'pending'.*recording_claim_token = p_claim_token/u);
+  assert.match(reconcile, /egress_id is not null and current_recording\.egress_id is distinct from p_egress_id/u);
+  assert.match(reconcile, /'live_recording\.reconciliation_required'/u);
+  assert.match(reconcile, /'a reporter live recording requires provider reconciliation[.]'/u);
+  assert.doesNotMatch(reconcile, /jsonb_build_object\([^)]*(?:egress|storage|provider_error|room)/u);
+  assert.match(compact, /revoke all on function public\.report_reporter_live_recording_reconciliation\(uuid, uuid, text, text\) from public, anon, authenticated, service_role/u);
+  assert.match(compact, /grant execute on function public\.report_reporter_live_recording_reconciliation\(uuid, uuid, text, text\) to service_role/u);
 });
 
 test("manual types expose reservation columns and RPCs", async () => {
@@ -76,7 +101,7 @@ test("manual types expose reservation columns and RPCs", async () => {
   for (const field of ["recording_claim_token", "recording_claimed_at", "recording_attempt_count"]) {
     assert.match(types, new RegExp(`\\b${field}:`, "u"));
   }
-  for (const fn of ["reserve_reporter_live_recording", "complete_reporter_live_recording_start", "fail_reporter_live_recording_start", "authorize_reporter_live_session"]) {
+  for (const fn of ["reserve_reporter_live_recording", "complete_reporter_live_recording_start", "fail_reporter_live_recording_start", "authorize_reporter_live_session", "report_reporter_live_recording_reconciliation"]) {
     assert.match(types, new RegExp(`\\b${fn}:`, "u"));
   }
 });

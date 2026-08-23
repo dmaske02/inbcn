@@ -11,22 +11,24 @@ import {
 } from "./livekit-webhook.service.ts";
 import { createLiveKitWebhookHandler } from "../../app/api/webhooks/livekit/route.ts";
 
-const eventId = "11111111-1111-4111-8111-111111111111";
+const eventId = "EV_x5d77eD5KcBe";
 const requestId = "22222222-2222-4222-8222-222222222222";
 const recordingId = "33333333-3333-4333-8333-333333333333";
 const egressId = "EG_7NCpLh8J2h2v";
 const roomName = `reporter-live-${requestId.replaceAll("-", "")}`;
 const storageKey = `reporter-live/${requestId}/${recordingId}.mp4`;
-const startedAt = 1_787_382_000_000_000_000n;
-const endedAt = 1_787_382_012_345_000_000n;
+const startedAt = 1_787_381_999_000_000_000n;
+const endedAt = 1_787_382_014_000_000_000n;
+const fileStartedAt = 1_787_382_000_000_000_000n;
+const fileEndedAt = 1_787_382_012_500_000_000n;
 
 function webhook(overrides = {}) {
   const { egressInfo: egressOverrides, ...eventOverrides } = overrides;
   const file = {
     filename: storageKey,
     location: `s3://private-recordings/${storageKey}`,
-    startedAt,
-    endedAt,
+    startedAt: fileStartedAt,
+    endedAt: fileEndedAt,
     duration: 12_345_000_000n,
     size: 4_096n,
   };
@@ -140,6 +142,21 @@ test("processed duplicates succeed and active leases stay retryable", async () =
   }
 });
 
+test("real bounded LiveKit event IDs are accepted and unsafe provider text is rejected before claiming", async () => {
+  const accepted = setup();
+  await accepted.service.process("signed", "Bearer valid");
+  assert.equal(accepted.calls[0][1].eventId, "EV_x5d77eD5KcBe");
+
+  for (const invalidId of ["", "EV bad", "EV/bad", "x".repeat(256)]) {
+    const { service, calls } = setup(webhook({ id: invalidId }));
+    await assert.rejects(
+      service.process("signed", "Bearer valid"),
+      (error) => error instanceof LiveKitWebhookError && error.code === "webhook-payload-mismatch",
+    );
+    assert.deepEqual(calls, []);
+  }
+});
+
 test("a successful end accepts one exact MP4 and forwards only bounded safe facts", async () => {
   const { service, calls } = setup();
 
@@ -167,14 +184,13 @@ test("a successful end accepts one exact MP4 and forwards only bounded safe fact
     durationSeconds: 12.345,
     bytes: 4_096,
     providerStartedAt: "2026-08-22T07:00:00.000Z",
-    providerEndedAt: "2026-08-22T07:00:12.345Z",
-    providerUpdatedAt: "2026-08-22T07:00:12.345Z",
+    providerEndedAt: "2026-08-22T07:00:12.500Z",
     failureCode: null,
   });
   assert.doesNotMatch(JSON.stringify(completion), /provider detail|manifest|location|s3:\/\//u);
 });
 
-test("started and updated events preserve recording state without accepting output facts", async () => {
+test("started and updated events ignore real placeholder fileResults and persist no output facts", async () => {
   for (const [eventType, status] of [["egress_started", 1], ["egress_updated", 2]]) {
     const { service, calls } = setup(webhook({
       event: eventType,
@@ -182,7 +198,14 @@ test("started and updated events preserve recording state without accepting outp
         status,
         endedAt: 0n,
         updatedAt: startedAt + 1_000_000_000n,
-        fileResults: [],
+        fileResults: [{
+          filename: storageKey,
+          location: `s3://private-recordings/${storageKey}`,
+          startedAt: 0n,
+          endedAt: 0n,
+          duration: 0n,
+          size: 0n,
+        }],
       },
     }));
     assert.deepEqual(await service.process("signed", "Bearer valid"), {
@@ -193,6 +216,9 @@ test("started and updated events preserve recording state without accepting outp
     assert.equal(calls.at(-1)[1].storageKey, null);
     assert.equal(calls.at(-1)[1].durationSeconds, null);
     assert.equal(calls.at(-1)[1].bytes, null);
+    assert.equal(calls.at(-1)[1].providerStartedAt, null);
+    assert.equal(calls.at(-1)[1].providerEndedAt, null);
+    assert.doesNotMatch(JSON.stringify(calls.at(-1)[1]), /s3:\/\/|location/u);
   }
 });
 
@@ -202,7 +228,17 @@ test("terminal failure ends persist fixed safe codes without provider errors or 
     [5, "provider-egress-aborted"],
     [6, "provider-egress-limit-reached"],
   ]) {
-    const { service, calls } = setup(webhook({ egressInfo: { status, fileResults: [] } }));
+    const { service, calls } = setup(webhook({ egressInfo: {
+      status,
+      fileResults: [{
+        filename: storageKey,
+        location: `s3://private-recordings/${storageKey}`,
+        startedAt: 0n,
+        endedAt: 0n,
+        duration: 0n,
+        size: 0n,
+      }],
+    } }));
     assert.deepEqual(await service.process("signed", "Bearer valid"), {
       duplicate: false,
       status: "failed",
@@ -212,18 +248,13 @@ test("terminal failure ends persist fixed safe codes without provider errors or 
     assert.equal(completion.storageKey, null);
     assert.equal(completion.durationSeconds, null);
     assert.equal(completion.bytes, null);
+    assert.equal(completion.providerStartedAt, null);
+    assert.equal(completion.providerEndedAt, null);
     assert.equal(JSON.stringify(completion).includes("provider detail"), false);
   }
-
-  const { service, calls } = setup(webhook({ egressInfo: { status: 6 } }));
-  await assert.rejects(
-    service.process("signed", "Bearer valid"),
-    (error) => error instanceof LiveKitWebhookError && error.code === "webhook-payload-mismatch",
-  );
-  assert.equal(calls.some(([name]) => name === "complete"), false);
 });
 
-test("exact egress, room, key, file count, status, size, duration, and timestamps fail closed", async () => {
+test("exact egress, room, key, file count, status, and file-owned facts fail closed", async () => {
   const invalidEvents = [
     webhook({ egressInfo: { egressId: "" } }),
     webhook({ egressInfo: { roomName: `${roomName}-other` } }),
@@ -234,7 +265,8 @@ test("exact egress, room, key, file count, status, size, duration, and timestamp
     webhook({ egressInfo: { fileResults: [{ ...webhook().egressInfo.fileResults[0], location: `s3://private-recordings/${storageKey}.bak` }] } }),
     webhook({ egressInfo: { fileResults: [{ ...webhook().egressInfo.fileResults[0], duration: 0n }] } }),
     webhook({ egressInfo: { fileResults: [{ ...webhook().egressInfo.fileResults[0], size: 0n }] } }),
-    webhook({ egressInfo: { endedAt: startedAt - 1n, updatedAt: startedAt - 1n } }),
+    webhook({ egressInfo: { fileResults: [{ ...webhook().egressInfo.fileResults[0], endedAt: fileStartedAt }] } }),
+    webhook({ egressInfo: { fileResults: [{ ...webhook().egressInfo.fileResults[0], startedAt: 1_787_383_000_000_000_000n }] } }),
   ];
 
   for (const invalid of invalidEvents) {
@@ -333,6 +365,29 @@ test("the additive SQL makes receipt completion atomic, terminal monotonic, priv
   assert.match(complete, /reporter-live\/.*current_request\.id::text.*current_recording\.id::text.*[.]mp4/u);
   assert.match(complete, /'a reporter live recording requires editorial attention[.]'/u);
   assert.doesNotMatch(complete, /p_provider_error|p_location|manifest|room_sid|authorization|raw_body/u);
-  assert.match(sql, /revoke all on function public\.claim_livekit_webhook_event\(uuid, text, text\) from public, anon, authenticated, service_role/u);
-  assert.match(sql, /grant execute on function public\.claim_livekit_webhook_event\(uuid, text, text\) to service_role/u);
+  assert.match(sql, /length\(p_event_id\) not between 1 and 255/u);
+  assert.match(sql, /p_event_id !~ '\^\[a-za-z0-9_-\]\+\$'/u);
+  for (const signature of [
+    "claim_livekit_webhook_event(text, text, text)",
+    "complete_livekit_webhook_event(text, uuid, uuid, text, text, numeric, bigint, timestamptz, timestamptz, text)",
+    "fail_livekit_webhook_event(text, uuid, text)",
+  ]) {
+    assert.match(sql, new RegExp(`revoke all on function public\\.${signature.replace(/[().]/gu, "\\$&")} from public, anon, authenticated, service_role`, "u"));
+    assert.match(sql, new RegExp(`grant execute on function public\\.${signature.replace(/[().]/gu, "\\$&")} to service_role`, "u"));
+  }
+  assert.doesNotMatch(sql, /claim_livekit_webhook_event\(uuid, text, text\)|complete_livekit_webhook_event\(uuid, uuid/u);
+});
+
+test("manual RPC types use provider text event IDs and nullable non-completed provider timestamps", async () => {
+  const types = await readFile(new URL(
+    "../../../../packages/database/src/database.types.ts",
+    import.meta.url,
+  ), "utf8");
+  const claim = types.slice(types.indexOf("claim_livekit_webhook_event"), types.indexOf("complete_livekit_webhook_event"));
+  const complete = types.slice(types.indexOf("complete_livekit_webhook_event"), types.indexOf("fail_livekit_webhook_event"));
+  const fail = types.slice(types.indexOf("fail_livekit_webhook_event"), types.indexOf("get_reporter_application_review_context"));
+  assert.match(claim, /p_event_id: string/u);
+  assert.match(complete, /p_event_id: string/u);
+  assert.match(complete, /p_provider_started_at: string \| null/u);
+  assert.match(fail, /p_event_id: string/u);
 });

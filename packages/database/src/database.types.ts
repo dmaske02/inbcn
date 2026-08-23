@@ -1741,7 +1741,7 @@ export type Database = {
           p_storage_key: string | null
           p_duration_seconds: number | null
           p_bytes: number | null
-          p_provider_started_at: string
+          p_provider_started_at: string | null
           p_provider_ended_at: string | null
           p_failure_code:
             | "provider-egress-failed"
@@ -1805,6 +1805,15 @@ export type Database = {
       }
       fail_reporter_live_recording_start: {
         Args: { p_recording_id: string; p_claim_token: string; p_failure_code: string }
+        Returns: boolean
+      }
+      report_reporter_live_recording_reconciliation: {
+        Args: {
+          p_recording_id: string
+          p_claim_token: string
+          p_egress_id: string
+          p_provider_status: "completed" | "failed"
+        }
         Returns: boolean
       }
       is_reporter_story: {

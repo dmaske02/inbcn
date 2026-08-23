@@ -70,11 +70,4 @@ async function reject(id: string, reason: string): Promise<void> {
   if (error) throw new LiveReviewRepositoryError(error.message);
 }
 
-async function terminate(id: string, reason: string): Promise<void> {
-  const { error } = await (await createClient()).rpc("terminate_reporter_live_request", {
-    p_request_id: id, p_termination_reason: reason,
-  });
-  if (error) throw new LiveReviewRepositoryError(error.message);
-}
-
-export const liveReviewRepository = { list, get, approve, reject, terminate } as const;
+export const liveReviewRepository = { list, get, approve, reject } as const;

@@ -86,7 +86,7 @@ async function completeWebhook(input: Readonly<{
   storageKey: string | null;
   durationSeconds: number | null;
   bytes: number | null;
-  providerStartedAt: string;
+  providerStartedAt: string | null;
   providerEndedAt: string | null;
   failureCode:
     | "provider-egress-failed"
