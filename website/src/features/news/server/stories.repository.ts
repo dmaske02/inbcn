@@ -248,7 +248,7 @@ async function getPublishedStories(
 ): Promise<StorySummaryDto[]> {
   const supabase = await createClient();
   let query = supabase
-    .from("stories")
+    .from("public_stories")
     .select(STORY_SUMMARY_COLUMNS)
     .eq("status", "published")
     .not("published_at", "is", null)
@@ -297,7 +297,7 @@ export async function getStoryBySlug(
 
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from("stories")
+    .from("public_stories")
     .select(STORY_DETAIL_COLUMNS)
     .eq("language_id", language.id)
     .eq("slug", slug)
@@ -358,7 +358,7 @@ export async function getCategoryStoryCandidates(
 ): Promise<CategoryStoryCandidates> {
   const supabase = await createClient();
   const featuredQuery = supabase
-    .from("stories")
+    .from("public_stories")
     .select(CATEGORY_STORY_COLUMNS)
     .eq("language_id", languageId)
     .eq("category_id", categoryId)
@@ -369,7 +369,7 @@ export async function getCategoryStoryCandidates(
     .order("published_at", { ascending: false })
     .limit(1);
   const latestQuery = supabase
-    .from("stories")
+    .from("public_stories")
     .select(CATEGORY_STORY_COLUMNS)
     .eq("language_id", languageId)
     .eq("category_id", categoryId)
@@ -398,7 +398,7 @@ export async function getPublishedCategoryStoryPage(
   const supabase = await createClient();
   const from = (query.page - 1) * query.pageSize;
   let request = supabase
-    .from("stories")
+    .from("public_stories")
     .select(CATEGORY_STORY_COLUMNS, { count: "exact" })
     .eq("language_id", query.languageId)
     .eq("category_id", query.categoryId)
@@ -461,7 +461,7 @@ export async function getPublishedReporterStories(
 ): Promise<StorySummaryDto[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from("stories")
+    .from("public_stories")
     .select(STORY_SUMMARY_COLUMNS)
     .eq("language_id", languageId)
     .eq("status", "published")

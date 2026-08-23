@@ -142,3 +142,93 @@ test project, and generated type refresh remain explicitly deferred.
 No schema, workflow, RLS, privacy, or website interface conflict remains.
 
 Commit subject: `feat(website): publish verified reporter profiles`
+
+## Independent-review hardening follow-up
+
+Status: `DONE`
+
+The review found that the original base-table boundary was too broad even
+though every website repository selected an explicit safe list. `anon` still
+held table-wide `SELECT` on `stories`, and the original public RLS policy
+checked only `status = 'published'`. A caller using the Data API directly could
+therefore request reporter/account and editorial workflow UUIDs, and could read
+future-dated published rows before the website intended to show them. The same
+grant shape on `media` exposed uploader/editor UUIDs and provider metadata.
+
+The first proposed correction—column-level story grants—was rejected during
+preflight because PostgREST computed fields pass a whole `stories` row to
+`public_reporter(stories)`. PostgreSQL requires `SELECT` on every base column
+for that whole-row reference, which is incompatible with excluding protected
+story columns. The final correction uses the reviewer-authorized native
+fallback instead:
+
+- `public.public_stories` is one owner-executed `security_barrier` view. It
+  projects exactly the public website story/query fields plus safe reporter
+  provenance/JSON and enforces `published`, non-null `published_at`, and
+  `published_at <= now()` in fixed SQL.
+- Because a default owner-executed view bypasses base-table RLS, its explicit
+  projection and `WHERE` clause—not base RLS—are deliberately the anonymous
+  security boundary. It contains no creator/approver UUID, review/schedule
+  evidence, reporter workflow timestamps, location, or revision fields.
+- `anon` has no privilege of any kind on base `stories`. The safe view is
+  granted to `anon` and `authenticated`, because the cookie-aware website
+  client can adopt a signed-in session while serving the same public routes.
+  Authenticated CMS/reporter/import methods still use base `stories`; their
+  existing table privileges and role policies were preserved.
+- The old permissive public base policy was removed. Authenticated base reads
+  of public content now also require published status, non-null publication,
+  and database-current publication time; editor/admin/owner policies continue
+  to provide their existing workflow access.
+- `public_reporter(stories)` repeats the same database-current publication
+  predicate before returning its seven-key safe JSON projection.
+- Anonymous `media` access is now column-level and limited to the seven fields
+  used by public story rendering: id, Cloudinary public ID, secure URL, alt
+  text, caption, width, and height. Its anonymous policy resolves only through
+  the safe current-story view. A separate authenticated current-public policy
+  preserves signed-in behavior against base stories.
+- Public news/search/profile-history repositories now use `public_stories`.
+  The anonymous breaking-alert query resolves any story targets through that
+  view instead of embedding the revoked base relation. CMS alert, live-TV,
+  import, and story mutation/reference queries remain on base `stories`.
+- The reporter not-found component now uses a `div`, avoiding a nested `main`
+  landmark under the website layout.
+
+### Follow-up TDD and verification
+
+The new security contract was RED under bundled Node `v24.19.0`: six intended
+failures covered the absent safe story boundary, incomplete publication
+predicates, broad media access, public repository callers, rollback verifier,
+and nested landmark. After the initial GREEN, the authenticated-cookie
+compatibility case was added first and failed 1/6 against the anon-only view
+grant before the safe view grant was corrected. Final focused coverage is
+41/41, including all Task 6 reporter/article checks.
+
+- Full website tests: 233 passed.
+- Full CMS tests: 600 passed.
+- Full reporter tests: 202 passed.
+- Fresh root tests: 1,035 passed in total.
+- Root typecheck and root lint: passed.
+- Website Next.js 16.3 production build: passed and generated all 13 pages.
+- `git diff --check`: passed.
+
+Docker remains unavailable (`docker info` cannot connect to the daemon), and
+no migration execution, type generation, anonymous HTTP integration, or SQL
+advisor result is claimed. The additive migration has strong static contracts
+for the exact view projection, per-role grants, per-policy publication guards,
+reporter function guard, public repository split, media column allowlist, and
+manual type parity. `public-story-access-verification.sql` is a disposable,
+rollback-only database script for the deferred local run: it checks catalogs,
+view options/columns, anon/authenticated privileges and policies, current versus
+future/unpublished row visibility, denied protected columns, allowed public
+media columns, and preserved authenticated base access, then rolls back every
+fixture.
+
+Current Supabase Data API/RLS/column-privilege guidance and PostgREST 14
+computed-field guidance were rechecked on 2026-08-23. Supabase's distinction is
+recorded explicitly: an unauthenticated publishable/legacy-anon-key request uses
+the `anon` Postgres role, while an Auth anonymous user uses `authenticated`.
+This application does not create anonymous Auth users; nevertheless both client
+roles can safely use the public view, while only authenticated keeps base-table
+workflow access subject to existing role policies.
+
+Follow-up commit subject: `fix(website): harden public story access`

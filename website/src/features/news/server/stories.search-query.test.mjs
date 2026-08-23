@@ -35,7 +35,7 @@ test("builds the published locale-aware full-text search request", async () => {
   }, "2026-08-04T10:30:00.000Z");
 
   assert.ok(capturedUrl);
-  assert.equal(capturedUrl.pathname, "/rest/v1/stories");
+  assert.equal(capturedUrl.pathname, "/rest/v1/public_stories");
   assert.equal(capturedUrl.searchParams.get("language_id"), "eq.language-id");
   assert.equal(capturedUrl.searchParams.get("status"), "eq.published");
   assert.deepEqual(capturedUrl.searchParams.getAll("published_at"), [
