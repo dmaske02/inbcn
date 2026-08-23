@@ -192,6 +192,22 @@ export function createRazorpayClient(options: RazorpayClientOptions) {
       return matches[0] ?? null;
     },
 
+    async fetchRefund(
+      paymentIdInput: string,
+      refundIdInput: string,
+    ): Promise<RazorpayRefund> {
+      const paymentId = providerId.parse(paymentIdInput);
+      const refundId = providerId.parse(refundIdInput);
+      const parsed = refundSchema.safeParse(await request(
+        `/payments/${encodeURIComponent(paymentId)}/refunds/${encodeURIComponent(refundId)}`,
+        { signal: AbortSignal.timeout(10_000) },
+      ));
+      if (!parsed.success || parsed.data.id !== refundId) {
+        throw new RazorpayClientError("provider-response-invalid");
+      }
+      return parsed.data;
+    },
+
     async createFullRefund(input: Readonly<{
       paymentId: string;
       receipt: string;

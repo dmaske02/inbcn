@@ -21,6 +21,7 @@ test.after(() => {
 
 test("cron route exports only GET and rejects missing or invalid bearer auth without work", async () => {
   assert.deepEqual(Object.keys(route).filter((name) => /^[A-Z]+$/u.test(name)), ["GET"]);
+  assert.equal(route.maxDuration, 60);
 
   for (const authorization of [undefined, "Bearer wrong", `Basic ${secret}`]) {
     const response = await route.GET(new Request(

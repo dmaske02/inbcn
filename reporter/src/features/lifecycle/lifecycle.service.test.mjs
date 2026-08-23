@@ -22,9 +22,17 @@ function refundWork(token = refundToken) {
     leaseToken: token,
     attempt: 4,
     providerPaymentId: "pay_exact_1",
+    providerRefundId: null,
     amountPaise: 10_000,
     currency: "INR",
   };
+}
+
+function boundRefundWork(
+  token = refundToken,
+  providerRefundId = "rfnd_exact_1",
+) {
+  return { ...refundWork(token), providerRefundId };
 }
 
 function recordingWork(token = recordingToken) {
@@ -40,6 +48,7 @@ function recordingWork(token = recordingToken) {
 function repository(pages) {
   const calls = {
     completeRefund: [],
+    reconcileRefund: [],
     failRefund: [],
     completeRecording: [],
     failRecording: [],
@@ -54,6 +63,10 @@ function repository(pages) {
       },
       async completeRefund(input) {
         calls.completeRefund.push(input);
+        return true;
+      },
+      async reconcileRefund(input) {
+        calls.reconcileRefund.push(input);
         return true;
       },
       async failRefund(input) {
@@ -80,6 +93,21 @@ const exactRefund = {
   receipt: `${paymentId}:4`,
   status: "pending",
 };
+
+function refundProvider(overrides = {}) {
+  return {
+    async fetchRefund() {
+      assert.fail("an unbound refund must not fetch by provider refund id");
+    },
+    async findRefundByReceipt() {
+      assert.fail("test must provide findRefundByReceipt when expected");
+    },
+    async createFullRefund() {
+      assert.fail("test must provide createFullRefund when expected");
+    },
+    ...overrides,
+  };
+}
 
 test("one bounded run completes database work, an exact refund, and object-not-found deletion once", async () => {
   const db = repository([[
@@ -212,6 +240,132 @@ test("an exact failed refund is bound for the signed webhook to finalize", async
   assert.equal(db.calls.failRefund.length, 0);
 });
 
+test("a stale bound processed refund is reconciled by exact id after a lost webhook", async () => {
+  const db = repository([[boundRefundWork()], []]);
+  const providerCalls = [];
+  const service = createLifecycleService({
+    repository: db.api,
+    refundProvider: refundProvider({
+      async fetchRefund(providerPaymentId, providerRefundId) {
+        providerCalls.push([providerPaymentId, providerRefundId]);
+        return { ...exactRefund, status: "processed" };
+      },
+    }),
+    objectStore: null,
+  });
+
+  assert.equal((await service.run(now)).ok, true);
+  assert.deepEqual(providerCalls, [["pay_exact_1", "rfnd_exact_1"]]);
+  assert.deepEqual(db.calls.reconcileRefund, [{
+    paymentId,
+    leaseToken: refundToken,
+    refundId: "rfnd_exact_1",
+    providerPaymentId: "pay_exact_1",
+    receipt: `${paymentId}:4`,
+    amountPaise: 10_000,
+    currency: "INR",
+    status: "processed",
+  }]);
+  assert.equal(db.calls.completeRefund.length, 0);
+  assert.equal(db.calls.failRefund.length, 0);
+});
+
+test("a stale bound failed refund is terminally reconciled before another attempt", async () => {
+  const db = repository([[boundRefundWork()], []]);
+  const service = createLifecycleService({
+    repository: db.api,
+    refundProvider: refundProvider({
+      async fetchRefund() {
+        return { ...exactRefund, status: "failed" };
+      },
+    }),
+    objectStore: null,
+  });
+
+  assert.equal((await service.run(now)).ok, true);
+  assert.equal(db.calls.reconcileRefund[0].status, "failed");
+  assert.equal(db.calls.completeRefund.length, 0);
+});
+
+test("a stale bound pending refund backs off without creating a second refund", async () => {
+  const db = repository([[boundRefundWork()], []]);
+  let created = false;
+  const service = createLifecycleService({
+    repository: db.api,
+    refundProvider: refundProvider({
+      async fetchRefund() { return exactRefund; },
+      async createFullRefund() { created = true; return exactRefund; },
+    }),
+    objectStore: null,
+  });
+
+  const result = await service.run(now);
+  assert.equal(result.ok, false);
+  assert.equal(created, false);
+  assert.equal(db.calls.reconcileRefund.length, 0);
+  assert.deepEqual(db.calls.failRefund, [{
+    paymentId,
+    leaseToken: refundToken,
+    failureCode: "provider-still-pending",
+  }]);
+});
+
+test("a stale bound mismatched id or receipt stays retryable and never creates", async () => {
+  for (const mismatch of [
+    { ...exactRefund, id: "rfnd_different_1" },
+    { ...exactRefund, receipt: `${paymentId}:5` },
+  ]) {
+    const db = repository([[boundRefundWork()], []]);
+    let created = false;
+    const service = createLifecycleService({
+      repository: db.api,
+      refundProvider: refundProvider({
+        async fetchRefund() { return mismatch; },
+        async createFullRefund() { created = true; return exactRefund; },
+      }),
+      objectStore: null,
+    });
+
+    assert.equal((await service.run(now)).ok, false);
+    assert.equal(created, false);
+    assert.equal(db.calls.reconcileRefund.length, 0);
+    assert.equal(db.calls.failRefund[0].failureCode, "provider-response-mismatch");
+  }
+});
+
+test("an exact stale reconciliation retry reuses only the stored refund id", async () => {
+  const retryToken = "55555555-5555-4555-8555-555555555555";
+  const db = repository([
+    [boundRefundWork()], [boundRefundWork(retryToken)], [],
+  ]);
+  db.api.reconcileRefund = async (input) => {
+    db.calls.reconcileRefund.push(input);
+    if (db.calls.reconcileRefund.length === 1) {
+      throw new Error("database response lost after commit");
+    }
+    return true;
+  };
+  const fetchedIds = [];
+  const service = createLifecycleService({
+    repository: db.api,
+    refundProvider: refundProvider({
+      async fetchRefund(_providerPaymentId, providerRefundId) {
+        fetchedIds.push(providerRefundId);
+        return { ...exactRefund, status: "processed" };
+      },
+    }),
+    objectStore: null,
+  });
+
+  await assert.rejects(service.run(now), /database response lost after commit/u);
+  assert.equal((await service.run(now)).ok, true);
+  assert.deepEqual(fetchedIds, ["rfnd_exact_1", "rfnd_exact_1"]);
+  assert.deepEqual(
+    db.calls.reconcileRefund.map((call) => call.leaseToken),
+    [refundToken, retryToken],
+  );
+});
+
 test("persistence failure after a provider success is not rewritten as a provider failure", async () => {
   const db = repository([[refundWork()]]);
   db.api.completeRefund = async () => {
@@ -339,6 +493,71 @@ test("the runner uses fixed pages and stops at its finite page ceiling", async (
   assert.equal(result.processed, 250);
   assert.equal(result.capped, true);
   assert.deepEqual(db.calls.limits, Array(10).fill(25));
+});
+
+test("the safe deadline stops provider scheduling mid-page and a later run retries the lease", async () => {
+  const retryToken = "55555555-5555-4555-8555-555555555555";
+  const db = repository([
+    [refundWork(), refundWork(retryToken)],
+    [refundWork(retryToken)],
+    [],
+  ]);
+  let time = 0;
+  const providerCalls = [];
+  const service = createLifecycleService({
+    repository: db.api,
+    refundProvider: refundProvider({
+      async findRefundByReceipt(_providerPaymentId, receipt) {
+        providerCalls.push(receipt);
+        if (providerCalls.length === 1) time += 41_000;
+        return exactRefund;
+      },
+    }),
+    objectStore: null,
+    nowMs: () => time,
+  });
+
+  const first = await service.run(now);
+  assert.deepEqual(
+    { processed: first.processed, failed: first.failed, capped: first.capped },
+    { processed: 1, failed: 0, capped: true },
+  );
+  assert.equal(db.calls.completeRefund.length, 1);
+  assert.equal(providerCalls.length, 1);
+
+  time += 300_000;
+  const second = await service.run(now);
+  assert.equal(second.processed, 1);
+  assert.equal(second.capped, false);
+  assert.equal(providerCalls.length, 2);
+});
+
+test("the shared deadline does not start a second provider call that cannot fit", async () => {
+  const db = repository([[refundWork()]]);
+  let time = 0;
+  let created = false;
+  const service = createLifecycleService({
+    repository: db.api,
+    refundProvider: refundProvider({
+      async findRefundByReceipt() {
+        time += 41_000;
+        return null;
+      },
+      async createFullRefund() {
+        created = true;
+        return exactRefund;
+      },
+    }),
+    objectStore: null,
+    nowMs: () => time,
+  });
+
+  const result = await service.run(now);
+  assert.equal(result.capped, true);
+  assert.equal(result.processed, 0);
+  assert.equal(result.failed, 0);
+  assert.equal(created, false);
+  assert.equal(db.calls.failRefund.length, 0);
 });
 
 test("SigV4 signs DELETE distinctly from GET using the fixed AWS vector", () => {

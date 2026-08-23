@@ -12,6 +12,11 @@ begin
   foreach function_signature in array array[
     'public.claim_reporter_lifecycle(integer)',
     'public.fail_reporter_lifecycle_refund(uuid,uuid,text)',
+    'public.reconcile_reporter_refund(uuid,uuid,text,text,text,integer,text,text)',
+    'public.record_reporter_refund_request(uuid,uuid,text,text,integer,text)',
+    'public.fail_reporter_refund_request(uuid,uuid)',
+    'public.complete_razorpay_refund_webhook(text,uuid,text,text,integer,text)',
+    'public.complete_razorpay_refund_failure_webhook(text,uuid,text,text,integer,text)',
     'public.complete_reporter_recording_deletion(uuid,uuid,text,text)',
     'public.fail_reporter_recording_deletion(uuid,uuid,text,text)'
   ] loop
@@ -45,6 +50,49 @@ $$;
 
 do $$
 declare
+  function_oid regprocedure := to_regprocedure(
+    'public.publish_live_recording(uuid,text,text,uuid,uuid)'
+  );
+  function_definition text;
+begin
+  if function_oid is null then
+    raise exception 'missing publication function';
+  end if;
+  if not (
+    select prosecdef and coalesce(proconfig @> array['search_path=""'], false)
+    from pg_proc where oid = function_oid
+  ) then
+    raise exception 'unsafe publication function configuration';
+  end if;
+  if has_function_privilege('anon', function_oid, 'execute')
+    or not has_function_privilege('authenticated', function_oid, 'execute')
+    or has_function_privilege('service_role', function_oid, 'execute') then
+    raise exception 'incorrect publication function privileges';
+  end if;
+  select regexp_replace(pg_get_functiondef(function_oid), '\s+', ' ', 'g')
+  into function_definition;
+  if position(
+      'from public.reporter_live_requests where id = target_request_id for update'
+      in function_definition
+    ) = 0
+    or position(
+      'from public.live_recordings where id = p_recording_id for update'
+      in function_definition
+    ) = 0
+    or position(
+      'from public.reporter_live_requests where id = target_request_id for update'
+      in function_definition
+    ) > position(
+      'from public.live_recordings where id = p_recording_id for update'
+      in function_definition
+    ) then
+    raise exception 'publication lock order is not request then recording';
+  end if;
+end;
+$$;
+
+do $$
+declare
   nullable_exact_columns integer;
   required_lifecycle_columns integer;
 begin
@@ -64,14 +112,15 @@ begin
     and (
       (table_name = 'reporter_applications' and column_name = 'completion_reminded_at')
       or (table_name = 'reporter_profiles' and column_name = 'renewal_reminded_for')
+      or (table_name = 'reporter_payments' and column_name = 'refund_retry_ready_at')
       or (table_name = 'story_locations' and column_name = 'exact_coordinates_deleted_at')
       or (table_name = 'live_recordings' and column_name in (
         'storage_deleted_at', 'deletion_lease_token',
         'deletion_lease_claimed_at', 'deletion_attempt_count',
-        'deletion_failure_detail'
+        'deletion_failure_detail', 'deletion_retry_ready_at'
       ))
     );
-  if required_lifecycle_columns <> 8 then
+  if required_lifecycle_columns <> 10 then
     raise exception 'lifecycle evidence columns are incomplete';
   end if;
 

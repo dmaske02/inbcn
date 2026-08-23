@@ -161,6 +161,41 @@ test("finds the one exact refund by the existing attempt receipt", async () => {
   );
 });
 
+test("fetches only the exact stored refund id for stale reconciliation", async () => {
+  let requestedUrl;
+  const client = createRazorpayClient({
+    keyId: "key",
+    keySecret: "secret",
+    fetchImpl: async (url) => {
+      requestedUrl = String(url);
+      return Response.json({ ...refund, status: "processed" });
+    },
+  });
+
+  assert.deepEqual(
+    await client.fetchRefund(providerPaymentId, refund.id),
+    { ...refund, status: "processed" },
+  );
+  assert.equal(
+    requestedUrl,
+    `https://api.razorpay.com/v1/payments/${providerPaymentId}/refunds/${refund.id}`,
+  );
+});
+
+test("rejects a fetched refund whose id differs from the stored id", async () => {
+  const client = createRazorpayClient({
+    keyId: "key",
+    keySecret: "secret",
+    fetchImpl: async () => Response.json({ ...refund, id: "rfnd_different_1" }),
+  });
+
+  await assert.rejects(
+    client.fetchRefund(providerPaymentId, refund.id),
+    (error) => error instanceof RazorpayClientError
+      && error.code === "provider-response-invalid",
+  );
+});
+
 test("creates only the fixed full refund with the exact receipt and idempotency key", async () => {
   let request;
   const client = createRazorpayClient({

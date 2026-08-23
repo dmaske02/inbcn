@@ -21,6 +21,7 @@ const refundWork = z.object({
   lease_token: z.uuid(),
   attempt: z.number().int().positive(),
   provider_payment_id: providerId,
+  provider_refund_id: providerId.nullable(),
   amount_paise: z.literal(10_000),
   currency: z.literal("INR"),
 }).strict();
@@ -43,6 +44,7 @@ export type LifecycleWork =
       leaseToken: string;
       attempt: number;
       providerPaymentId: string;
+      providerRefundId: string | null;
       amountPaise: 10_000;
       currency: "INR";
     }>
@@ -64,13 +66,24 @@ export type LifecycleRepository = Readonly<{
     amountPaise: number;
     currency: string;
   }>): Promise<boolean>;
+  reconcileRefund(input: Readonly<{
+    paymentId: string;
+    leaseToken: string;
+    refundId: string;
+    providerPaymentId: string;
+    receipt: string;
+    amountPaise: number;
+    currency: string;
+    status: "processed" | "failed";
+  }>): Promise<boolean>;
   failRefund(input: Readonly<{
     paymentId: string;
     leaseToken: string;
     failureCode:
       | "provider-not-configured"
       | "provider-request-failed"
-      | "provider-response-mismatch";
+      | "provider-response-mismatch"
+      | "provider-still-pending";
   }>): Promise<boolean>;
   completeRecordingDeletion(input: Readonly<{
     recordingId: string;
@@ -113,6 +126,7 @@ export const lifecycleRepository: LifecycleRepository = {
         leaseToken: work.lease_token,
         attempt: work.attempt,
         providerPaymentId: work.provider_payment_id,
+        providerRefundId: work.provider_refund_id,
         amountPaise: work.amount_paise,
         currency: work.currency,
       };
@@ -144,6 +158,20 @@ export const lifecycleRepository: LifecycleRepository = {
       p_payment_id: input.paymentId,
       p_lease_token: input.leaseToken,
       p_failure_code: input.failureCode,
+    });
+    return assertResult(error, data);
+  },
+
+  async reconcileRefund(input) {
+    const { data, error } = await createAdminClient().rpc("reconcile_reporter_refund", {
+      p_payment_id: input.paymentId,
+      p_lease_token: input.leaseToken,
+      p_razorpay_refund_id: input.refundId,
+      p_razorpay_payment_id: input.providerPaymentId,
+      p_receipt: input.receipt,
+      p_amount_paise: input.amountPaise,
+      p_currency: input.currency,
+      p_provider_status: input.status,
     });
     return assertResult(error, data);
   },

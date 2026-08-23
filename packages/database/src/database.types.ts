@@ -213,6 +213,7 @@ export type Database = {
           refund_request_token: string | null
           refund_request_reserved_at: string | null
           refund_attempt_count: number
+          refund_retry_ready_at: string | null
           captured_at: string | null
           refund_eligible_at: string | null
           refund_requested_at: string | null
@@ -240,6 +241,7 @@ export type Database = {
           refund_request_token?: string | null
           refund_request_reserved_at?: string | null
           refund_attempt_count?: number
+          refund_retry_ready_at?: string | null
           captured_at?: string | null
           refund_eligible_at?: string | null
           refund_requested_at?: string | null
@@ -267,6 +269,7 @@ export type Database = {
           refund_request_token?: string | null
           refund_request_reserved_at?: string | null
           refund_attempt_count?: number
+          refund_retry_ready_at?: string | null
           captured_at?: string | null
           refund_eligible_at?: string | null
           refund_requested_at?: string | null
@@ -644,6 +647,7 @@ export type Database = {
           deletion_lease_claimed_at: string | null
           deletion_attempt_count: number
           deletion_failure_detail: string | null
+          deletion_retry_ready_at: string | null
           duration_seconds: number | null
           bytes: number | null
           checksum: string | null
@@ -679,6 +683,7 @@ export type Database = {
           deletion_lease_claimed_at?: string | null
           deletion_attempt_count?: number
           deletion_failure_detail?: string | null
+          deletion_retry_ready_at?: string | null
           duration_seconds?: number | null
           bytes?: number | null
           checksum?: string | null
@@ -714,6 +719,7 @@ export type Database = {
           deletion_lease_claimed_at?: string | null
           deletion_attempt_count?: number
           deletion_failure_detail?: string | null
+          deletion_retry_ready_at?: string | null
           duration_seconds?: number | null
           bytes?: number | null
           checksum?: string | null
@@ -1899,6 +1905,19 @@ export type Database = {
       publish_live_recording: {
         Args: { p_recording_id: string; p_title: string; p_description: string; p_category_id: string; p_thumbnail_media_id: string }
         Returns: string
+      }
+      reconcile_reporter_refund: {
+        Args: {
+          p_payment_id: string
+          p_lease_token: string
+          p_razorpay_refund_id: string
+          p_razorpay_payment_id: string
+          p_receipt: string
+          p_amount_paise: number
+          p_currency: string
+          p_provider_status: string
+        }
+        Returns: boolean
       }
       move_homepage_section: { Args: { section_id: string; direction: string }; Returns: undefined }
       move_homepage_section_to: { Args: { section_id: string; target_position: number }; Returns: undefined }

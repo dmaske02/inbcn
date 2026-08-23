@@ -49,3 +49,36 @@ test("SMS cannot be enabled before a provider is configured", async () => {
     },
   );
 });
+
+test("runtime cron secrets reject weak configured values and accept 32 characters", async () => {
+  const importEnvironment = (cronSecret) => execFileAsync(
+    process.execPath,
+    [
+      "--conditions=react-server",
+      "--experimental-strip-types",
+      "--input-type=module",
+      "-e",
+      'await import("./src/config/env.ts")',
+    ],
+    {
+      cwd: new URL("../..", import.meta.url),
+      env: {
+        ...process.env,
+        CRON_SECRET: cronSecret,
+        SMS_NOTIFICATIONS_ENABLED: "false",
+      },
+    },
+  );
+
+  await assert.rejects(
+    importEnvironment("too-short"),
+    (error) => {
+      assert.match(
+        `${error.stdout ?? ""}${error.stderr ?? ""}`,
+        /CRON_SECRET/u,
+      );
+      return true;
+    },
+  );
+  await importEnvironment("x".repeat(32));
+});

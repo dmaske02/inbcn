@@ -9,6 +9,10 @@ const optionalString = z.preprocess(
   emptyStringToUndefined,
   z.string().trim().min(1).optional(),
 );
+const optionalCronSecret = z.preprocess(
+  emptyStringToUndefined,
+  z.string().trim().min(32).optional(),
+);
 const optionalHttpUrl = z.preprocess(
   emptyStringToUndefined,
   z.url({ protocol: /^https?$/ }).optional(),
@@ -54,7 +58,7 @@ const environmentSchema = z
       emptyStringToUndefined,
       z.enum(["true", "false"]).optional(),
     ),
-    CRON_SECRET: optionalString,
+    CRON_SECRET: optionalCronSecret,
     SMS_NOTIFICATIONS_ENABLED: z.enum(["true", "false"]).default("false"),
   })
   .superRefine((values, context) => {

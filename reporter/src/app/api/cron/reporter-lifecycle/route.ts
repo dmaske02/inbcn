@@ -8,6 +8,8 @@ const headers = {
   Pragma: "no-cache",
 } as const;
 
+export const maxDuration = 60;
+
 function authorized(value: string | null): boolean {
   const secret = env.server.cronSecret;
   if (!secret || !value) return false;

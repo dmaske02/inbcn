@@ -8,6 +8,28 @@ alter table public.reporter_applications
 alter table public.reporter_profiles
   add column renewal_reminded_for timestamptz;
 
+alter table public.reporter_payments
+  add column refund_retry_ready_at timestamptz;
+
+update public.reporter_payments
+set refund_retry_ready_at = case
+  when refund_status = 'refund_pending'
+    and razorpay_refund_id is not null
+    and refund_requested_at is not null
+    then greatest(refund_eligible_at, refund_requested_at + interval '15 minutes')
+  when refund_status = 'refund_failed'
+    then greatest(
+      refund_eligible_at,
+      updated_at + make_interval(
+        mins => least(360, 5 * (
+          1 << least(greatest(refund_attempt_count - 1, 0), 7)
+        ))
+      )
+    )
+  else null
+end
+where refund_status in ('refund_pending', 'refund_failed');
+
 alter table public.story_locations
   alter column latitude drop not null,
   alter column longitude drop not null,
@@ -36,7 +58,8 @@ alter table public.live_recordings
   add column deletion_lease_token uuid,
   add column deletion_lease_claimed_at timestamptz,
   add column deletion_attempt_count integer not null default 0,
-  add column deletion_failure_detail text;
+  add column deletion_failure_detail text,
+  add column deletion_retry_ready_at timestamptz;
 
 alter table public.live_recordings
   drop constraint live_recordings_output_check,
@@ -74,6 +97,7 @@ alter table public.live_recordings
       )
     )
     and (deletion_failure_detail is null or deletion_lease_token is not null)
+    and (storage_deleted_at is null or deletion_retry_ready_at is null)
     and (
       storage_deleted_at is null
       or (
@@ -87,12 +111,28 @@ alter table public.live_recordings
   );
 
 create index live_recordings_deletion_due_idx
-  on public.live_recordings (retention_delete_at, id)
+  on public.live_recordings (
+    (greatest(
+      retention_delete_at,
+      coalesce(deletion_retry_ready_at, retention_delete_at)
+    )),
+    id
+  )
   where recording_status = 'completed'
     and replay_status in ('private', 'rejected')
     and retention_delete_at is not null
     and storage_deleted_at is null
     and not legal_hold;
+
+create index reporter_payments_lifecycle_retry_due_idx
+  on public.reporter_payments (
+    (greatest(
+      refund_eligible_at,
+      coalesce(refund_retry_ready_at, refund_eligible_at)
+    )),
+    id
+  )
+  where refund_status in ('refund_pending', 'refund_failed');
 
 create index story_locations_exact_retention_due_idx
   on public.story_locations (retention_due_at, id)
@@ -104,10 +144,14 @@ comment on column public.reporter_applications.completion_reminded_at is
   'Database-owned marker for the one incomplete-application reminder.';
 comment on column public.reporter_profiles.renewal_reminded_for is
   'The exact membership expiry for which the 30-day reminder was committed.';
+comment on column public.reporter_payments.refund_retry_ready_at is
+  'Database-owned retry/reconciliation readiness; refund_eligible_at remains immutable.';
 comment on column public.story_locations.exact_coordinates_deleted_at is
   'When exact coordinate evidence was removed; locality and receipt time remain.';
 comment on column public.live_recordings.storage_deleted_at is
   'Provider-confirmed object deletion or not-found time; the canonical key is then cleared.';
+comment on column public.live_recordings.deletion_retry_ready_at is
+  'Database-owned provider retry readiness; retention_delete_at remains immutable.';
 
 create function public.prevent_live_recording_deletion_race()
 returns trigger
@@ -134,6 +178,7 @@ begin
       new.deletion_lease_token := null;
       new.deletion_lease_claimed_at := null;
       new.deletion_failure_detail := null;
+      new.deletion_retry_ready_at := null;
     else
       raise exception using
         errcode = '55000',
@@ -306,6 +351,7 @@ begin
       refund_requested_at = requested_at,
       refund_request_token = null,
       refund_request_reserved_at = null,
+      refund_retry_ready_at = requested_at + interval '15 minutes',
       updated_at = requested_at
   where id = current_payment.id;
   insert into public.audit_events (
@@ -318,6 +364,346 @@ begin
     jsonb_build_object('attempt', current_payment.refund_attempt_count),
     requested_at
   );
+  return true;
+end;
+$$;
+
+create function public.reconcile_reporter_refund(
+  p_payment_id uuid,
+  p_lease_token uuid,
+  p_razorpay_refund_id text,
+  p_razorpay_payment_id text,
+  p_receipt text,
+  p_amount_paise integer,
+  p_currency text,
+  p_provider_status text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  current_payment public.reporter_payments%rowtype;
+  reconciliation_time timestamptz := clock_timestamp();
+begin
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
+    raise exception using errcode = '42501', message = 'REPORTER_REFUND_FORBIDDEN';
+  end if;
+  if p_payment_id is null or p_lease_token is null
+    or p_razorpay_refund_id is null
+    or length(btrim(p_razorpay_refund_id)) not between 1 and 100
+    or p_razorpay_payment_id is null
+    or length(btrim(p_razorpay_payment_id)) not between 1 and 100
+    or p_receipt is null or length(p_receipt) not between 1 and 40
+    or p_amount_paise <> 10000 or p_currency <> 'INR'
+    or p_provider_status not in ('processed', 'failed') then
+    raise exception using errcode = '22023', message = 'REPORTER_REFUND_MISMATCH';
+  end if;
+
+  select * into current_payment
+  from public.reporter_payments
+  where id = p_payment_id
+  for update;
+  if not found
+    or current_payment.purpose <> 'application'
+    or current_payment.payment_status <> 'captured'
+    or current_payment.razorpay_refund_id
+      is distinct from btrim(p_razorpay_refund_id)
+    or current_payment.razorpay_payment_id
+      is distinct from btrim(p_razorpay_payment_id)
+    or current_payment.amount_paise <> p_amount_paise
+    or current_payment.currency <> p_currency
+    or p_receipt is distinct from current_payment.id::text || ':'
+      || current_payment.refund_attempt_count::text then
+    raise exception using errcode = '22023', message = 'REPORTER_REFUND_MISMATCH';
+  end if;
+
+  if p_provider_status = 'processed'
+    and current_payment.refund_status = 'refunded' then
+    return true;
+  end if;
+  if p_provider_status = 'failed'
+    and current_payment.refund_status = 'refund_failed'
+    and current_payment.refund_failure_detail = 'provider-confirmed-failure'
+    and current_payment.refund_request_token is null then
+    return true;
+  end if;
+  if current_payment.refund_status <> 'refund_pending'
+    or current_payment.refund_requested_at is null
+    or current_payment.refund_request_token is distinct from p_lease_token then
+    return false;
+  end if;
+
+  if p_provider_status = 'processed' then
+    update public.reporter_payments
+    set refund_status = 'refunded',
+        refunded_at = coalesce(current_payment.refunded_at, reconciliation_time),
+        refund_request_token = null,
+        refund_request_reserved_at = null,
+        refund_failure_detail = null,
+        refund_retry_ready_at = null,
+        updated_at = reconciliation_time
+    where id = current_payment.id;
+    insert into public.audit_events (
+      actor_id, action, subject_type, subject_id, metadata, created_at
+    ) values (
+      null,
+      'reporter.refund_confirmed',
+      'reporter_payment',
+      current_payment.id,
+      jsonb_build_object('purpose', current_payment.purpose),
+      reconciliation_time
+    );
+  else
+    update public.reporter_payments
+    set refund_status = 'refund_failed',
+        refund_request_token = null,
+        refund_request_reserved_at = null,
+        refund_failure_detail = 'provider-confirmed-failure',
+        refund_retry_ready_at = reconciliation_time + make_interval(
+          mins => least(360, 5 * (
+            1 << least(greatest(current_payment.refund_attempt_count - 1, 0), 7)
+          ))
+        ),
+        updated_at = reconciliation_time
+    where id = current_payment.id;
+    insert into public.audit_events (
+      actor_id, action, subject_type, subject_id, metadata, created_at
+    ) values (
+      null,
+      'reporter.refund_terminal_failure',
+      'reporter_payment',
+      current_payment.id,
+      jsonb_build_object('attempt', current_payment.refund_attempt_count),
+      reconciliation_time
+    );
+  end if;
+  return true;
+end;
+$$;
+
+-- Signed webhooks remain authoritative after a service-role reconciliation.
+create or replace function public.complete_razorpay_refund_webhook(
+  p_event_id text,
+  p_processing_token uuid,
+  p_razorpay_refund_id text,
+  p_razorpay_payment_id text,
+  p_amount_paise integer,
+  p_currency text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  current_event public.webhook_events%rowtype;
+  current_payment public.reporter_payments%rowtype;
+  processing_time timestamptz := clock_timestamp();
+  was_refunded boolean;
+begin
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
+    raise exception using errcode = '42501', message = 'RAZORPAY_WEBHOOK_FORBIDDEN';
+  end if;
+  if p_amount_paise <> 10000 or p_currency <> 'INR'
+    or p_razorpay_refund_id is null
+    or length(btrim(p_razorpay_refund_id)) not between 1 and 100
+    or p_razorpay_payment_id is null
+    or length(btrim(p_razorpay_payment_id)) not between 1 and 100 then
+    raise exception using errcode = '22023', message = 'RAZORPAY_REFUND_MISMATCH';
+  end if;
+  select * into current_event
+  from public.webhook_events
+  where provider = 'razorpay' and provider_event_id = btrim(p_event_id)
+  for update;
+  if not found or current_event.processing_status <> 'pending'
+    or current_event.processing_token <> p_processing_token
+    or current_event.event_type <> 'refund.processed' then
+    return false;
+  end if;
+  select * into current_payment
+  from public.reporter_payments
+  where razorpay_payment_id = btrim(p_razorpay_payment_id)
+  for update;
+  if not found or current_payment.payment_status <> 'captured'
+    or current_payment.amount_paise <> p_amount_paise
+    or current_payment.currency <> p_currency
+    or current_payment.refund_status not in (
+      'refund_pending', 'refund_failed', 'refunded'
+    )
+    or (
+      current_payment.refund_attempt_count > 1
+      and current_payment.refund_request_token is not null
+      and current_payment.razorpay_refund_id is null
+    )
+    or (
+      current_payment.razorpay_refund_id is not null
+      and current_payment.razorpay_refund_id <> btrim(p_razorpay_refund_id)
+    ) then
+    raise exception using errcode = '22023', message = 'RAZORPAY_REFUND_MISMATCH';
+  end if;
+  was_refunded := current_payment.refund_status = 'refunded';
+  update public.reporter_payments
+  set refund_status = 'refunded',
+      razorpay_refund_id = btrim(p_razorpay_refund_id),
+      refund_requested_at = coalesce(refund_requested_at, processing_time),
+      refunded_at = coalesce(refunded_at, processing_time),
+      refund_request_token = null,
+      refund_request_reserved_at = null,
+      refund_failure_detail = null,
+      refund_retry_ready_at = null,
+      updated_at = processing_time
+  where id = current_payment.id;
+  update public.webhook_events
+  set processing_status = 'processed',
+      processing_token = null,
+      failure_detail = null,
+      subject_type = 'reporter_payment',
+      subject_id = current_payment.id,
+      processed_at = processing_time,
+      updated_at = processing_time
+  where id = current_event.id;
+  if not was_refunded then
+    insert into public.audit_events (
+      actor_id, action, subject_type, subject_id, metadata, created_at
+    ) values (
+      null,
+      'reporter.refund_confirmed',
+      'reporter_payment',
+      current_payment.id,
+      jsonb_build_object('purpose', current_payment.purpose),
+      processing_time
+    );
+  end if;
+  return true;
+end;
+$$;
+
+create or replace function public.complete_razorpay_refund_failure_webhook(
+  p_event_id text,
+  p_processing_token uuid,
+  p_razorpay_refund_id text,
+  p_razorpay_payment_id text,
+  p_amount_paise integer,
+  p_currency text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  current_event public.webhook_events%rowtype;
+  current_payment public.reporter_payments%rowtype;
+  processing_time timestamptz := clock_timestamp();
+begin
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
+    raise exception using errcode = '42501', message = 'RAZORPAY_WEBHOOK_FORBIDDEN';
+  end if;
+  if p_amount_paise <> 10000 or p_currency <> 'INR'
+    or p_razorpay_refund_id is null
+    or length(btrim(p_razorpay_refund_id)) not between 1 and 100
+    or p_razorpay_payment_id is null
+    or length(btrim(p_razorpay_payment_id)) not between 1 and 100 then
+    raise exception using errcode = '22023', message = 'RAZORPAY_REFUND_MISMATCH';
+  end if;
+  select * into current_event
+  from public.webhook_events
+  where provider = 'razorpay' and provider_event_id = btrim(p_event_id)
+  for update;
+  if not found or current_event.processing_status <> 'pending'
+    or current_event.processing_token <> p_processing_token
+    or current_event.event_type <> 'refund.failed' then
+    return false;
+  end if;
+  select * into current_payment
+  from public.reporter_payments
+  where razorpay_payment_id = btrim(p_razorpay_payment_id)
+  for update;
+  if not found or current_payment.payment_status <> 'captured'
+    or current_payment.amount_paise <> p_amount_paise
+    or current_payment.currency <> p_currency
+    or current_payment.refund_status not in ('refund_pending', 'refund_failed')
+    or (
+      current_payment.refund_attempt_count > 1
+      and current_payment.refund_request_token is not null
+      and current_payment.razorpay_refund_id is null
+    )
+    or (
+      current_payment.razorpay_refund_id is not null
+      and current_payment.razorpay_refund_id <> btrim(p_razorpay_refund_id)
+    ) then
+    raise exception using errcode = '22023', message = 'RAZORPAY_REFUND_MISMATCH';
+  end if;
+  update public.reporter_payments
+  set refund_status = 'refund_failed',
+      razorpay_refund_id = btrim(p_razorpay_refund_id),
+      refund_requested_at = coalesce(refund_requested_at, processing_time),
+      refund_request_token = null,
+      refund_request_reserved_at = null,
+      refund_failure_detail = 'provider-confirmed-failure',
+      refund_retry_ready_at = coalesce(
+        refund_retry_ready_at,
+        processing_time + make_interval(
+          mins => least(360, 5 * (
+            1 << least(greatest(current_payment.refund_attempt_count - 1, 0), 7)
+          ))
+        )
+      ),
+      updated_at = processing_time
+  where id = current_payment.id;
+  update public.webhook_events
+  set processing_status = 'processed',
+      processing_token = null,
+      failure_detail = null,
+      subject_type = 'reporter_payment',
+      subject_id = current_payment.id,
+      processed_at = processing_time,
+      updated_at = processing_time
+  where id = current_event.id;
+  return true;
+end;
+$$;
+
+create or replace function public.fail_reporter_refund_request(
+  p_payment_id uuid,
+  p_refund_request_token uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  current_payment public.reporter_payments%rowtype;
+  failure_time timestamptz := clock_timestamp();
+begin
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
+    raise exception using errcode = '42501', message = 'REPORTER_REFUND_FORBIDDEN';
+  end if;
+  select * into current_payment
+  from public.reporter_payments
+  where id = p_payment_id
+  for update;
+  if not found
+    or current_payment.refund_status <> 'refund_pending'
+    or current_payment.razorpay_refund_id is not null
+    or current_payment.refund_request_token <> p_refund_request_token then
+    return false;
+  end if;
+  update public.reporter_payments
+  set refund_status = 'refund_failed',
+      refund_request_token = null,
+      refund_request_reserved_at = null,
+      refund_failure_detail = 'provider-request-rejected',
+      refund_retry_ready_at = failure_time + make_interval(
+        mins => least(360, 5 * (
+          1 << least(greatest(current_payment.refund_attempt_count - 1, 0), 7)
+        ))
+      ),
+      updated_at = failure_time
+  where id = current_payment.id;
   return true;
 end;
 $$;
@@ -417,11 +803,10 @@ begin
       select
         greatest(
           reporter_payments.refund_eligible_at,
-          case
-            when reporter_payments.refund_status = 'refund_failed'
-              then reporter_payments.updated_at + interval '5 minutes'
-            else reporter_payments.refund_eligible_at
-          end
+          coalesce(
+            reporter_payments.refund_retry_ready_at,
+            reporter_payments.refund_eligible_at
+          )
         ),
         reporter_payments.id,
         'refund'::text
@@ -434,23 +819,25 @@ begin
         and reporter_payments.refund_eligible_at <= lifecycle_time
         and reporter_payments.razorpay_payment_id is not null
         and reporter_payments.refund_status in ('refund_pending', 'refund_failed')
-        and (
-          reporter_payments.refund_status = 'refund_failed'
-          or reporter_payments.razorpay_refund_id is null
-        )
+        and coalesce(
+          reporter_payments.refund_retry_ready_at,
+          reporter_payments.refund_eligible_at
+        ) <= lifecycle_time
         and (
           reporter_payments.refund_request_token is null
           or reporter_payments.refund_request_reserved_at
             <= lifecycle_time - interval '5 minutes'
         )
-        and (
-          reporter_payments.refund_status <> 'refund_failed'
-          or reporter_payments.updated_at <= lifecycle_time - interval '5 minutes'
-        )
 
       union all
       select
-        live_recordings.retention_delete_at,
+        greatest(
+          live_recordings.retention_delete_at,
+          coalesce(
+            live_recordings.deletion_retry_ready_at,
+            live_recordings.retention_delete_at
+          )
+        ),
         live_recordings.id,
         'recording_delete'::text
       from public.live_recordings
@@ -458,6 +845,10 @@ begin
         and live_recordings.replay_status in ('private', 'rejected')
         and live_recordings.retention_delete_at is not null
         and live_recordings.retention_delete_at <= lifecycle_time
+        and coalesce(
+          live_recordings.deletion_retry_ready_at,
+          live_recordings.retention_delete_at
+        ) <= lifecycle_time
         and live_recordings.storage_key is not null
         and live_recordings.storage_deleted_at is null
         and not live_recordings.legal_hold
@@ -695,21 +1086,18 @@ begin
         or current_payment.currency <> 'INR'
         or current_payment.refund_eligible_at is null
         or current_payment.refund_eligible_at > lifecycle_time
+        or coalesce(
+          current_payment.refund_retry_ready_at,
+          current_payment.refund_eligible_at
+        ) > lifecycle_time
         or current_payment.razorpay_payment_id is null
         or current_payment.refund_status not in ('refund_pending', 'refund_failed')
-        or (
-          current_payment.refund_status = 'refund_pending'
-          and current_payment.razorpay_refund_id is not null
-        )
         or (
           current_payment.refund_request_token is not null
           and current_payment.refund_request_reserved_at
             > lifecycle_time - interval '5 minutes'
         )
-        or (
-          current_payment.refund_status = 'refund_failed'
-          and current_payment.updated_at > lifecycle_time - interval '5 minutes'
-        ) then
+        then
         continue;
       end if;
       next_attempt := case
@@ -729,6 +1117,7 @@ begin
           refund_request_reserved_at = lifecycle_time,
           refund_attempt_count = next_attempt,
           refund_failure_detail = null,
+          refund_retry_ready_at = null,
           updated_at = lifecycle_time
       where id = current_payment.id;
       work_items := work_items || jsonb_build_array(jsonb_build_object(
@@ -737,6 +1126,10 @@ begin
         'lease_token', lease_token,
         'attempt', next_attempt,
         'provider_payment_id', current_payment.razorpay_payment_id,
+        'provider_refund_id', case
+          when current_payment.refund_status = 'refund_failed' then null
+          else current_payment.razorpay_refund_id
+        end,
         'amount_paise', current_payment.amount_paise,
         'currency', current_payment.currency
       ));
@@ -765,6 +1158,10 @@ begin
         or current_recording.replay_status not in ('private', 'rejected')
         or current_recording.retention_delete_at is null
         or current_recording.retention_delete_at > lifecycle_time
+        or coalesce(
+          current_recording.deletion_retry_ready_at,
+          current_recording.retention_delete_at
+        ) > lifecycle_time
         or current_recording.storage_key is null
         or current_recording.storage_deleted_at is not null
         or current_recording.legal_hold
@@ -790,6 +1187,7 @@ begin
           deletion_lease_claimed_at = lifecycle_time,
           deletion_attempt_count = next_attempt,
           deletion_failure_detail = null,
+          deletion_retry_ready_at = null,
           updated_at = lifecycle_time
       where id = current_recording.id;
       work_items := work_items || jsonb_build_array(jsonb_build_object(
@@ -875,7 +1273,8 @@ begin
     or p_failure_code not in (
       'provider-not-configured',
       'provider-request-failed',
-      'provider-response-mismatch'
+      'provider-response-mismatch',
+      'provider-still-pending'
     ) then
     raise exception using errcode = '22023', message = 'REPORTER_LIFECYCLE_FAILURE_INVALID';
   end if;
@@ -885,7 +1284,6 @@ begin
   for update;
   if not found
     or current_payment.refund_status <> 'refund_pending'
-    or current_payment.razorpay_refund_id is not null
     or current_payment.refund_request_token is distinct from p_lease_token then
     return false;
   end if;
@@ -895,6 +1293,11 @@ begin
 
   update public.reporter_payments
   set refund_failure_detail = p_failure_code,
+      refund_retry_ready_at = failure_time + make_interval(
+        mins => least(360, 5 * (
+          1 << least(greatest(current_payment.refund_attempt_count - 1, 0), 7)
+        ))
+      ),
       updated_at = failure_time
   where id = current_payment.id;
   insert into public.audit_events (
@@ -987,6 +1390,7 @@ begin
       deletion_lease_token = null,
       deletion_lease_claimed_at = null,
       deletion_failure_detail = null,
+      deletion_retry_ready_at = null,
       updated_at = completion_time
   where id = current_recording.id;
   insert into public.audit_events (
@@ -1079,6 +1483,11 @@ begin
   update public.live_recordings
   set deletion_lease_token = p_lease_token,
       deletion_failure_detail = p_failure_code,
+      deletion_retry_ready_at = failure_time + make_interval(
+        mins => least(360, 5 * (
+          1 << least(greatest(current_recording.deletion_attempt_count - 1, 0), 7)
+        ))
+      ),
       updated_at = failure_time
   where id = current_recording.id;
   insert into public.audit_events (
@@ -1095,20 +1504,183 @@ begin
 end;
 $$;
 
+-- Match every recording/deletion path on request -> recording lock order.
+create or replace function public.publish_live_recording(
+  p_recording_id uuid,
+  p_title text,
+  p_description text,
+  p_category_id uuid,
+  p_thumbnail_media_id uuid
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  actor_id uuid := auth.uid();
+  actor_role text := auth.jwt() -> 'app_metadata' ->> 'role';
+  target_request_id uuid;
+  current_request public.reporter_live_requests%rowtype;
+  current_recording public.live_recordings%rowtype;
+  publication_time timestamptz := clock_timestamp();
+  normalized_title text := btrim(p_title);
+  normalized_description text := btrim(p_description);
+begin
+  if actor_id is null or actor_role not in ('editor', 'admin')
+    or not exists (
+      select 1 from public.profiles
+      where profiles.id = actor_id
+        and profiles.role::text = actor_role
+        and profiles.role in ('editor', 'admin')
+        and profiles.is_active
+    ) then
+    raise exception using errcode = '42501', message = 'LIVE_RECORDING_REVIEW_FORBIDDEN';
+  end if;
+  if p_recording_id is null or p_title is null
+    or length(normalized_title) not between 1 and 240
+    or p_description is null
+    or length(normalized_description) not between 1 and 4000
+    or p_category_id is null or p_thumbnail_media_id is null then
+    raise exception using errcode = '22023', message = 'LIVE_RECORDING_PUBLICATION_INVALID';
+  end if;
+
+  select live_request_id into target_request_id
+  from public.live_recordings
+  where id = p_recording_id;
+  if not found then
+    raise exception using errcode = 'P0002', message = 'LIVE_RECORDING_NOT_FOUND';
+  end if;
+  select * into current_request
+  from public.reporter_live_requests
+  where id = target_request_id
+  for update;
+  if not found then
+    raise exception using errcode = 'P0002', message = 'LIVE_RECORDING_NOT_FOUND';
+  end if;
+  select * into current_recording
+  from public.live_recordings
+  where id = p_recording_id
+  for update;
+  if not found
+    or current_recording.live_request_id <> current_request.id
+    or current_request.status not in ('approved', 'terminated') then
+    raise exception using errcode = '55000', message = 'LIVE_RECORDING_DECISION_CONFLICT';
+  end if;
+  if current_recording.replay_status = 'published' then
+    if current_recording.replay_title is distinct from normalized_title
+      or current_recording.replay_description is distinct from normalized_description
+      or current_recording.replay_category_id is distinct from p_category_id
+      or current_recording.replay_thumbnail_media_id
+        is distinct from p_thumbnail_media_id then
+      raise exception using errcode = '23505', message = 'LIVE_RECORDING_DECISION_CONFLICT';
+    end if;
+    return current_recording.id;
+  end if;
+  if current_recording.recording_status <> 'completed'
+    or current_recording.replay_status <> 'private'
+    or current_recording.storage_key is null
+    or current_recording.storage_deleted_at is not null
+    or (
+      current_recording.deletion_lease_token is not null
+      and current_recording.deletion_failure_detail
+        is distinct from 'provider-not-configured'
+    ) then
+    raise exception using errcode = '55000', message = 'LIVE_RECORDING_DECISION_CONFLICT';
+  end if;
+  perform 1 from public.categories
+  where categories.id = p_category_id and categories.is_active
+  for share;
+  if not found then
+    raise exception using errcode = '22023', message = 'LIVE_RECORDING_PUBLICATION_INVALID';
+  end if;
+  perform 1 from public.media
+  where media.id = p_thumbnail_media_id
+    and media.media_type = 'image'
+    and media.deleted_at is null
+  for share;
+  if not found then
+    raise exception using errcode = '22023', message = 'LIVE_RECORDING_PUBLICATION_INVALID';
+  end if;
+
+  update public.live_recordings
+  set replay_status = 'published',
+      replay_title = normalized_title,
+      replay_description = normalized_description,
+      replay_category_id = p_category_id,
+      replay_thumbnail_media_id = p_thumbnail_media_id,
+      replay_published_at = publication_time
+  where id = current_recording.id;
+  insert into public.public_live_replays (
+    id, live_request_id, title, description, category_id, thumbnail_media_id,
+    duration_seconds, recording_started_at, recording_ended_at,
+    published_at, created_at, updated_at
+  ) values (
+    current_recording.id,
+    current_recording.live_request_id,
+    normalized_title,
+    normalized_description,
+    p_category_id,
+    p_thumbnail_media_id,
+    current_recording.duration_seconds,
+    current_recording.recording_started_at,
+    current_recording.recording_completed_at,
+    publication_time,
+    publication_time,
+    publication_time
+  );
+  insert into public.audit_events (
+    actor_id, action, subject_type, subject_id, metadata, created_at
+  ) values (
+    actor_id,
+    'live_recording.published',
+    'live_recording',
+    current_recording.id,
+    '{"status":"published","changed_fields":["title","description","category","thumbnail"]}'::jsonb,
+    publication_time
+  );
+  return current_recording.id;
+end;
+$$;
+
 revoke all on function public.claim_reporter_lifecycle(integer)
 from public, anon, authenticated, service_role;
 revoke all on function public.fail_reporter_lifecycle_refund(uuid, uuid, text)
 from public, anon, authenticated, service_role;
+revoke all on function public.reconcile_reporter_refund(uuid, uuid, text, text, text, integer, text, text)
+from public, anon, authenticated, service_role;
 revoke all on function public.complete_reporter_recording_deletion(uuid, uuid, text, text)
 from public, anon, authenticated, service_role;
 revoke all on function public.fail_reporter_recording_deletion(uuid, uuid, text, text)
+from public, anon, authenticated, service_role;
+revoke all on function public.record_reporter_refund_request(uuid, uuid, text, text, integer, text)
+from public, anon, authenticated, service_role;
+revoke all on function public.complete_razorpay_refund_webhook(text, uuid, text, text, integer, text)
+from public, anon, authenticated, service_role;
+revoke all on function public.complete_razorpay_refund_failure_webhook(text, uuid, text, text, integer, text)
+from public, anon, authenticated, service_role;
+revoke all on function public.fail_reporter_refund_request(uuid, uuid)
+from public, anon, authenticated, service_role;
+revoke all on function public.publish_live_recording(uuid, text, text, uuid, uuid)
 from public, anon, authenticated, service_role;
 
 grant execute on function public.claim_reporter_lifecycle(integer)
 to service_role;
 grant execute on function public.fail_reporter_lifecycle_refund(uuid, uuid, text)
 to service_role;
+grant execute on function public.reconcile_reporter_refund(uuid, uuid, text, text, text, integer, text, text)
+to service_role;
 grant execute on function public.complete_reporter_recording_deletion(uuid, uuid, text, text)
 to service_role;
 grant execute on function public.fail_reporter_recording_deletion(uuid, uuid, text, text)
 to service_role;
+grant execute on function public.record_reporter_refund_request(uuid, uuid, text, text, integer, text)
+to service_role;
+grant execute on function public.complete_razorpay_refund_webhook(text, uuid, text, text, integer, text)
+to service_role;
+grant execute on function public.complete_razorpay_refund_failure_webhook(text, uuid, text, text, integer, text)
+to service_role;
+grant execute on function public.fail_reporter_refund_request(uuid, uuid)
+to service_role;
+grant execute on function public.publish_live_recording(uuid, text, text, uuid, uuid)
+to authenticated;

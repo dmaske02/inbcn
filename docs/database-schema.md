@@ -149,15 +149,24 @@ provider-work eligibility; concurrent renewal therefore wins before a stale
 membership transition can commit. Stored direct-publication and live grants are
 preserved while their effective use continues to follow current membership.
 
-Refund and private-recording deletion work uses five-minute leases. Provider
+Refund and private-recording deletion work uses five-minute leases and separate
+database-owned `refund_retry_ready_at` / `deletion_retry_ready_at` backoff
+timestamps. Global due ordering uses those retry timestamps without changing
+the original refund-eligibility or recording-retention evidence. Provider
 request/response ambiguity retains the same attempt (and therefore the same
-receipt and idempotency key). An exact refund object is bound to the payment;
-only the existing signed webhook lifecycle finalizes success or failure, and a
-signed failed transition advances a later attempt. Recording deletion requires a due, completed, private/rejected,
-unpublished canonical object with no legal hold or unresolved reconciliation.
+receipt and idempotency key). After the webhook grace window, an exact bound
+refund is fetched by its stored Razorpay refund ID; locked service-role
+reconciliation accepts only the same payment, refund, receipt, `10000` paise,
+`INR`, and terminal status. Pending or mismatched results back off and never
+create a second refund. Signed webhooks remain authoritative and idempotent;
+only a confirmed terminal failure advances a later attempt. Recording deletion
+requires a due, completed, private/rejected, unpublished canonical object with
+no legal hold or unresolved reconciliation.
 Provider-confirmed deletion or not-found clears the private key and records
 `storage_deleted_at`; a deletion lease fences concurrent publication and hold
-changes. Exact story coordinates become nullable only as an all-or-none retained
+changes. Publication now uses the same request-then-recording lock order as
+deletion and rechecks the relationship and object/deletion state under lock.
+Exact story coordinates become nullable only as an all-or-none retained
 evidence state: the lifecycle clears latitude, longitude, accuracy, and capture
 time after the existing one-year final-story deadline while retaining locality,
 receipt time, and `exact_coordinates_deleted_at`.

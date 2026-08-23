@@ -95,13 +95,19 @@ updates and receive no editorial privileges.
   the exact leased server-side work item. Browser routes receive only aggregate
   counts.
 - Lifecycle refund completion delegates to the existing exact Razorpay request
-  recorder and signed-webhook confirmation path. Ambiguous failure keeps the
-  same lease, attempt, receipt, and idempotency key; fixed safe failure codes are
-  the only persisted provider error facts. Recording completion/failure locks
+  recorder. A stale bound refund is fetched only by its stored provider refund
+  ID and crosses a separate service-role-only, row-locked reconciliation RPC
+  that rechecks the stored payment/refund IDs, receipt attempt, fixed money, and
+  terminal provider status. Pending, ambiguous, or mismatched observations keep
+  the same bound refund and use DB-owned bounded backoff; fixed safe failure
+  codes are the only persisted provider error facts. Signed refund webhooks
+  remain authoritative and exact late delivery is idempotent. Recording completion/failure locks
   the live request before its recording, verifies the exact lease and canonical
   key, and rechecks private/rejected status, public replay absence, legal hold,
-  retention, and terminal reconciliation. A trigger prevents publication or a
-  hold mutation after object deletion has begun.
+  retention, and terminal reconciliation. Publication uses that same
+  request-before-recording order and rechecks relationship, storage, and lease
+  state under both locks. A trigger prevents publication or a hold mutation
+  after object deletion has begun.
 - Exact-coordinate lifecycle work locks the final story before its location,
   rechecks the database-owned retention date and legal hold, and clears only
   latitude, longitude, accuracy, and capture time. Locality and receipt time
