@@ -17,22 +17,63 @@ comment on column public.live_recordings.terminal_reconciliation_status is
   'DB-owned monotonic terminal-reconciliation state. Unknown quarantines a legacy bound reconciliation until an exact terminal observation. Never exposed to browsers, public projections, audit metadata, or notifications.';
 
 -- The old reconciliation RPC atomically bound the Egress and wrote this exact
--- audit row while retaining the pending claim. Lock writers while upgrading so
--- only that precise legacy shape is quarantined; no terminal outcome is guessed.
+-- audit row while retaining the pending claim. Lock writers while upgrading,
+-- reject audited bindings that have since left that exact shape, then quarantine
+-- the safe pending claim without guessing a terminal outcome.
 lock table public.live_recordings in share row exclusive mode;
 
-update public.live_recordings as legacy_recording
-set terminal_reconciliation_status = 'unknown'
-where legacy_recording.recording_status = 'pending'
-  and legacy_recording.egress_id is not null
-  and legacy_recording.recording_claim_token is not null
-  and exists (
+create or replace function private.quarantine_legacy_live_recording_reconciliations()
+returns integer
+language plpgsql
+set search_path = ''
+as $$
+declare
+  quarantined_count integer;
+begin
+  if exists (
     select 1
-    from public.audit_events as reconciliation_audit
-    where reconciliation_audit.action = 'live_recording.reconciliation_required'
-      and reconciliation_audit.subject_type = 'live_recording'
-      and reconciliation_audit.subject_id = legacy_recording.id
-  );
+    from public.live_recordings as legacy_recording
+    where legacy_recording.terminal_reconciliation_status is null
+      and legacy_recording.egress_id is not null
+      and exists (
+        select 1
+        from public.audit_events as reconciliation_audit
+        where reconciliation_audit.action = 'live_recording.reconciliation_required'
+          and reconciliation_audit.subject_type = 'live_recording'
+          and reconciliation_audit.subject_id = legacy_recording.id
+      )
+      and not (legacy_recording.recording_status = 'pending'
+        and legacy_recording.recording_claim_token is not null
+        and legacy_recording.recording_claimed_at is not null)
+  ) then
+    raise exception using
+      errcode = '55000',
+      message = 'LIVE_RECORDING_RECONCILIATION_UPGRADE_REQUIRES_OPERATOR_REMEDIATION';
+  end if;
+
+  update public.live_recordings as legacy_recording
+  set terminal_reconciliation_status = 'unknown'
+  where legacy_recording.recording_status = 'pending'
+    and legacy_recording.egress_id is not null
+    and legacy_recording.recording_claim_token is not null
+    and legacy_recording.recording_claimed_at is not null
+    and legacy_recording.terminal_reconciliation_status is null
+    and exists (
+      select 1
+      from public.audit_events as reconciliation_audit
+      where reconciliation_audit.action = 'live_recording.reconciliation_required'
+        and reconciliation_audit.subject_type = 'live_recording'
+        and reconciliation_audit.subject_id = legacy_recording.id
+    );
+  get diagnostics quarantined_count = row_count;
+  return quarantined_count;
+end;
+$$;
+
+revoke all on function private.quarantine_legacy_live_recording_reconciliations()
+from public, anon, authenticated, service_role;
+
+select private.quarantine_legacy_live_recording_reconciliations();
 
 create or replace function private.guard_live_recording_terminal_reconciliation()
 returns trigger
@@ -487,6 +528,12 @@ begin
     raise exception using errcode = '22023', message = 'LIVEKIT_WEBHOOK_TARGET_MISMATCH';
   end if;
 
+  if current_recording.terminal_reconciliation_status in ('completed', 'failed')
+    and p_recording_status in ('completed', 'failed')
+    and current_recording.terminal_reconciliation_status is distinct from p_recording_status then
+    raise exception using errcode = '22023', message = 'LIVEKIT_WEBHOOK_TERMINAL_MISMATCH';
+  end if;
+
   if current_recording.recording_status in ('completed', 'failed')
     or (current_recording.terminal_reconciliation_status is not null
       and p_recording_status = 'recording') then
@@ -502,11 +549,6 @@ begin
       raise exception using errcode = '40001', message = 'LIVEKIT_WEBHOOK_LEASE_LOST';
     end if;
     return jsonb_build_object('state', 'stale');
-  end if;
-
-  if current_recording.terminal_reconciliation_status in ('completed', 'failed')
-    and current_recording.terminal_reconciliation_status is distinct from p_recording_status then
-    raise exception using errcode = '22023', message = 'LIVEKIT_WEBHOOK_TERMINAL_MISMATCH';
   end if;
 
   canonical_key := 'reporter-live/' || current_request.id::text || '/'

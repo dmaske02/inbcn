@@ -316,3 +316,74 @@ Docker remains installed with its daemon unavailable at
 verifier, generated-type refresh, and advisors could not run. LiveKit and S3
 credentials remain unset, so credentialed provider/storage E2E remains an
 external deployment gate and no provider success was invented.
+
+## Final fix round 4 — upgrade abort and terminal callback conflict
+
+Reviewed base: `135996b`
+
+The two closure findings are fixed at the existing `165000` database boundary.
+Under the migration's writer lock, the private upgrade routine first finds every
+legacy row with a null marker, bound Egress, and the exact
+`live_recording.reconciliation_required` audit. If any such row is not the old
+pending row with both claim token and claim timestamp, the routine raises only
+the fixed safe
+`LIVE_RECORDING_RECONCILIATION_UPGRADE_REQUIRES_OPERATOR_REMEDIATION` error.
+It does not expose row/provider identifiers, guess completed versus failed,
+widen terminal transitions, or update any safely quarantinable row before the
+check succeeds. Only after a clean preflight are exact pending claims marked
+`unknown`; RPC replacements and service grants occur later in the migration.
+
+`complete_livekit_webhook_event` now checks a known `completed`/`failed` marker
+against an incoming terminal provider status before the generic local-terminal
+stale branch. A conflict raises `LIVEKIT_WEBHOOK_TERMINAL_MISMATCH`, leaving the
+receipt completion transaction unacknowledged so the existing service failure
+path can fail the lease safely. Matching terminal retries are still processed
+as stale, and delayed `recording` callbacks are still processed as stale without
+changing the recording.
+
+### Mandatory deployment procedure
+
+1. Confirm `20260822165000` returns no row from
+   `supabase_migrations.schema_migrations`. If the rejected earlier file was
+   applied independently, stop and use a new compensating migration; do not
+   reuse this changed history entry.
+2. Quiesce reporter live-session creation and LiveKit webhook traffic, and let
+   in-flight session/webhook transactions drain before applying `165000`.
+3. If the fixed remediation error is raised, keep traffic quiesced. In a
+   privileged operator workflow, identify the reconciliation-audited,
+   Egress-bound rows that are no longer exact pending claims, verify each
+   provider outcome, and reconcile those rows explicitly. Do not infer terminal
+   truth from the local recording state or delete evidence merely to bypass the
+   gate.
+4. Retry `165000` only after the affected rows have been operator-reconciled.
+   Exact legacy pending claims will then be quarantined as `unknown` for later
+   signed terminal resolution.
+
+### Round-4 TDD and verification evidence
+
+- Focused RED: 4/6 marker contracts passed and the two new contracts failed for
+  exactly the missing unsafe-upgrade routine and mismatch-after-stale ordering.
+- Focused GREEN: 6/6 marker contracts; the complete reporter live matrix passed
+  89/89 tests (78 top-level tests plus nested status cases).
+- The rollback-only SQL verifier now exercises clean/pending success, recording
+  abort, failed abort, no partial quarantine on either abort, conflicting
+  terminal rejection, matching terminal stale retry, and delayed nonterminal
+  stale processing. Static contracts validate the same function/order/error
+  text. Its Postgres runtime remains an external gate because Docker is
+  unavailable.
+- Full `npm test`: website 251/251, CMS 637/637, reporter 323/323.
+- Root `npm run typecheck` and `npm run lint` passed across all workspaces.
+- Production builds passed for website and reporter on Next.js 16.3 Turbopack
+  and CMS on webpack (26 pages, including the termination route), using only
+  non-secret URL placeholders and inert
+  `LIVEKIT_S3_FORCE_PATH_STYLE=false`.
+- `git diff --check` passed. The final migration/RPC/verifier audit retained
+  marker constraints and monotonicity, receipt-first then
+  request-before-recording lock order, lease ownership/failure behavior,
+  service-only execute grants, private marker/provider data, fixed safe errors,
+  and unchanged RPC/type identities.
+
+Docker still cannot connect to `~/.docker/run/docker.sock`; local reset,
+runtime rollback verification, generated-type refresh, and database advisors
+were not run. LiveKit and S3 credentials are unset, so provider/storage E2E was
+not run or claimed.
