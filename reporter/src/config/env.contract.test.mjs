@@ -82,3 +82,57 @@ test("runtime cron secrets reject weak configured values and accept 32 character
   );
   await importEnvironment("x".repeat(32));
 });
+
+test("temporary onboarding is disabled by default and accepted in preview", async () => {
+  const importEnvironment = (temporaryOnboarding, expected) => execFileAsync(
+    process.execPath,
+    [
+      "--conditions=react-server",
+      "--experimental-strip-types",
+      "--input-type=module",
+      "-e",
+      `const { env } = await import("./src/config/env.ts"); if (env.server.temporaryOnboarding !== ${expected}) process.exit(2)`,
+    ],
+    {
+      cwd: new URL("../..", import.meta.url),
+      env: {
+        ...process.env,
+        REPORTER_TEMPORARY_ONBOARDING: temporaryOnboarding,
+        VERCEL_ENV: "preview",
+      },
+    },
+  );
+
+  await importEnvironment("false", false);
+  await importEnvironment("true", true);
+});
+
+test("temporary onboarding cannot be enabled in Vercel production", async () => {
+  await assert.rejects(
+    execFileAsync(
+      process.execPath,
+      [
+        "--conditions=react-server",
+        "--experimental-strip-types",
+        "--input-type=module",
+        "-e",
+        'await import("./src/config/env.ts")',
+      ],
+      {
+        cwd: new URL("../..", import.meta.url),
+        env: {
+          ...process.env,
+          REPORTER_TEMPORARY_ONBOARDING: "true",
+          VERCEL_ENV: "production",
+        },
+      },
+    ),
+    (error) => {
+      assert.match(
+        `${error.stdout ?? ""}${error.stderr ?? ""}`,
+        /REPORTER_TEMPORARY_ONBOARDING cannot be enabled in production/u,
+      );
+      return true;
+    },
+  );
+});

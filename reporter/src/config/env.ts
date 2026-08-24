@@ -60,6 +60,8 @@ const environmentSchema = z
     ),
     CRON_SECRET: optionalCronSecret,
     SMS_NOTIFICATIONS_ENABLED: z.enum(["true", "false"]).default("false"),
+    REPORTER_TEMPORARY_ONBOARDING: z.enum(["true", "false"]).default("false"),
+    VERCEL_ENV: z.enum(["development", "preview", "production"]).optional(),
   })
   .superRefine((values, context) => {
     const requireAll = (entries: readonly (readonly [string, unknown])[], label: string) => {
@@ -149,6 +151,14 @@ const environmentSchema = z
           "SMS_NOTIFICATIONS_ENABLED requires a configured SMS provider.",
       });
     }
+    if (values.REPORTER_TEMPORARY_ONBOARDING === "true"
+      && values.VERCEL_ENV === "production") {
+      context.addIssue({
+        code: "custom",
+        path: ["REPORTER_TEMPORARY_ONBOARDING"],
+        message: "REPORTER_TEMPORARY_ONBOARDING cannot be enabled in production.",
+      });
+    }
   });
 
 const parsedEnvironment = environmentSchema.safeParse({
@@ -180,6 +190,8 @@ const parsedEnvironment = environmentSchema.safeParse({
   LIVEKIT_S3_FORCE_PATH_STYLE: process.env.LIVEKIT_S3_FORCE_PATH_STYLE,
   CRON_SECRET: process.env.CRON_SECRET,
   SMS_NOTIFICATIONS_ENABLED: process.env.SMS_NOTIFICATIONS_ENABLED,
+  REPORTER_TEMPORARY_ONBOARDING: process.env.REPORTER_TEMPORARY_ONBOARDING,
+  VERCEL_ENV: process.env.VERCEL_ENV,
 });
 
 if (!parsedEnvironment.success) {
@@ -232,6 +244,7 @@ export const env = Object.freeze({
     }),
     cronSecret: values.CRON_SECRET,
     smsNotificationsEnabled: values.SMS_NOTIFICATIONS_ENABLED === "true",
+    temporaryOnboarding: values.REPORTER_TEMPORARY_ONBOARDING === "true",
   }),
 });
 
