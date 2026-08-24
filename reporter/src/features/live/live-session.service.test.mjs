@@ -274,6 +274,26 @@ test("new reservation creates one bounded room and starts one private recording"
   assert.equal(JSON.stringify(result).includes(recordingId), false);
 });
 
+test("pending or out-of-window live requests fail before provider work", async (context) => {
+  for (const state of ["pending", "outside-window"]) {
+    await context.test(state, async () => {
+      let tokenCalls = 0;
+      const setup = dependencies({
+        reserve: async () => { throw new LiveSessionError("FORBIDDEN", 403); },
+        generateToken: async () => { tokenCalls += 1; return "must-not-return"; },
+      });
+
+      await assert.rejects(
+        () => createLiveSessionService(setup.value).request({ profileId, accessGeneration: 7, requestId }),
+        (error) => error instanceof LiveSessionError && error.code === "FORBIDDEN",
+      );
+      assert.equal(setup.calls.createRoom, 0);
+      assert.equal(setup.calls.start, 0);
+      assert.equal(tokenCalls, 0);
+    });
+  }
+});
+
 test("publisher TTL is capped at 120 seconds when the approved window remains longer", async () => {
   let clock = now;
   let issuedTtl = null;

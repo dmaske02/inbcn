@@ -9,14 +9,15 @@ const input = {
   expectedStartsAt: "2026-08-22T10:00:00.000Z", expectedDurationMinutes: 30, supportingNotes: null,
 };
 
-test("active live-trusted reporter can create only under their own profile", async () => {
+test("temporary live capability creates a pending request only under the reporter's profile", async () => {
   let createdFor = null;
   const service = createLiveRequestService({
     getAccess: async () => ({ status: "active", canBroadcastLive: true }),
     create: async (id, value) => { createdFor = id; return { id: "22222222-2222-4222-8222-222222222222", ...value, status: "pending", decisionReason: null, approvedStartsAt: null, approvedEndsAt: null, terminationReason: null, createdAt: "2026-08-22T09:00:00.000Z" }; },
     list: async (id) => { createdFor = id; return []; },
   });
-  await service.create(profileId, input);
+  const request = await service.create(profileId, input);
+  assert.equal(request.status, "pending");
   assert.equal(createdFor, profileId);
   await service.list(profileId);
   assert.equal(createdFor, profileId);

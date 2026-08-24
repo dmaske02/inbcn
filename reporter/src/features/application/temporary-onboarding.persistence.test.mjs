@@ -11,6 +11,10 @@ const verificationUrl = new URL(
   "../../../../supabase/verification/reporter-lifecycle-verification.sql",
   import.meta.url,
 );
+const liveSessionUrl = new URL(
+  "../../../../supabase/migrations/20260822165000_livekit_terminal_reconciliation_marker.sql",
+  import.meta.url,
+);
 const compact = (value) => value.replace(/\s+/gu, " ").trim();
 
 function sqlFunction(sql, name) {
@@ -33,6 +37,18 @@ test("temporary onboarding records explicit evidence and preserves editorial gat
   assert.match(approval, /access_sync_status[^;]+'pending'/u);
   assert.match(sql, /to service_role/u);
   assert.doesNotMatch(sql, /to (?:anon|authenticated)/u);
+});
+
+test("live capability cannot bypass CMS approval or its approved window", async () => {
+  const sql = compact(await readFile(liveSessionUrl, "utf8"));
+  const reserve = sqlFunction(sql, "reserve_reporter_live_recording");
+  const authorize = sqlFunction(sql, "authorize_reporter_live_session");
+
+  for (const boundary of [reserve, authorize]) {
+    assert.match(boundary, /current_request\.status is distinct from 'approved'/u);
+    assert.match(boundary, /(?:reservation|authorization)_time < current_request\.approved_starts_at/u);
+    assert.match(boundary, /(?:reservation|authorization)_time >= current_request\.approved_ends_at/u);
+  }
 });
 
 test("temporary access synchronization is service-only and generation-fenced", async () => {

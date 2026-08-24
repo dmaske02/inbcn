@@ -81,6 +81,19 @@ test("allows ordinary reviewed submission during grace but denies direct publica
   assert.equal(calls.some(([name]) => name === "direct"), false);
 });
 
+test("temporary reporter submissions stay in review until direct publishing is explicitly granted", async () => {
+  const temporaryReporter = fixture({ status: "active", canPublishDirectly: false });
+  assert.deepEqual(await temporaryReporter.service.submit(actorId, storyId, evidence), {
+    id: storyId,
+    status: "pending_review",
+    revisionOutcome: "pending_review",
+  });
+  assert.equal(temporaryReporter.calls.some(([name]) => name === "direct"), false);
+
+  const trustedReporter = fixture({ status: "active", canPublishDirectly: true });
+  assert.equal((await trustedReporter.service.directPublish(actorId, storyId, evidence)).status, "published");
+});
+
 test("requires active membership and the effective direct-publish grant", async () => {
   for (const access of [
     { status: "active", canPublishDirectly: false },
