@@ -4,6 +4,7 @@ import test from "node:test";
 
 const source = await readFile(new URL("./reporter-demo.tsx", import.meta.url), "utf8");
 const proxy = await readFile(new URL("../../proxy.ts", import.meta.url), "utf8");
+const home = await readFile(new URL("../../app/page.tsx", import.meta.url), "utf8");
 
 test("client preview is a synthetic onboarding and reporter application", () => {
   assert.match(source, /Synthetic data only/u);
@@ -21,4 +22,10 @@ test("client preview is a synthetic onboarding and reporter application", () => 
   assert.doesNotMatch(source, /(razorpay_[a-z]|storage[_ ]key|egress[_ ]id|latitude|longitude)/iu);
   assert.match(proxy, /pathname === "\/"/u);
   assert.match(proxy, /return updateSession\(request\)/u);
+});
+
+test("temporary onboarding enters the real reporter flow from the preview root", () => {
+  assert.match(home, /env\.server\.temporaryOnboarding/u);
+  assert.match(home, /redirect\("\/login"\)/u);
+  assert.match(home, /<ReporterDemo/u);
 });
