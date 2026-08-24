@@ -111,7 +111,7 @@ begin
     or p_width is not null and p_width <= 0
     or p_height is not null and p_height <= 0
     or p_duration_seconds is not null and p_duration_seconds <= 0
-    or case p_media_type
+    or (case p_media_type
       when 'image' then
         p_resource_format not in ('jpg', 'jpeg', 'png', 'webp', 'avif')
         or p_mime_type is distinct from case p_resource_format
@@ -131,7 +131,7 @@ begin
         or p_bytes > 262144000
         or p_duration_seconds is null
       else true
-    end then
+    end) then
     raise exception using errcode = '22023', message = 'REPORTER_MEDIA_INVALID';
   end if;
 

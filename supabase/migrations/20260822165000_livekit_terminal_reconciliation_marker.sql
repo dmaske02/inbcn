@@ -1,6 +1,8 @@
 -- Additive terminal reconciliation fence for deployments that may already have
 -- the reporter-live migration chain applied.
 
+begin;
+
 alter table public.live_recordings
   add column terminal_reconciliation_status text,
   add constraint live_recordings_terminal_reconciliation_status_check check (
@@ -987,3 +989,5 @@ grant execute on function public.authorize_reporter_live_session(uuid, bigint, u
 grant execute on function public.complete_livekit_webhook_event(text, uuid, uuid, text, text, numeric, bigint, timestamptz, timestamptz, text) to service_role;
 grant execute on function public.report_reporter_live_recording_reconciliation(uuid, uuid, text, text) to service_role;
 grant execute on function public.resolve_quarantined_live_recording(uuid, uuid, text, text, text, numeric, bigint, timestamptz, timestamptz) to service_role;
+
+commit;
