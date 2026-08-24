@@ -20,7 +20,7 @@ export function StoryEditor({ adminRole, view, notices = {} }: { adminRole: Admi
         {view.story ? <Link className={buttonVariants({variant:"outline"})} href={`/${view.references.languages.find((item)=>item.id===view.story?.languageId)?.code ?? "en"}/${view.story.slug}`} target="_blank">View public URL</Link> : null}
       </header>
       {notices.saved || notices.changed ? <p role="status" className="rounded-md border border-verified/30 bg-verified/5 p-3 text-sm text-verified">Story changes were saved successfully.</p> : null}
-      {notices.error ? <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">The requested workflow action could not be completed.</p> : null}
+      {notices.error ? <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{notices.error === "conflict" ? "Story was changed by another editor. Reload before saving." : notices.error === "invalid-reason" ? "Enter a revision reason of 1 to 1000 characters without control characters." : "The requested workflow action could not be completed."}</p> : null}
       <StoryForm adminRole={adminRole} view={view} />
     </div>
   );

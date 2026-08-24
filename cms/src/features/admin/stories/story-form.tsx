@@ -12,11 +12,12 @@ import { calculateReadTime } from "@/features/news/server/services/story-reader.
 import { generateStorySlug, type StoryCommand } from "./story.model";
 import type { getStoryEditorView } from "./story.service";
 import { StoryFeaturedMediaField } from "./story-featured-media-field";
+import { StoryReviewAction } from "./story-review-actions";
 
 type StoryEditorView = Awaited<ReturnType<typeof getStoryEditorView>>;
 const initialState: StoryActionState = { status: "idle" };
 const control = "min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
-const commandLabels: Record<StoryCommand, string> = { save: "Save", submit: "Submit for review", approve: "Approve", reject: "Reject", publish: "Publish", schedule: "Schedule", archive: "Archive", delete: "Delete" };
+const commandLabels: Record<StoryCommand, string> = { save: "Save", submit: "Submit for review", approve: "Approve", reject: "Reject", send_back: "Send back to draft", publish: "Publish", schedule: "Schedule", cancel_schedule: "Cancel schedule", unpublish: "Unpublish", archive: "Archive", delete: "Delete" };
 
 export function StoryForm({ adminRole, view }: { adminRole: AdminRole; view: StoryEditorView }) {
   const story = view.story;
@@ -35,10 +36,11 @@ export function StoryForm({ adminRole, view }: { adminRole: AdminRole; view: Sto
   return (
     <div className="space-y-5">
       <form action={formAction} className="space-y-5">
+        {story ? <input name="expectedUpdatedAt" type="hidden" value={story.updatedAt} /> : null}
         <Card padding="none">
           <CardHeader className="flex-row items-center justify-between gap-4">
             <div><h2 className="text-lg font-semibold">Editorial content</h2><p className="text-sm text-muted-foreground">All required fields are marked.</p></div>
-            <div className="text-right">{story ? <Badge variant="outline" className="capitalize">{story.status.replace("_", " ")}</Badge> : <Badge variant="secondary">New draft</Badge>}<p className="mt-2 text-xs text-muted-foreground">{calculateReadTime(content)} min read</p></div>
+            <div className="text-right">{story ? <Badge variant={story.status === "pending_review" ? "signal" : "outline"} className="capitalize">{story.status.replace("_", " ")}</Badge> : <Badge variant="secondary">New draft</Badge>}<p className="mt-2 text-xs text-muted-foreground">{story?.submittedAt ? `Submitted ${new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(story.submittedAt))}` : `${calculateReadTime(content)} min read`}</p></div>
           </CardHeader>
           <CardContent className="grid gap-5">
             <label className="grid gap-2"><span className="text-sm font-medium">Headline *</span><input className={control} name="title" value={title} onChange={(event)=>{const next=event.target.value;setTitle(next);if(!manualSlug)setSlug(generateStorySlug(next));}} required />{fieldError("title") ? <span className="text-sm text-destructive">{fieldError("title")}</span> : null}</label>
@@ -135,9 +137,10 @@ export function StoryForm({ adminRole, view }: { adminRole: AdminRole; view: Sto
       </form>
 
       {story ? <Card padding="none"><CardHeader><h2 className="text-lg font-semibold">Workflow actions</h2><p className="text-sm text-muted-foreground">Save content changes before applying a workflow transition.</p></CardHeader><CardContent className="flex flex-wrap items-end gap-3">
-        {view.commands.filter((command)=>command!=="save" && command!=="schedule" && command!=="reject").map((command)=><form action={storyCommandAction} key={command}><input name="id" type="hidden" value={story.id} /><input name="command" type="hidden" value={command} /><Button variant={command === "delete" ? "destructive" : command === "publish" ? "default" : "outline"} type="submit">{commandLabels[command]}</Button></form>)}
-        {view.commands.includes("reject") ? <form action={storyCommandAction} className="flex flex-wrap items-end gap-2"><input name="id" type="hidden" value={story.id} /><input name="command" type="hidden" value="reject" /><label className="grid gap-1"><span className="text-xs font-medium">Rejection reason</span><input className={control} name="rejectionReason" required /></label><Button variant="outline" type="submit">Reject</Button></form> : null}
-        {view.commands.includes("schedule") ? <form action={storyCommandAction} className="flex flex-wrap items-end gap-2"><input name="id" type="hidden" value={story.id} /><input name="command" type="hidden" value="schedule" /><label className="grid gap-1"><span className="text-xs font-medium">Publish date</span><input className={control} defaultValue={story.scheduledAt?.slice(0,16)} name="scheduledAt" required type="datetime-local" /></label><Button variant="outline" type="submit">Schedule</Button></form> : null}
+        {story.status === "rejected" && story.rejectionReason ? <div className="w-full rounded-md border border-destructive/30 bg-destructive/5 p-4"><p className="text-sm font-semibold">Revision requested</p><p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{story.rejectionReason}</p></div> : null}
+        {view.commands.filter((command)=>command!=="save" && command!=="schedule" && command!=="reject" && command!=="approve" && command!=="send_back").map((command)=><form action={storyCommandAction} key={command}><input name="id" type="hidden" value={story.id} /><input name="expectedUpdatedAt" type="hidden" value={story.updatedAt} /><input name="command" type="hidden" value={command} /><Button variant={command === "delete" ? "destructive" : command === "publish" ? "default" : "outline"} type="submit">{commandLabels[command]}</Button></form>)}
+        {(["approve", "reject", "send_back"] as const).filter((command) => view.commands.includes(command)).map((command) => <StoryReviewAction command={command} expectedUpdatedAt={story.updatedAt} id={story.id} key={command} />)}
+        {view.commands.includes("schedule") ? <form action={storyCommandAction} className="flex flex-wrap items-end gap-2"><input name="id" type="hidden" value={story.id} /><input name="expectedUpdatedAt" type="hidden" value={story.updatedAt} /><input name="command" type="hidden" value="schedule" /><label className="grid gap-1"><span className="text-xs font-medium">Publish date</span><input className={control} defaultValue={story.scheduledAt?.slice(0,16)} name="scheduledAt" required type="datetime-local" /></label><Button variant="outline" type="submit">{story.status === "scheduled" ? "Reschedule" : "Schedule"}</Button></form> : null}
       </CardContent></Card> : null}
     </div>
   );

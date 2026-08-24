@@ -32,7 +32,7 @@ const STORY_DETAIL_COLUMNS =
   `${STORY_SUMMARY_COLUMNS}, content, updated_at, external_url, seo_title, seo_description, seo_keywords, canonical_url` as const;
 const CATEGORY_STORY_COLUMNS = `${STORY_SUMMARY_COLUMNS}, content` as const;
 const CMS_STORY_COLUMNS =
-  "id, language_id, category_id, source_id, created_by, approved_by, story_type, status, slug, title, summary, content, external_id, external_url, external_author, external_published_at, external_image_url, external_image_width, external_image_height, featured_media_id, seo_title, seo_description, seo_keywords, canonical_url, is_featured, is_breaking, submitted_at, approved_at, scheduled_at, published_at, created_at, updated_at" as const;
+  "id, language_id, category_id, source_id, created_by, approved_by, story_type, status, slug, title, summary, content, external_id, external_url, external_author, external_published_at, external_image_url, external_image_width, external_image_height, featured_media_id, seo_title, seo_description, seo_keywords, canonical_url, is_featured, is_breaking, submitted_at, approved_at, rejected_at, rejection_reason, scheduled_at, published_at, created_at, updated_at" as const;
 
 export type CmsStoryListQuery = Readonly<{
   page: number;
@@ -41,11 +41,25 @@ export type CmsStoryListQuery = Readonly<{
   status?: DatabaseEnum<"story_status">;
   languageId?: string;
   categoryId?: string;
-  sort?: "updated_desc" | "updated_asc" | "published_desc" | "title_asc";
+  sort?: "updated_desc" | "updated_asc" | "published_desc" | "submitted_asc" | "title_asc";
 }>;
 
 export type CmsStoryInsert = Database["public"]["Tables"]["stories"]["Insert"];
 export type CmsStoryUpdate = Database["public"]["Tables"]["stories"]["Update"];
+export type CmsStoryTransitionCode =
+  | "SUCCESS"
+  | "NOT_FOUND"
+  | "FORBIDDEN"
+  | "INVALID_TRANSITION"
+  | "CONFLICT"
+  | "INVALID_SCHEDULE"
+  | "VALIDATION_ERROR";
+
+export type CmsStoryTransitionResult = Readonly<{
+  code: CmsStoryTransitionCode;
+  story?: CmsStoryDto;
+  updatedAt?: string;
+}>;
 
 type StorySummaryRow = Pick<
   TableRow<"stories">,
@@ -88,7 +102,7 @@ type CmsStoryRow = Pick<TableRow<"stories">, keyof CmsStoryDto extends never ? n
   | "story_type" | "status" | "slug" | "title" | "summary" | "content"
   | "external_id" | "external_url" | "external_author" | "external_published_at" | "external_image_url" | "external_image_width" | "external_image_height"
   | "featured_media_id" | "seo_title" | "seo_description" | "seo_keywords"
-  | "canonical_url" | "is_featured" | "is_breaking" | "submitted_at" | "approved_at"
+  | "canonical_url" | "is_featured" | "is_breaking" | "submitted_at" | "approved_at" | "rejected_at" | "rejection_reason"
   | "scheduled_at" | "published_at" | "created_at" | "updated_at">;
 
 function toCmsStoryDto(row: CmsStoryRow): CmsStoryDto {
@@ -108,6 +122,7 @@ function toCmsStoryDto(row: CmsStoryRow): CmsStoryDto {
     seoKeywords: row.seo_keywords, canonicalUrl: row.canonical_url,
     isFeatured: row.is_featured, isBreaking: row.is_breaking,
     submittedAt: row.submitted_at, approvedAt: row.approved_at,
+    rejectedAt: row.rejected_at, rejectionReason: row.rejection_reason,
     scheduledAt: row.scheduled_at, publishedAt: row.published_at,
     createdAt: row.created_at, updatedAt: row.updated_at,
   };
@@ -460,7 +475,8 @@ export async function getCmsStories(query: CmsStoryListQuery): Promise<CmsStoryL
   if (query.categoryId) request = request.eq("category_id", query.categoryId);
 
   const sort = query.sort ?? "updated_desc";
-  if (sort === "title_asc") request = request.order("title", { ascending: true });
+  if (sort === "submitted_asc") request = request.order("submitted_at", { ascending: true, nullsFirst: false }).order("id", { ascending: true });
+  else if (sort === "title_asc") request = request.order("title", { ascending: true });
   else if (sort === "published_desc") request = request.order("published_at", { ascending: false, nullsFirst: false });
   else request = request.order("updated_at", { ascending: sort === "updated_asc" });
 
@@ -497,6 +513,64 @@ export async function updateCmsStory(id: string, values: CmsStoryUpdate): Promis
   const { data, error } = await supabase.from("stories").update(values).eq("id", id).select(CMS_STORY_COLUMNS).single();
   assertRepositoryQuerySucceeded(error, "update story");
   return toCmsStoryDto(data);
+}
+
+export async function getCmsStoryFeaturedMedia(mediaIds: readonly string[]) {
+  const uniqueIds = [...new Set(mediaIds.filter(Boolean))];
+  if (uniqueIds.length === 0) return new Map<string, ReturnType<typeof toFeaturedMediaDto>>();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("media")
+    .select("id, cloudinary_public_id, secure_url, alt_text, caption, width, height")
+    .in("id", uniqueIds);
+  assertRepositoryQuerySucceeded(error, "load CMS Story featured media");
+  return new Map(data.map((item) => [item.id, toFeaturedMediaDto(item)]));
+}
+
+export async function updateCmsStoryIfCurrent(
+  id: string,
+  expectedUpdatedAt: string,
+  values: CmsStoryUpdate,
+): Promise<CmsStoryDto | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("stories")
+    .update(values)
+    .eq("id", id)
+    .eq("updated_at", expectedUpdatedAt)
+    .select(CMS_STORY_COLUMNS)
+    .maybeSingle();
+  assertRepositoryQuerySucceeded(error, "conditionally update story");
+  return data ? toCmsStoryDto(data) : null;
+}
+
+export async function transitionCmsStory(input: Readonly<{
+  id: string;
+  command: string;
+  expectedUpdatedAt: string;
+  scheduledAt?: string;
+  rejectionReason?: string;
+}>): Promise<CmsStoryTransitionResult> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("transition_story", {
+    p_story_id: input.id,
+    p_command: input.command,
+    p_expected_updated_at: input.expectedUpdatedAt,
+    p_scheduled_at: input.scheduledAt ?? null,
+    p_rejection_reason: input.rejectionReason ?? null,
+  });
+  assertRepositoryQuerySucceeded(error, "transition story");
+  const result = data as unknown as Readonly<{
+    code?: CmsStoryTransitionCode;
+    story?: CmsStoryRow;
+    updatedAt?: string;
+  }>;
+  if (!result.code) throw new RepositoryError("read Story transition result");
+  return {
+    code: result.code,
+    ...(result.story ? { story: toCmsStoryDto(result.story) } : {}),
+    ...(result.updatedAt ? { updatedAt: result.updatedAt } : {}),
+  };
 }
 
 export async function deleteCmsStory(id: string): Promise<void> {

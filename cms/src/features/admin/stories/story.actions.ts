@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 
 import { requireAdminUser } from "@/features/admin/auth/server";
 import { revalidatePublicNews } from "@/features/admin/public-revalidation";
@@ -59,12 +60,19 @@ function validateForm(formData: FormData, schema: typeof storyFormSchema = story
 }
 
 function safeError(error: unknown): StoryActionState {
+  if (error instanceof StoryManagementError && error.code === "CONFLICT") {
+    return { status: "error", message: "Story was changed by another editor. Reload before saving." };
+  }
   if (error instanceof StoryManagementError) return { status: "error", message: error.message };
   return { status: "error", message: "The story could not be saved. Please try again." };
 }
 
-async function revalidateStories() {
+const rejectionReasonSchema = z.string().trim().min(1, "Reason is required.").max(1000, "Reason must be 1000 characters or fewer.").refine((value) => !/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/u.test(value), "Reason cannot contain control characters.");
+
+async function revalidateStories(id?: string) {
   revalidatePath("/admin/stories");
+  revalidatePath("/admin/stories/review");
+  if (id) revalidatePath(`/admin/stories/${id}`);
   await revalidatePublicNews();
 }
 
@@ -82,7 +90,7 @@ export async function createStoryAction(
   } catch (error) {
     return safeError(error);
   }
-  await revalidateStories();
+  await revalidateStories(id);
   redirect(`/admin/stories/${id}?saved=created`);
 }
 
@@ -92,14 +100,16 @@ export async function saveStoryAction(
   formData: FormData,
 ): Promise<StoryActionState> {
   const admin = await requireAdminUser();
+  const expectedUpdatedAt = String(formData.get("expectedUpdatedAt") ?? "");
+  if (!expectedUpdatedAt) return { status: "error", message: "Story was changed by another editor. Reload before saving." };
   const validated = validateForm(formData, storyUpdateSubmissionSchema);
   if (!validated.ok) return validated.state;
   try {
-    await saveStory(admin, id, validated.values);
+    await saveStory(admin, id, expectedUpdatedAt, validated.values);
   } catch (error) {
     return safeError(error);
   }
-  await revalidateStories();
+  await revalidateStories(id);
   redirect(`/admin/stories/${id}?saved=updated`);
 }
 
@@ -107,23 +117,34 @@ export async function storyCommandAction(formData: FormData): Promise<void> {
   const admin = await requireAdminUser();
   const id = String(formData.get("id") ?? "");
   const command = String(formData.get("command") ?? "");
-  if (!id || !["submit", "approve", "reject", "publish", "schedule", "archive", "delete"].includes(command)) {
+  const expectedUpdatedAt = String(formData.get("expectedUpdatedAt") ?? "");
+  if (!id || !expectedUpdatedAt || !["submit", "approve", "reject", "send_back", "publish", "schedule", "cancel_schedule", "unpublish", "archive", "delete"].includes(command)) {
     redirect("/admin/stories?error=invalid-action");
   }
   const scheduledAt = normalizeScheduledAt(String(formData.get("scheduledAt") ?? ""));
   if (scheduledAt === null) redirect(`/admin/stories/${id}?error=invalid-date`);
+  let rejectionReason = String(formData.get("rejectionReason") ?? "");
+  if (command === "reject") {
+    const parsedReason = rejectionReasonSchema.safeParse(rejectionReason);
+    if (!parsedReason.success) redirect(`/admin/stories/${id}?error=invalid-reason`);
+    rejectionReason = parsedReason.data;
+  }
   try {
     await runStoryCommand(
       admin,
       id,
-      command as "submit" | "approve" | "reject" | "publish" | "schedule" | "archive" | "delete",
+      command as "submit" | "approve" | "reject" | "send_back" | "publish" | "schedule" | "cancel_schedule" | "unpublish" | "archive" | "delete",
+      expectedUpdatedAt,
       scheduledAt,
-      String(formData.get("rejectionReason") ?? ""),
+      rejectionReason,
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof StoryManagementError && error.code === "CONFLICT") {
+      redirect(`/admin/stories/${id}?error=conflict`);
+    }
     redirect(`/admin/stories/${id}?error=action-failed`);
   }
-  await revalidateStories();
+  await revalidateStories(id);
   if (command === "delete") redirect("/admin/stories?changed=deleted");
   redirect(`/admin/stories/${id}?changed=${command}`);
 }
