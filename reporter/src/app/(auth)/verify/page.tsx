@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { env } from "@/config/env";
 import { validateIndianPhone } from "@/features/auth/authorization.model";
 import { OtpForm } from "@/features/auth/otp-form";
 import { authorizeCurrentReporter } from "@/features/auth/server";
@@ -8,6 +9,9 @@ export default async function VerifyPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ phone?: string }> }>) {
   const { phone } = await searchParams;
+  if (env.server.temporaryOnboarding) {
+    redirect("/login");
+  }
   if (!validateIndianPhone(phone)) {
     redirect("/login");
   }

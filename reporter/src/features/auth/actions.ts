@@ -2,8 +2,10 @@
 
 import { redirect } from "next/navigation";
 
+import { env } from "@/config/env";
 import { createClient } from "@/lib/supabase/server";
 import { otpProviderErrorMessage, validateIndianPhone } from "./authorization.model";
+import { signInWithTemporaryOtp } from "./temporary-auth.server";
 
 export type OtpState = Readonly<{
   status: "idle" | "error";
@@ -14,6 +16,39 @@ export type OtpState = Readonly<{
 function phoneFrom(formData: FormData): string | null {
   const phone = formData.get("phone");
   return validateIndianPhone(phone) ? phone : null;
+}
+
+export async function temporarySignInAction(
+  _previousState: OtpState,
+  formData: FormData,
+): Promise<OtpState> {
+  const phone = phoneFrom(formData);
+  const token = formData.get("token");
+
+  if (!phone || typeof token !== "string" || !token.trim()) {
+    return {
+      status: "error",
+      message: "Check the highlighted fields and try again.",
+      fieldErrors: {
+        ...(phone ? {} : { phone: ["Enter an Indian mobile number in +91 format."] }),
+        ...(typeof token === "string" && token.trim()
+          ? {}
+          : { token: ["Enter the preview code."] }),
+      },
+    };
+  }
+
+  if (!env.server.temporaryOnboarding) {
+    return { status: "error", message: "Preview sign-in is unavailable." };
+  }
+
+  try {
+    await signInWithTemporaryOtp(phone, token);
+  } catch {
+    return { status: "error", message: "We could not sign you in. Please try again." };
+  }
+
+  redirect("/dashboard");
 }
 
 export async function requestOtpAction(
