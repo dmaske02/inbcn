@@ -1,170 +1,62 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import styles from "./reporter-demo.module.css";
+import { addStory, advanceOnboarding, initialDemoState, submitStory, type DemoStage, type DemoState, type DemoStory } from "./demo-state";
+import baseStyles from "./reporter-demo.module.css";
+import flowStyles from "./reporter-demo-flow.module.css";
+
+const styles = { ...baseStyles, ...flowStyles };
 
 type View = "home" | "stories" | "live" | "application" | "profile";
+const storageKey = "inbcn-reporter-client-preview";
+const stageOrder: DemoStage[] = ["signup", "application", "payment", "kyc", "approval", "app"];
 
-const stories = [
-  { title: "Monsoon flooding disrupts Kothrud traffic", locality: "Kothrud, Pune", status: "Under review", tone: "review" },
-  { title: "Women-led market opens near Deccan", locality: "Deccan, Pune", status: "Published", tone: "published" },
-  { title: "PMC begins overnight road repairs", locality: "Shivajinagar, Pune", status: "Draft", tone: "draft" },
-] as const;
-
-function SignalIcon({ name }: Readonly<{ name: View }>) {
-  const paths: Record<View, React.ReactNode> = {
-    home: <><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V21h13V9.5M9 21v-7h6v7"/></>,
-    stories: <><path d="M6 3h12v18H6z"/><path d="M9 7h6M9 11h6M9 15h4"/></>,
-    live: <><circle cx="12" cy="12" r="3"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4"/></>,
-    application: <><path d="M5 3h14v18H5z"/><path d="m8 12 2.5 2.5L16 9M8 6h8"/></>,
-    profile: <><circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/></>,
-  };
-  return <svg aria-hidden="true" viewBox="0 0 24 24">{paths[name]}</svg>;
+function DemoHeader({ restart }: Readonly<{ restart: () => void }>) {
+  return <><div className={styles.demoNotice}><span>Client preview</span><strong>Synthetic data only</strong></div><header className={styles.header}><div className={styles.brand}><span>IN</span><b>BCN</b><small>REPORTER</small></div><button className={styles.restart} onClick={restart} type="button">Restart demo</button></header></>;
 }
 
-function DemoHeader() {
-  return (
-    <>
-      <div className={styles.demoNotice}><span>Client preview</span><strong>Synthetic data only</strong></div>
-      <header className={styles.header}>
-        <div className={styles.brand}><span>IN</span><b>BCN</b><small>REPORTER</small></div>
-        <div className={styles.signal}><i/><span>Field desk online</span></div>
-      </header>
-    </>
-  );
+function Onboarding({ state, setState }: Readonly<{ state: DemoState; setState: (state: DemoState) => void }>) {
+  const step = stageOrder.indexOf(state.stage);
+  const next = () => setState(advanceOnboarding(state));
+  const back = () => setState({ ...state, stage: stageOrder[Math.max(0, step - 1)] });
+  const submit = (event: React.FormEvent) => { event.preventDefault(); next(); };
+  return <div className={styles.onboarding}>
+    <div className={styles.onboardingProgress}><span>REPORTER ONBOARDING</span><strong>{Math.min(step + 1, 5)} / 5</strong><i style={{ width: `${Math.min((step + 1) * 20, 100)}%` }}/></div>
+    {state.stage === "signup" && <form onSubmit={submit} className={styles.formCard}><span className={styles.kicker}>01 · Mobile signup</span><h1>Start reporting<br/>from your city.</h1><p>Anyone can apply. We verify every reporter before their work can appear publicly.</p><label>Mobile number<input defaultValue="98765 43210" inputMode="tel" required/></label><label>One-time password<input defaultValue="246810" inputMode="numeric" maxLength={6} required/></label><small className={styles.helper}>Demo OTP is prefilled. No message is sent.</small><button className={styles.continueButton}>Verify mobile and continue</button></form>}
+    {state.stage === "application" && <form onSubmit={submit} className={styles.formCard}><span className={styles.kicker}>02 · Reporter application</span><h1>Tell us about<br/>your reporting.</h1><div className={styles.formGrid}><label>Legal name<input defaultValue="Meera Joshi" required/></label><label>City<input defaultValue="Pune" required/></label><label>Primary beat<select defaultValue="Civic affairs"><option>Civic affairs</option><option>Crime</option><option>Politics</option><option>Culture</option></select></label><label>Experience<select defaultValue="1–3 years"><option>New reporter</option><option>1–3 years</option><option>3+ years</option></select></label></div><label>Why do you want to report?<textarea defaultValue="I cover civic issues and transport changes affecting Pune neighbourhoods." required/></label><label className={styles.consent}><input defaultChecked type="checkbox" required/> I consent to identity verification and the reporter code of conduct.</label><div className={styles.formActions}><button onClick={back} type="button">Back</button><button className={styles.continueButton}>Submit application</button></div></form>}
+    {state.stage === "payment" && <section className={styles.formCard}><span className={styles.kicker}>03 · Annual membership</span><h1>Pay ₹100<br/>for one year.</h1><p>Payment is required with the application. If verification is rejected, the payment enters the refund process.</p><div className={styles.checkout}><div><span>Reporter membership</span><small>24 Aug 2026 — 24 Aug 2027</small></div><strong>₹100</strong></div><div className={styles.providerCard}><b>Razorpay</b><span>UPI · Cards · Netbanking</span><small>Synthetic checkout — no charge is created.</small></div><div className={styles.formActions}><button onClick={back} type="button">Back</button><button className={styles.payButton} onClick={next} type="button">Pay ₹100 securely</button></div></section>}
+    {state.stage === "kyc" && <section className={styles.formCard}><span className={styles.kicker}>04 · Aadhaar KYC</span><h1>Verify your<br/>legal identity.</h1><p>Your verified legal name will appear on published articles. Aadhaar details remain private.</p><div className={styles.kycCard}><div className={styles.kycIcon}>ID</div><div><strong>Aadhaar identity check</strong><span>Consent-based · encrypted · private</span></div></div><ul className={styles.checkList}><li>✓ Legal name match</li><li>✓ Date of birth and age check</li><li>✓ Portrait identity confirmation</li></ul><div className={styles.formActions}><button onClick={back} type="button">Back</button><button className={styles.continueButton} onClick={next} type="button">Verify Aadhaar (demo)</button></div></section>}
+    {state.stage === "approval" && <section className={`${styles.formCard} ${styles.approvalScreen}`}><span className={styles.kicker}>05 · Awaiting approval</span><div className={styles.pendingMark}>⌛</div><h1>Application<br/>under review.</h1><p>Payment and KYC are complete. An administrator reviews the application before activating the reporter account.</p><ol className={styles.miniTimeline}><li>✓ Mobile verified</li><li>✓ ₹100 payment captured</li><li>✓ Aadhaar KYC verified</li><li className={styles.pending}>● Admin decision pending</li></ol><button className={styles.approveButton} onClick={next} type="button">Simulate admin approval</button><button className={styles.textButton} onClick={back} type="button">Back to KYC</button></section>}
+  </div>;
 }
 
-function HomeView({ setView }: Readonly<{ setView: (view: View) => void }>) {
-  return (
-    <div className={styles.view}>
-      <section className={styles.greeting}>
-        <div><p>Sunday · 24 August</p><h1>Good morning,<br/>Meera.</h1></div>
-        <div className={styles.avatar} aria-label="Synthetic reporter avatar">MJ</div>
-      </section>
-      <section className={styles.readiness}>
-        <div className={styles.readinessTop}><span>FIELD READINESS</span><strong>All systems ready</strong></div>
-        <div className={styles.readinessGrid}>
-          <div><i className={styles.readyDot}/>Identity verified</div><div><i className={styles.readyDot}/>Membership active</div>
-          <div><i className={styles.readyDot}/>Location enabled</div><div><i className={styles.readyDot}/>Live permission</div>
-        </div>
-      </section>
-      <button className={styles.primaryAction} onClick={() => setView("stories")} type="button">
-        <span><small>NEW REPORT</small>Capture a field story</span><b>＋</b>
-      </button>
-      <section className={styles.section}>
-        <div className={styles.sectionHeading}><h2>Today at a glance</h2><span>3 updates</span></div>
-        <div className={styles.statGrid}>
-          <article><strong>02</strong><span>Stories in review</span></article>
-          <article><strong>01</strong><span>Published today</span></article>
-          <article><strong>18:30</strong><span>Live window</span></article>
-        </div>
-      </section>
-      <section className={styles.assignment}>
-        <div className={styles.assignmentTime}><strong>18:30</strong><span>TODAY</span></div>
-        <div><span className={styles.eyebrow}>APPROVED LIVE</span><h3>Evening traffic update</h3><p>University Road · 20 minute window</p></div>
-        <button aria-label="Open live broadcast preview" onClick={() => setView("live")} type="button">→</button>
-      </section>
-    </div>
-  );
+function HomeView({ setView, storyCount }: Readonly<{ setView: (view: View) => void; storyCount: number }>) {
+  return <div className={styles.view}><section className={styles.greeting}><div><p>Sunday · 24 August</p><h1>Good morning,<br/>Meera.</h1></div><div className={styles.avatar}>MJ</div></section><section className={styles.readiness}><div className={styles.readinessTop}><span>FIELD READINESS</span><strong>All systems ready</strong></div><div className={styles.readinessGrid}><div><i className={styles.readyDot}/>Identity verified</div><div><i className={styles.readyDot}/>Membership active</div><div><i className={styles.readyDot}/>Location enabled</div><div><i className={styles.readyDot}/>Live permission</div></div></section><button className={styles.primaryAction} onClick={() => setView("stories")} type="button"><span><small>NEW REPORT</small>Capture a field story</span><b>＋</b></button><section className={styles.section}><div className={styles.sectionHeading}><h2>Today at a glance</h2><span>{storyCount} stories</span></div><div className={styles.statGrid}><article><strong>02</strong><span>Stories in review</span></article><article><strong>01</strong><span>Published today</span></article><article><strong>18:30</strong><span>Live window</span></article></div></section><section className={styles.assignment}><div className={styles.assignmentTime}><strong>18:30</strong><span>TODAY</span></div><div><span className={styles.eyebrow}>APPROVED LIVE</span><h3>Evening traffic update</h3><p>University Road · 20 minute window</p></div><button onClick={() => setView("live")} type="button">→</button></section></div>;
 }
 
-function StoriesView() {
-  return (
-    <div className={styles.view}>
-      <div className={styles.pageTitle}><span>03 TOTAL</span><h1>My stories</h1><p>Draft, submit and follow editorial decisions.</p></div>
-      <button className={styles.captureButton} type="button"><span>＋</span><div><strong>Start a new field report</strong><small>Text · Photo · Video · Location</small></div></button>
-      <div className={styles.storyList}>
-        {stories.map((story, index) => (
-          <article className={styles.story} key={story.title}>
-            <div className={styles.storyNumber}>0{index + 1}</div>
-            <div><span className={`${styles.status} ${styles[story.tone]}`}>{story.status}</span><h2>{story.title}</h2><p>⌖ {story.locality}</p></div>
-            <span className={styles.chevron}>›</span>
-          </article>
-        ))}
-      </div>
-      <section className={styles.uploadCard}>
-        <div><span>MEDIA UPLOAD</span><strong>market-interview.mp4</strong></div><b>72%</b>
-        <div className={styles.progress}><i/></div><p>Upload continues safely if your connection changes.</p>
-      </section>
-    </div>
-  );
+function StoryEditor({ close, save }: Readonly<{ close: () => void; save: (story: Omit<DemoStory, "id" | "status">, submit: boolean) => void }>) {
+  const submit = (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const data = new FormData(event.currentTarget); const intent = (event.nativeEvent as SubmitEvent).submitter?.getAttribute("value"); save({ title: String(data.get("title")), summary: String(data.get("summary")), body: String(data.get("body")), beat: String(data.get("beat")), language: String(data.get("language")), location: String(data.get("location")) }, intent === "submit"); };
+  return <form className={styles.editor} onSubmit={submit}><div className={styles.editorTop}><button onClick={close} type="button">←</button><div><span>NEW FIELD REPORT</span><h1>Add story</h1></div></div><label>Headline<input name="title" placeholder="What happened?" required/></label><label>Summary<textarea name="summary" placeholder="Give editors the essential context" required/></label><label>Article body<textarea className={styles.bodyInput} name="body" placeholder="Write the full report…" required/></label><div className={styles.formGrid}><label>Language<select name="language"><option>English</option><option>Hindi</option><option>Marathi</option></select></label><label>Beat<select name="beat"><option>Civic affairs</option><option>Transport</option><option>Crime</option><option>Culture</option></select></label></div><label>Current detailed location<input defaultValue="Kothrud, Pune" name="location" required/></label><label className={styles.mediaInput}>Add photo or video<input accept="image/*,video/*" type="file"/><span>＋ Choose media</span><small>Preview only; files stay on this device.</small></label><div className={styles.editorActions}><button name="intent" value="draft">Save draft</button><button className={styles.continueButton} name="intent" value="submit">Submit for review</button></div></form>;
 }
 
-function LiveView() {
-  const [broadcasting, setBroadcasting] = useState(false);
-  return (
-    <div className={styles.liveView}>
-      <div className={styles.liveTop}><span className={styles.eyebrow}>APPROVED SESSION</span><h1>Evening traffic update</h1><p>University Road, Pune · 18:30–18:50</p></div>
-      <div className={`${styles.camera} ${broadcasting ? styles.cameraLive : ""}`}>
-        <div className={styles.cameraGrid}/>
-        <div className={styles.cameraBadge}>{broadcasting ? <><i/> LIVE · 00:42</> : "CAMERA PREVIEW"}</div>
-        <div className={styles.focusFrame}/>
-        <p>{broadcasting ? "Synthetic broadcast simulation" : "Camera and microphone check"}</p>
-      </div>
-      <div className={styles.recordingDisclosure}><span>●</span><p><strong>This session is recorded server-side.</strong><br/>The replay stays private until an editor publishes it.</p></div>
-      <div className={styles.deviceChecks}><span>✓ Camera ready</span><span>✓ Microphone ready</span><span>✓ Network strong</span></div>
-      <button className={broadcasting ? styles.stopButton : styles.goLiveButton} onClick={() => setBroadcasting(!broadcasting)} type="button">
-        {broadcasting ? "End demo broadcast" : "Start demo broadcast"}
-      </button>
-      <p className={styles.simulationNote}>Preview interaction only — no camera, room or recording is created.</p>
-    </div>
-  );
+function StoriesView({ state, setState }: Readonly<{ state: DemoState; setState: (state: DemoState) => void }>) {
+  const [editing, setEditing] = useState(false);
+  const save = (story: Omit<DemoStory, "id" | "status">, shouldSubmit: boolean) => { const draft = addStory(state, story); setState(shouldSubmit ? submitStory(draft, draft.stories[0].id) : draft); setEditing(false); };
+  if (editing) return <StoryEditor close={() => setEditing(false)} save={save}/>;
+  return <div className={styles.view}><div className={styles.pageTitle}><span>{String(state.stories.length).padStart(2,"0")} TOTAL</span><h1>My stories</h1><p>Create reports and follow editorial decisions.</p></div><button className={styles.captureButton} onClick={() => setEditing(true)} type="button"><span>＋</span><div><strong>Add a new story</strong><small>Text · Photo · Video · Location</small></div></button><div className={styles.storyList}>{state.stories.map((story, index) => <article className={styles.story} key={story.id}><div className={styles.storyNumber}>{String(index + 1).padStart(2,"0")}</div><div><span className={`${styles.status} ${story.status === "Published" ? styles.published : story.status === "Draft" ? styles.draft : styles.review}`}>{story.status}</span><h2>{story.title}</h2><p>⌖ {story.location} · {story.language}</p>{story.status === "Draft" && <button className={styles.submitInline} onClick={() => setState(submitStory(state, story.id))} type="button">Submit for review →</button>}</div></article>)}</div></div>;
 }
 
-function ApplicationView() {
-  const steps = [
-    ["Mobile verified", "Completed"], ["Application details", "Completed"], ["₹100 fee", "Payment captured"],
-    ["Identity check", "KYC verified"], ["Editorial review", "Approved"],
-  ] as const;
-  return (
-    <div className={styles.view}>
-      <div className={styles.pageTitle}><span>APPLICATION BCN-R-02418</span><h1>You&apos;re approved.</h1><p>Your reporting membership is active until 24 August 2027.</p></div>
-      <section className={styles.approvalStamp}><div>✓</div><span><small>VERIFIED FIELD REPORTER</small><strong>Meera Joshi</strong></span></section>
-      <ol className={styles.timeline}>
-        {steps.map(([title, detail], index) => <li key={title}><i>{index + 1}</i><div><strong>{title}</strong><span>{detail}</span></div><b>✓</b></li>)}
-      </ol>
-      <section className={styles.receipt}><span>Annual membership</span><strong>₹100 paid</strong><small>Razorpay test payment · Synthetic receipt</small></section>
-      <p className={styles.privacyLine}>Identity and payment details remain private. Only your verified name, approved portrait and public reporting profile appear on published work.</p>
-    </div>
-  );
-}
-
-function ProfileView() {
-  return (
-    <div className={styles.view}>
-      <div className={styles.pageTitle}><span>PUBLIC PROFILE PREVIEW</span><h1>Your byline,<br/>verified.</h1></div>
-      <section className={styles.profileCard}>
-        <div className={styles.profilePortrait}>MJ</div>
-        <div><span className={styles.verifiedBadge}>✓ VERIFIED REPORTER</span><h2>Meera Joshi</h2><p>Pune district · Civic affairs, transport</p></div>
-        <blockquote>“Reporting from the street, with context from the people who live there.”</blockquote>
-        <div className={styles.profileStats}><span><strong>28</strong>Published stories</span><span><strong>04</strong>Live reports</span><span><strong>1 yr</strong>Member</span></div>
-      </section>
-      <section className={styles.permissions}>
-        <h2>Reporter permissions</h2>
-        <div><span>Direct publication</span><b>Admin approval required</b></div>
-        <div><span>Request live broadcast</span><b className={styles.permissionOn}>Enabled</b></div>
-        <div><span>Membership</span><b className={styles.permissionOn}>Active</b></div>
-      </section>
-    </div>
-  );
-}
+function LiveView() { const [broadcasting,setBroadcasting]=useState(false); return <div className={styles.liveView}><div className={styles.liveTop}><span className={styles.eyebrow}>APPROVED SESSION</span><h1>Evening traffic update</h1><p>University Road, Pune · 18:30–18:50</p></div><div className={`${styles.camera} ${broadcasting?styles.cameraLive:""}`}><div className={styles.cameraGrid}/><div className={styles.cameraBadge}>{broadcasting?"● LIVE · 00:42":"CAMERA PREVIEW"}</div><div className={styles.focusFrame}/><p>{broadcasting?"Synthetic broadcast simulation":"Camera and microphone check"}</p></div><div className={styles.recordingDisclosure}><span>●</span><p><strong>This session is recorded server-side.</strong><br/>The replay stays private until an editor publishes it.</p></div><div className={styles.deviceChecks}><span>✓ Camera ready</span><span>✓ Microphone ready</span><span>✓ Network strong</span></div><button className={broadcasting?styles.stopButton:styles.goLiveButton} onClick={()=>setBroadcasting(!broadcasting)} type="button">{broadcasting?"End demo broadcast":"Start demo broadcast"}</button><p className={styles.simulationNote}>Preview interaction only — no camera, room or recording is created.</p></div>; }
+function ApplicationView() { return <div className={styles.view}><div className={styles.pageTitle}><span>APPLICATION BCN-R-02418</span><h1>You&apos;re approved.</h1><p>Your reporting membership is active until 24 August 2027.</p></div><section className={styles.approvalStamp}><div>✓</div><span><small>VERIFIED FIELD REPORTER</small><strong>Meera Joshi</strong></span></section><ol className={styles.timeline}>{["Mobile verified","Application submitted","₹100 payment captured","Aadhaar KYC verified","Admin approved"].map((title,index)=><li key={title}><i>{index+1}</i><div><strong>{title}</strong><span>Completed</span></div><b>✓</b></li>)}</ol></div>; }
+function ProfileView() { return <div className={styles.view}><div className={styles.pageTitle}><span>PUBLIC PROFILE</span><h1>Your byline,<br/>verified.</h1></div><section className={styles.profileCard}><div className={styles.profilePortrait}>MJ</div><div><span className={styles.verifiedBadge}>✓ VERIFIED REPORTER</span><h2>Meera Joshi</h2><p>Pune district · Civic affairs, transport</p></div><blockquote>“Reporting from the street, with context from the people who live there.”</blockquote><div className={styles.profileStats}><span><strong>28</strong>Published</span><span><strong>04</strong>Live reports</span><span><strong>1 yr</strong>Member</span></div></section><section className={styles.permissions}><h2>Reporter permissions</h2><div><span>Direct publication</span><b>Approval required</b></div><div><span>Live broadcasts</span><b className={styles.permissionOn}>Enabled</b></div></section></div>; }
+function AppNavigation({ view, setView }: Readonly<{ view: View; setView: (view: View) => void }>) { const labels:Record<View,string>={home:"Home",stories:"Stories",live:"Live",application:"Status",profile:"Profile"}; return <nav aria-label="App navigation" className={styles.bottomNav}>{(Object.keys(labels) as View[]).map(item=><button aria-current={view===item?"page":undefined} className={view===item?styles.activeNav:""} key={item} onClick={()=>setView(item)} type="button"><b>{item==="home"?"⌂":item==="stories"?"▤":item==="live"?"◉":item==="application"?"✓":"♙"}</b><span>{labels[item]}</span></button>)}</nav>; }
 
 export function ReporterDemo() {
-  const [view, setView] = useState<View>("home");
-  const views = { home: <HomeView setView={setView}/>, stories: <StoriesView/>, live: <LiveView/>, application: <ApplicationView/>, profile: <ProfileView/> };
-  const labels: Record<View, string> = { home: "Home", stories: "Stories", live: "Live", application: "Apply", profile: "Profile" };
-  return (
-    <main className={styles.shell}>
-      <div className={styles.backdrop}><span>FIELD DESK</span><strong>REPORT.<br/>VERIFY.<br/>PUBLISH.</strong><p>Mobile reporting for the people closest to the story.</p></div>
-      <section className={styles.phone} aria-label="INBCN Reporter client preview">
-        <DemoHeader/>
-        <div className={styles.content}>{views[view]}</div>
-        <nav aria-label="Demo navigation" className={styles.bottomNav}>
-          {(Object.keys(labels) as View[]).map((item) => <button aria-current={view === item ? "page" : undefined} className={view === item ? styles.activeNav : ""} key={item} onClick={() => setView(item)} type="button"><SignalIcon name={item}/><span>{labels[item]}</span></button>)}
-        </nav>
-      </section>
-      <aside className={styles.demoGuide}><span>CLIENT WALKTHROUGH</span><h2>Try the field workflow.</h2><p>Use the five tabs inside the phone to review onboarding, story capture, live approval and public attribution.</p><div><i/>No real services connected</div></aside>
-    </main>
-  );
+  const [state,setState]=useState<DemoState>(initialDemoState); const [view,setView]=useState<View>("home"); const [ready,setReady]=useState(false);
+  useEffect(()=>{ queueMicrotask(()=>{ try { const saved=localStorage.getItem(storageKey); if(saved){ const parsed=JSON.parse(saved) as DemoState; if(stageOrder.includes(parsed.stage)&&Array.isArray(parsed.stories)) setState(parsed); } } catch {} finally { setReady(true); } }); },[]);
+  useEffect(()=>{ if(ready) localStorage.setItem(storageKey,JSON.stringify(state)); },[ready,state]);
+  const restart=()=>{ localStorage.removeItem(storageKey); setState(initialDemoState()); setView("home"); };
+  const screens:Record<View,React.ReactNode>={home:<HomeView setView={setView} storyCount={state.stories.length}/>,stories:<StoriesView state={state} setState={setState}/>,live:<LiveView/>,application:<ApplicationView/>,profile:<ProfileView/>};
+  return <main className={styles.shell}><div className={styles.backdrop}><span>FIELD DESK</span><strong>{state.stage==="app"?<>REPORT.<br/>VERIFY.<br/>PUBLISH.</>:<>JOIN.<br/>VERIFY.<br/>REPORT.</>}</strong><p>A complete mobile-first reporter workflow.</p></div><section className={styles.phone} aria-label="INBCN Reporter client preview"><DemoHeader restart={restart}/><div className={styles.content}>{state.stage==="app"?screens[view]:<Onboarding state={state} setState={setState}/>}</div>{state.stage==="app"&&<AppNavigation view={view} setView={setView}/>}</section><aside className={styles.demoGuide}><span>WORKING CLIENT PREVIEW</span><h2>{state.stage==="app"?"Create and submit demo stories.":"Complete reporter onboarding."}</h2><p>Every interaction is local to this browser. Refresh safely or restart at any time.</p><div><i/>No real services connected</div></aside></main>;
 }
