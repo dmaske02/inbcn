@@ -89,6 +89,7 @@ export type Database = {
           submitted_at: string | null
           completion_deadline: string | null
           completion_reminded_at: string | null
+          review_mode: string
           reviewed_by: string | null
           reviewed_at: string | null
           decision_reason: string | null
@@ -126,6 +127,7 @@ export type Database = {
           submitted_at?: string | null
           completion_deadline?: string | null
           completion_reminded_at?: string | null
+          review_mode?: string
           reviewed_by?: string | null
           reviewed_at?: string | null
           decision_reason?: string | null
@@ -163,6 +165,7 @@ export type Database = {
           submitted_at?: string | null
           completion_deadline?: string | null
           completion_reminded_at?: string | null
+          review_mode?: string
           reviewed_by?: string | null
           reviewed_at?: string | null
           decision_reason?: string | null
@@ -203,6 +206,7 @@ export type Database = {
           purpose: string
           amount_paise: number
           currency: string
+          payment_provider: string
           payment_status: string
           refund_status: string
           razorpay_order_id: string | null
@@ -231,6 +235,7 @@ export type Database = {
           purpose: string
           amount_paise?: number
           currency?: string
+          payment_provider?: string
           payment_status?: string
           refund_status?: string
           razorpay_order_id?: string | null
@@ -259,6 +264,7 @@ export type Database = {
           purpose?: string
           amount_paise?: number
           currency?: string
+          payment_provider?: string
           payment_status?: string
           refund_status?: string
           razorpay_order_id?: string | null
@@ -382,10 +388,12 @@ export type Database = {
           can_broadcast_live: boolean
           live_broadcast_granted_by: string | null
           live_broadcast_granted_at: string | null
+          live_broadcast_grant_mode: string
           live_broadcast_revoked_by: string | null
           live_broadcast_revoked_at: string | null
-          public_photo_verified_by: string
+          public_photo_verified_by: string | null
           public_photo_verified_at: string
+          public_photo_verification_mode: string
           suspended_by: string | null
           suspended_at: string | null
           suspension_reason: string | null
@@ -426,10 +434,12 @@ export type Database = {
           can_broadcast_live?: boolean
           live_broadcast_granted_by?: string | null
           live_broadcast_granted_at?: string | null
+          live_broadcast_grant_mode?: string
           live_broadcast_revoked_by?: string | null
           live_broadcast_revoked_at?: string | null
-          public_photo_verified_by: string
+          public_photo_verified_by?: string | null
           public_photo_verified_at: string
+          public_photo_verification_mode?: string
           suspended_by?: string | null
           suspended_at?: string | null
           suspension_reason?: string | null
@@ -470,10 +480,12 @@ export type Database = {
           can_broadcast_live?: boolean
           live_broadcast_granted_by?: string | null
           live_broadcast_granted_at?: string | null
+          live_broadcast_grant_mode?: string
           live_broadcast_revoked_by?: string | null
           live_broadcast_revoked_at?: string | null
-          public_photo_verified_by?: string
+          public_photo_verified_by?: string | null
           public_photo_verified_at?: string
+          public_photo_verification_mode?: string
           suspended_by?: string | null
           suspended_at?: string | null
           suspension_reason?: string | null
@@ -1734,6 +1746,7 @@ export type Database = {
         Returns: string | null
       }
       claim_reporter_access_sync: { Args: { p_profile_id: string }; Returns: Json }
+      claim_temporary_reporter_access_sync: { Args: { p_profile_id: string }; Returns: Json }
       claim_kyc_webhook_event: { Args: { p_event_id: string; p_event_type: string }; Returns: Json }
       claim_auto_import_batch: {
         Args: { p_started_at: string; p_lock_expires_at: string; p_queue_size: number; p_force?: boolean }
@@ -1826,6 +1839,18 @@ export type Database = {
       complete_reporter_kyc_start: { Args: { p_application_id: string; p_profile_id: string; p_reservation_token: string; p_provider: string; p_reference: string }; Returns: boolean }
       complete_reporter_access_sync: {
         Args: { p_profile_id: string; p_generation: number; p_claim_token: string; p_succeeded: boolean; p_failure_detail: string | null }
+        Returns: Json
+      }
+      complete_temporary_reporter_access_sync: {
+        Args: { p_profile_id: string; p_generation: number; p_claim_token: string; p_succeeded: boolean; p_failure_detail: string | null }
+        Returns: Json
+      }
+      complete_temporary_reporter_kyc_approval: {
+        Args: { p_profile_id: string; p_application_id: string }
+        Returns: Json
+      }
+      complete_temporary_reporter_payment: {
+        Args: { p_profile_id: string; p_application_id: string }
         Returns: Json
       }
       complete_reporter_live_recording_start: {

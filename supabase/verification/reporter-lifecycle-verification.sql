@@ -18,7 +18,11 @@ begin
     'public.complete_razorpay_refund_webhook(text,uuid,text,text,integer,text)',
     'public.complete_razorpay_refund_failure_webhook(text,uuid,text,text,integer,text)',
     'public.complete_reporter_recording_deletion(uuid,uuid,text,text)',
-    'public.fail_reporter_recording_deletion(uuid,uuid,text,text)'
+    'public.fail_reporter_recording_deletion(uuid,uuid,text,text)',
+    'public.complete_temporary_reporter_payment(uuid,uuid)',
+    'public.complete_temporary_reporter_kyc_approval(uuid,uuid)',
+    'public.claim_temporary_reporter_access_sync(uuid)',
+    'public.complete_temporary_reporter_access_sync(uuid,bigint,uuid,boolean,text)'
   ] loop
     function_oid := to_regprocedure(function_signature);
     if function_oid is null then
@@ -173,6 +177,111 @@ begin
       raise;
     end if;
   end;
+end;
+$$;
+
+reset role;
+
+insert into auth.users (id, email) values
+  ('85000000-0000-4000-8000-000000000001', 'temporary-reporter@example.test');
+
+insert into public.profiles (id, username, display_name, role) values (
+  '85000000-0000-4000-8000-000000000001',
+  'reporter_8500000000004000',
+  'Reporter applicant',
+  'reader'
+);
+
+insert into public.reporter_applications (
+  id,
+  profile_id,
+  legal_name,
+  date_of_birth,
+  age_18_declared,
+  home_city,
+  home_district,
+  home_state,
+  beats,
+  public_photo_url,
+  public_photo_id
+) values (
+  '85000000-0000-4000-8000-000000000010',
+  '85000000-0000-4000-8000-000000000001',
+  'Temporary Reporter',
+  '1990-01-01',
+  true,
+  'Mumbai',
+  'Mumbai City',
+  'Maharashtra',
+  array['civic'],
+  'https://res.cloudinary.com/demo/image/upload/v1/inbcn/reporter/portrait/85000000-0000-4000-8000-000000000011.jpg',
+  'inbcn/reporter/portrait/85000000-0000-4000-8000-000000000011'
+);
+
+insert into public.reporter_consents (
+  application_id, profile_id, notice_key, notice_version, locale
+)
+select
+  '85000000-0000-4000-8000-000000000010',
+  '85000000-0000-4000-8000-000000000001',
+  notice_key,
+  '1.0',
+  'en'
+from unnest(array[
+  'payment_refund', 'kyc', 'public_identity',
+  'mandatory_location', 'recording', 'editorial_terms'
+]) as notice_key;
+
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+set local role service_role;
+
+select public.complete_temporary_reporter_payment(
+  '85000000-0000-4000-8000-000000000001',
+  '85000000-0000-4000-8000-000000000010'
+);
+select public.complete_temporary_reporter_payment(
+  '85000000-0000-4000-8000-000000000001',
+  '85000000-0000-4000-8000-000000000010'
+);
+select public.complete_temporary_reporter_kyc_approval(
+  '85000000-0000-4000-8000-000000000001',
+  '85000000-0000-4000-8000-000000000010'
+);
+select public.complete_temporary_reporter_kyc_approval(
+  '85000000-0000-4000-8000-000000000001',
+  '85000000-0000-4000-8000-000000000010'
+);
+
+do $$
+declare
+  reporter public.reporter_profiles%rowtype;
+begin
+  if (select count(*) from public.reporter_payments
+      where application_id = '85000000-0000-4000-8000-000000000010') <> 1
+    or (select count(*) from public.audit_events
+      where subject_id = '85000000-0000-4000-8000-000000000010'
+        and action = 'reporter.temporary_payment_completed') <> 1
+    or (select count(*) from public.audit_events
+      where subject_id = '85000000-0000-4000-8000-000000000010'
+        and action = 'reporter.temporary_application_approved') <> 1 then
+    raise exception 'temporary onboarding retries duplicated evidence';
+  end if;
+
+  select * into reporter
+  from public.reporter_profiles
+  where profile_id = '85000000-0000-4000-8000-000000000001';
+  if not found
+    or reporter.can_publish_directly
+    or not reporter.can_broadcast_live
+    or reporter.live_broadcast_grant_mode <> 'temporary'
+    or reporter.public_photo_verification_mode <> 'temporary'
+    or reporter.membership_expires_at <> reporter.membership_started_at + interval '1 year'
+    or reporter.membership_grace_ends_at <> reporter.membership_expires_at + interval '7 days'
+    or reporter.access_sync_status <> 'pending'
+    or reporter.access_sync_operation <> 'approval'
+    or reporter.access_sync_generation <> 1 then
+    raise exception 'temporary reporter approval evidence is incorrect';
+  end if;
 end;
 $$;
 
