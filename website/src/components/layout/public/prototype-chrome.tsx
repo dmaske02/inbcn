@@ -35,7 +35,7 @@ type PrototypeChromeProps = {
   locale: PublicLocale;
   breaking: readonly HomepageStory[];
   pinnedAlert: HomepagePinnedAlert | null;
-  now: string;
+  currentDate: string;
   labels: PrototypeChromeLabels;
 };
 
@@ -48,15 +48,12 @@ export type PrototypeChromeLabels = Readonly<{
   pinnedAlert: string;
 }>;
 
-export function PrototypeChrome({ locale, breaking, pinnedAlert, now, labels }: PrototypeChromeProps) {
+export function PrototypeChrome({ locale, breaking, pinnedAlert, currentDate, labels }: PrototypeChromeProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [pinnedOpen, setPinnedOpen] = useState(true);
   const tickerItems = [...breaking, ...breaking];
-  const currentDate = new Intl.DateTimeFormat(`${locale}-IN`, {
-    weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata",
-  }).format(new Date(now));
 
   return (
     <>
@@ -105,7 +102,10 @@ export function PrototypeChrome({ locale, breaking, pinnedAlert, now, labels }: 
         <div className="proto-drawer-panel" role="dialog" aria-modal="true" aria-label={labels.accessibility.mobileNavigation}>
           <div className="proto-drawer-head"><Image src="/images/logo/inbcn-logo.png" alt="INBCN News 24x7 Digital" width={170} height={74} /><button className="proto-icon" aria-label={labels.actions.closeMenu} onClick={() => setDrawerOpen(false)}><X size={18} /></button></div>
           <form className="proto-search proto-drawer-search" action={`/${locale}/search`}><Search size={14} /><input name="q" placeholder={labels.actions.searchPlaceholder} aria-label={labels.actions.searchPlaceholder} /></form>
-          <div className="proto-drawer-links">{categories.map((item) => <Link key={item.key} href={navigationHref(locale, item.path)} onClick={() => setDrawerOpen(false)}>{labels.navigation[item.key]}</Link>)}</div>
+          <div className="proto-drawer-links">
+            <Link className="proto-live-tv proto-drawer-live-tv" href={navigationHref(locale, "live-tv")} onClick={() => setDrawerOpen(false)}><i />{labels.actions.liveTv}</Link>
+            {categories.map((item) => <Link key={item.key} href={navigationHref(locale, item.path)} onClick={() => setDrawerOpen(false)}>{labels.navigation[item.key]}</Link>)}
+          </div>
           <div className="proto-drawer-actions"><button className="proto-auth secondary">{labels.actions.login}</button><button className="proto-auth">{labels.actions.signup}</button></div>
         </div>
       </div>}

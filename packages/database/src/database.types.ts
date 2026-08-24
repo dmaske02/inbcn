@@ -740,6 +740,54 @@ export type Database = {
           },
         ]
       }
+      story_events: {
+        Row: {
+          actor_id: string | null
+          command: string
+          created_at: string
+          from_status: Database["public"]["Enums"]["story_status"] | null
+          id: string
+          metadata: Json
+          story_id: string
+          to_status: Database["public"]["Enums"]["story_status"] | null
+        }
+        Insert: {
+          actor_id?: string | null
+          command: string
+          created_at?: string
+          from_status?: Database["public"]["Enums"]["story_status"] | null
+          id?: string
+          metadata?: Json
+          story_id: string
+          to_status?: Database["public"]["Enums"]["story_status"] | null
+        }
+        Update: {
+          actor_id?: string | null
+          command?: string
+          created_at?: string
+          from_status?: Database["public"]["Enums"]["story_status"] | null
+          id?: string
+          metadata?: Json
+          story_id?: string
+          to_status?: Database["public"]["Enums"]["story_status"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "story_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "story_events_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "stories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       ingest_run_dashboard: {
@@ -776,6 +824,20 @@ export type Database = {
       move_homepage_section_to: { Args: { section_id: string; target_position: number }; Returns: undefined }
       retire_media_asset: { Args: { media_id: string; expected_updated_at: string }; Returns: string }
       restore_media_asset: { Args: { media_id: string; expected_updated_at: string }; Returns: string }
+      is_story_public: {
+        Args: { p_status: Database["public"]["Enums"]["story_status"]; p_published_at: string | null }
+        Returns: boolean
+      }
+      transition_story: {
+        Args: {
+          p_story_id: string
+          p_command: string
+          p_expected_updated_at: string
+          p_scheduled_at?: string | null
+          p_rejection_reason?: string | null
+        }
+        Returns: Json
+      }
     }
     Enums: {
       media_type: "image" | "video" | "audio" | "document"

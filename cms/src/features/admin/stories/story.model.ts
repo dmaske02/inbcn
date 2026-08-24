@@ -9,8 +9,11 @@ export type StoryCommand =
   | "submit"
   | "approve"
   | "reject"
+  | "send_back"
   | "publish"
   | "schedule"
+  | "cancel_schedule"
+  | "unpublish"
   | "archive"
   | "delete";
 
@@ -99,22 +102,24 @@ export function getAllowedStoryCommands(
     if (isExternalArticle && status === "draft") {
       return ["save", "approve", "reject"];
     }
-    if (status === "pending_review") return ["save", "approve"];
+    if (status === "pending_review") return ["save", "approve", "reject"];
     if (status === "approved") return ["publish", "schedule", "archive"];
-    if (status === "scheduled") return ["publish", "archive"];
-    if (status === "published") return ["archive"];
+    if (status === "scheduled") return ["publish", "schedule", "cancel_schedule", "archive"];
+    if (status === "published") return ["unpublish", "archive"];
+    if (status === "rejected") return ["send_back"];
     return [];
   }
 
   if (status === "archived") return ["delete"];
   if (status === "draft") {
-    return ["save", "submit", "approve", "reject", "publish", "schedule", "archive", "delete"];
+    return ["save", "submit", "approve", "reject", "publish", "schedule", "delete"];
   }
   if (status === "pending_review") {
-    return ["save", "approve", "reject", "publish", "schedule", "archive", "delete"];
+    return ["save", "approve", "reject", "publish", "schedule", "delete"];
   }
   if (status === "approved") return ["save", "publish", "schedule", "archive", "delete"];
-  if (status === "scheduled") return ["save", "publish", "archive", "delete"];
-  if (status === "published") return ["save", "archive", "delete"];
+  if (status === "scheduled") return ["save", "publish", "schedule", "cancel_schedule", "archive", "delete"];
+  if (status === "published") return ["save", "unpublish", "archive", "delete"];
+  if (status === "rejected") return ["save", "send_back", "delete"];
   return ["save", "approve", "reject", "publish", "schedule", "archive", "delete"];
 }

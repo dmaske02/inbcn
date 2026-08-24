@@ -116,6 +116,8 @@ export type CmsStoryDto = Readonly<{
   isBreaking: boolean;
   submittedAt: string | null;
   approvedAt: string | null;
+  rejectedAt: string | null;
+  rejectionReason: string | null;
   scheduledAt: string | null;
   publishedAt: string | null;
   createdAt: string;

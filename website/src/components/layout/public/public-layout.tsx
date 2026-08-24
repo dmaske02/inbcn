@@ -33,6 +33,13 @@ export async function PublicLayout({
   ...props
 }: PublicLayoutProps) {
   const t = await getTranslations({ locale, namespace: "publicChrome" });
+  const currentDate = new Intl.DateTimeFormat(`${locale}-IN`, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  }).format(new Date());
   const chromeLabels = {
     navigation: { top: t("navigation.top"), india: t("navigation.india"), world: t("navigation.world"), politics: t("navigation.politics"), business: t("navigation.business"), technology: t("navigation.technology"), ai: t("navigation.ai"), sports: t("navigation.sports"), entertainment: t("navigation.entertainment"), health: t("navigation.health"), lifestyle: t("navigation.lifestyle"), education: t("navigation.education"), jobs: t("navigation.jobs"), opinion: t("navigation.opinion"), factCheck: t("navigation.factCheck") },
     actions: { liveTv: t("actions.liveTv"), login: t("actions.login"), signup: t("actions.signup"), searchPlaceholder: t("actions.searchPlaceholder"), openMenu: t("actions.openMenu"), closeMenu: t("actions.closeMenu"), enableAlerts: t("actions.enableAlerts"), latestUpdate: t("actions.latestUpdate"), dismiss: t("actions.dismiss") },
@@ -45,7 +52,7 @@ export async function PublicLayout({
     <div className={cn(publicLayoutVariants(), className)} {...props}>
       <SkipToContent label={t("accessibility.skipToContent")} />
       {utilityBar}
-      {header ?? (homepageData ? <PrototypeChrome locale={locale} breaking={homepageData.breaking} pinnedAlert={homepageData.pinnedAlert} now={new Date().toISOString()} labels={chromeLabels} /> : null)}
+      {header ?? (homepageData ? <PrototypeChrome locale={locale} breaking={homepageData.breaking} pinnedAlert={homepageData.pinnedAlert} currentDate={currentDate} labels={chromeLabels} /> : null)}
       {signalRail}
       <main id="main-content" tabIndex={-1} className="flex-1">
         {children}
