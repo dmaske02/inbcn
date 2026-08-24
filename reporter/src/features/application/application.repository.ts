@@ -18,6 +18,7 @@ import {
 
 const applicationSelect = "id, profile_id, status, kyc_status, completion_deadline, public_photo_url, public_photo_verified_at, created_at" as const;
 const POSTGRES_ERROR_CODE = /^[0-9A-Z]{5}$/iu;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
 export type ReporterApplicationView = Readonly<{
   id: string;
@@ -308,6 +309,103 @@ async function failKycWebhook(input: Readonly<{
   return data;
 }
 
+function resultRecord(data: unknown): Record<string, unknown> {
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new ApplicationRepositoryError("The temporary onboarding response was invalid.");
+  }
+  return data as Record<string, unknown>;
+}
+
+function generationFrom(data: Record<string, unknown>): number {
+  if (typeof data.generation !== "number"
+    || !Number.isSafeInteger(data.generation)
+    || data.generation < 1) {
+    throw new ApplicationRepositoryError("The temporary onboarding response was invalid.");
+  }
+  return data.generation;
+}
+
+export async function completeTemporaryPayment(
+  profileId: string,
+  applicationId: string,
+): Promise<Readonly<{ state: "completed" }>> {
+  const { data, error } = await createAdminClient().rpc("complete_temporary_reporter_payment", {
+    p_profile_id: profileId,
+    p_application_id: applicationId,
+  });
+  if (error) throw new ApplicationRepositoryError("Temporary payment could not be completed.");
+  if (resultRecord(data).state !== "completed") {
+    throw new ApplicationRepositoryError("The temporary payment response was invalid.");
+  }
+  return { state: "completed" };
+}
+
+export async function completeTemporaryKycApproval(
+  profileId: string,
+  applicationId: string,
+): Promise<Readonly<{ profileId: string; generation: number }>> {
+  const { data, error } = await createAdminClient().rpc("complete_temporary_reporter_kyc_approval", {
+    p_profile_id: profileId,
+    p_application_id: applicationId,
+  });
+  if (error) throw new ApplicationRepositoryError("Temporary identity verification could not be completed.");
+  const result = resultRecord(data);
+  if (result.state !== "completed" || result.profile_id !== profileId) {
+    throw new ApplicationRepositoryError("The temporary approval response was invalid.");
+  }
+  return { profileId, generation: generationFrom(result) };
+}
+
+export async function claimTemporaryAccessSync(profileId: string): Promise<
+  | Readonly<{ state: "busy"; generation: number }>
+  | Readonly<{ state: "succeeded"; generation: number }>
+  | Readonly<{ state: "claimed"; profileId: string; generation: number; claimToken: string }>
+> {
+  const { data, error } = await createAdminClient().rpc("claim_temporary_reporter_access_sync", {
+    p_profile_id: profileId,
+  });
+  if (error) throw new ApplicationRepositoryError("Temporary reporter access could not be claimed.");
+  const result = resultRecord(data);
+  const generation = generationFrom(result);
+  if (result.state === "busy" || result.state === "succeeded") {
+    return { state: result.state, generation };
+  }
+  if (result.state === "claimed"
+    && result.profile_id === profileId
+    && typeof result.claim_token === "string"
+    && UUID.test(result.claim_token)) {
+    return { state: "claimed", profileId, generation, claimToken: result.claim_token };
+  }
+  throw new ApplicationRepositoryError("The temporary access claim was invalid.");
+}
+
+export async function completeTemporaryAccessSync(input: Readonly<{
+  profileId: string;
+  generation: number;
+  claimToken: string;
+  succeeded: boolean;
+  failureDetail: "auth-claim-update-failed" | null;
+}>): Promise<Readonly<{ state: "succeeded" | "failed" | "stale" | "expired"; generation: number }>> {
+  const { data, error } = await createAdminClient().rpc("complete_temporary_reporter_access_sync", {
+    p_profile_id: input.profileId,
+    p_generation: input.generation,
+    p_claim_token: input.claimToken,
+    p_succeeded: input.succeeded,
+    p_failure_detail: input.failureDetail,
+  });
+  if (error) throw new ApplicationRepositoryError("Temporary reporter access could not be completed.");
+  const result = resultRecord(data);
+  if (!(["succeeded", "failed", "stale", "expired"] as const).includes(
+    result.state as "succeeded" | "failed" | "stale" | "expired",
+  )) {
+    throw new ApplicationRepositoryError("The temporary access completion was invalid.");
+  }
+  return {
+    state: result.state as "succeeded" | "failed" | "stale" | "expired",
+    generation: generationFrom(result),
+  };
+}
+
 export const applicationRepository = {
   reserveKycStart,
   completeKycStart,
@@ -315,4 +413,8 @@ export const applicationRepository = {
   claimKycWebhook,
   completeKycWebhook,
   failKycWebhook,
+  completeTemporaryPayment,
+  completeTemporaryKycApproval,
+  claimTemporaryAccessSync,
+  completeTemporaryAccessSync,
 } as const;

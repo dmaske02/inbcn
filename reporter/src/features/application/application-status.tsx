@@ -6,6 +6,7 @@ import { completeConsentReceiptsAction, type ApplicationActionState } from "./ap
 import { ConsentForm } from "./consent-form";
 import type { ConsentLocale } from "./consent.model";
 import type { ReporterApplicationView } from "./application.repository";
+import { TemporaryOnboardingControls } from "./temporary-onboarding-controls";
 import { ReporterCheckout } from "../payments/reporter-checkout";
 
 const labels = {
@@ -21,7 +22,12 @@ const labels = {
 export function ApplicationStatus({
   application,
   razorpayKeyId,
-}: Readonly<{ application: ReporterApplicationView; razorpayKeyId?: string }>) {
+  temporaryOnboarding = false,
+}: Readonly<{
+  application: ReporterApplicationView;
+  razorpayKeyId?: string;
+  temporaryOnboarding?: boolean;
+}>) {
   const [message, setMessage] = useState("");
   const [locale, setLocale] = useState<ConsentLocale>("en");
   const saveConsents = completeConsentReceiptsAction.bind(null, application.id);
@@ -59,21 +65,29 @@ export function ApplicationStatus({
       {application.status === "draft" && application.consentsComplete ? (
         <div className="space-y-3">
           <p className="text-sm">All current consent receipts are stored. Pay the application fee to continue.</p>
-          <ReporterCheckout
-            applicationId={application.id}
-            keyId={razorpayKeyId}
-            purpose="application"
-          />
+          {temporaryOnboarding ? (
+            <TemporaryOnboardingControls applicationId={application.id} status={application.status} />
+          ) : (
+            <ReporterCheckout
+              applicationId={application.id}
+              keyId={razorpayKeyId}
+              purpose="application"
+            />
+          )}
         </div>
       ) : null}
       {application.status === "payment_pending" ? (
         <div className="space-y-3">
           <p className="text-sm">Resume the existing secure payment order. A retry will not create a second application charge.</p>
-          <ReporterCheckout
-            applicationId={application.id}
-            keyId={razorpayKeyId}
-            purpose="application"
-          />
+          {temporaryOnboarding ? (
+            <TemporaryOnboardingControls applicationId={application.id} status={application.status} />
+          ) : (
+            <ReporterCheckout
+              applicationId={application.id}
+              keyId={razorpayKeyId}
+              purpose="application"
+            />
+          )}
         </div>
       ) : null}
       {application.status === "draft" && !application.consentsComplete ? (
@@ -87,9 +101,13 @@ export function ApplicationStatus({
         </form>
       ) : null}
       {application.status === "kyc_pending" ? (
-        <button className="rounded-md bg-foreground px-4 py-2 text-background" onClick={startKyc} type="button">
-          Start or retry identity verification
-        </button>
+        temporaryOnboarding ? (
+          <TemporaryOnboardingControls applicationId={application.id} status={application.status} />
+        ) : (
+          <button className="rounded-md bg-foreground px-4 py-2 text-background" onClick={startKyc} type="button">
+            Start or retry identity verification
+          </button>
+        )
       ) : null}
       {message ? <p aria-live="polite" className="text-sm">{message}</p> : null}
     </section>

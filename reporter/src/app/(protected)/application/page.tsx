@@ -16,7 +16,13 @@ export default async function ApplicationPage() {
   }
   const application = await getCurrentApplication(actor.userId);
   if (application) {
-    return <ApplicationStatus application={application} razorpayKeyId={env.public.razorpayKeyId} />;
+    return (
+      <ApplicationStatus
+        application={application}
+        razorpayKeyId={env.public.razorpayKeyId}
+        temporaryOnboarding={env.server.temporaryOnboarding}
+      />
+    );
   }
 
   return (
