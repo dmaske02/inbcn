@@ -11,6 +11,7 @@ const migrationUrl = new URL(
 );
 const typesUrl = new URL("../../../../packages/database/src/database.types.ts", import.meta.url);
 const routeUrl = new URL("../../app/api/live/[requestId]/session/route.ts", import.meta.url);
+const handlerUrl = new URL("../../app/api/live/[requestId]/session/handler.ts", import.meta.url);
 
 async function sourceOrEmpty(url) {
   try { return await readFile(url, "utf8"); } catch { return ""; }
@@ -107,7 +108,7 @@ test("manual types expose reservation columns and RPCs", async () => {
 });
 
 test("session route safely contains authorization and params exceptions and canonicalizes UUIDs", async () => {
-  const { createSessionHandler } = await import("../../app/api/live/[requestId]/session/route.ts");
+  const { createSessionHandler } = await import("../../app/api/live/[requestId]/session/handler.ts");
   const { LiveSessionError } = await import("./live-session.service.ts");
   for (const scenario of [
     {
@@ -168,7 +169,7 @@ test("session route safely contains authorization and params exceptions and cano
 });
 
 test("session route is POST-only, awaits params, authorizes, validates UUID, and maps safe errors", async () => {
-  const route = await sourceOrEmpty(routeUrl);
+  const route = `${await sourceOrEmpty(routeUrl)}\n${await sourceOrEmpty(handlerUrl)}`;
   assert.match(route, /export const dynamic = "force-dynamic"/u);
   assert.match(route, /export const POST/u);
   assert.doesNotMatch(route, /export (?:async )?function GET|export const GET/u);

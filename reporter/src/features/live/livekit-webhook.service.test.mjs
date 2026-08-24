@@ -9,7 +9,7 @@ import {
   createLiveKitWebhookService,
   mapEgressStatus,
 } from "./livekit-webhook.service.ts";
-import { createLiveKitWebhookHandler } from "../../app/api/webhooks/livekit/route.ts";
+import { createLiveKitWebhookHandler } from "../../app/api/webhooks/livekit/handler.ts";
 
 const eventId = "EV_x5d77eD5KcBe";
 const requestId = "22222222-2222-4222-8222-222222222222";

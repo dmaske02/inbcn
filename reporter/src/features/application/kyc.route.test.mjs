@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { KycServiceError } from "./application.service.ts";
-import { createKycCallbackHandler } from "../../app/api/kyc/callback/route.ts";
-import { createKycStartHandler } from "../../app/api/kyc/start/route.ts";
+import { createKycCallbackHandler } from "../../app/api/kyc/callback/handler.ts";
+import { createKycStartHandler } from "../../app/api/kyc/start/handler.ts";
 
 const MAX_BODY_SIZE = 1024 * 1024;
 

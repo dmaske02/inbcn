@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createOrderHandler } from "../../app/api/payments/order/route.ts";
-import { createVerifyHandler } from "../../app/api/payments/verify/route.ts";
+import { createOrderHandler } from "../../app/api/payments/order/handler.ts";
+import { createVerifyHandler } from "../../app/api/payments/verify/handler.ts";
 import {
   MAX_RAZORPAY_WEBHOOK_SIZE,
   createRazorpayWebhookHandler,
-} from "../../app/api/webhooks/razorpay/route.ts";
+} from "../../app/api/webhooks/razorpay/handler.ts";
 
 const applicationId = "22222222-2222-4222-8222-222222222222";
 
