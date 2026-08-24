@@ -17,13 +17,15 @@ export async function signInWithTemporaryOtp(phone: unknown, code: unknown): Pro
       for (let page = 1; ; page += 1) {
         const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
         if (error) throw error;
-        const match = data.users.find((user) => user.phone === expectedPhone);
+        const match = data.users.find((user) => user.phone?.replace(/^\+/, "") === expectedPhone.replace(/^\+/, ""));
         if (match) return match.id;
         if (data.nextPage === null) return null;
       }
     },
     async createUser(input) {
       const { data, error } = await admin.auth.admin.createUser({
+        email: input.email,
+        email_confirm: true,
         phone: input.phone,
         phone_confirm: true,
         password: input.password,
@@ -31,8 +33,12 @@ export async function signInWithTemporaryOtp(phone: unknown, code: unknown): Pro
       if (error || !data.user) throw error ?? new Error("Temporary user creation failed.");
       return data.user.id;
     },
-    async rotatePassword(userId, password) {
-      const { error } = await admin.auth.admin.updateUserById(userId, { password });
+    async rotateCredentials(userId, input) {
+      const { error } = await admin.auth.admin.updateUserById(userId, {
+        email: input.email,
+        email_confirm: true,
+        password: input.password,
+      });
       if (error) throw error;
     },
     async ensureProfile(userId) {
