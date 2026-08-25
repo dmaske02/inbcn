@@ -72,7 +72,7 @@ test("review and trust authorization is explicit and reporter commands never ena
   );
   assert.deepEqual(
     getAllowedStoryCommands("admin", "pending_review", false, false, false),
-    ["save", "approve", "reject", "publish", "schedule", "archive", "delete"],
+    ["save", "approve", "reject", "publish", "schedule", "delete"],
   );
 });
 
@@ -116,7 +116,10 @@ test("changes requests delegate exact latest-revision concurrency to the existin
 });
 
 test("canonical guarded transitions stay authoritative and public revalidation is proportional", () => {
-  assert.match(service, /runStoryCommand\(admin, storyId, command, scheduledAt, reason\)/u);
+  assert.match(
+    service,
+    /runStoryCommand\(admin, storyId, command, story\.updatedAt, scheduledAt, reason\)/u,
+  );
   assert.doesNotMatch(service, /\.from\("story_revisions"\)\.update/u);
   assert.match(actions, /publicAffecting = command === "publish" \|\| command === "archive"/u);
   assert.match(actions, /revalidatePath\(`\/admin\/stories\/\$\{storyId\}`\)/u);

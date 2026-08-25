@@ -56,13 +56,16 @@ test("exposes only commands allowed by role, ownership, and status", () => {
 
   assert.deepEqual(getAllowedStoryCommands("writer", "draft", true), ["save", "submit"]);
   assert.deepEqual(getAllowedStoryCommands("writer", "draft", false), []);
-  assert.deepEqual(getAllowedStoryCommands("editor", "pending_review", false), ["save", "approve"]);
+  assert.deepEqual(getAllowedStoryCommands("editor", "pending_review", false), ["save", "approve", "reject"]);
   assert.deepEqual(getAllowedStoryCommands("editor", "draft", false, true), ["save", "approve", "reject"]);
   assert.deepEqual(getAllowedStoryCommands("editor", "draft", false, false), []);
   assert.deepEqual(getAllowedStoryCommands("editor", "approved", false), ["publish", "schedule", "archive"]);
-  assert.deepEqual(getAllowedStoryCommands("editor", "scheduled", false), ["publish", "archive"]);
-  assert.deepEqual(getAllowedStoryCommands("admin", "scheduled", true), ["save", "publish", "archive", "delete"]);
-  assert.deepEqual(getAllowedStoryCommands("admin", "draft", true), ["save", "submit", "approve", "reject", "publish", "schedule", "archive", "delete"]);
+  assert.deepEqual(getAllowedStoryCommands("editor", "scheduled", false), ["publish", "schedule", "cancel_schedule", "archive"]);
+  assert.deepEqual(getAllowedStoryCommands("editor", "published", false), ["unpublish", "archive"]);
+  assert.deepEqual(getAllowedStoryCommands("editor", "rejected", false), ["send_back"]);
+  assert.deepEqual(getAllowedStoryCommands("admin", "scheduled", true), ["save", "publish", "schedule", "cancel_schedule", "archive", "delete"]);
+  assert.deepEqual(getAllowedStoryCommands("admin", "draft", true), ["save", "submit", "approve", "reject", "publish", "schedule", "delete"]);
+  assert.deepEqual(getAllowedStoryCommands("admin", "pending_review", true), ["save", "approve", "reject", "publish", "schedule", "delete"]);
 });
 
 test("legacy citizen reports retain ordinary CMS edit and archive commands", () => {
@@ -72,7 +75,7 @@ test("legacy citizen reports retain ordinary CMS edit and archive commands", () 
   );
   assert.deepEqual(
     getAllowedStoryCommands("editor", "pending_review", false, false, false),
-    ["save", "approve"],
+    ["save", "approve", "reject"],
   );
   assert.deepEqual(
     getAllowedStoryCommands("admin", "approved", false, false, false),

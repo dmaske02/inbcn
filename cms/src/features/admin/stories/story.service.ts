@@ -6,10 +6,12 @@ import {
   cmsStorySlugExists,
   deleteCmsStory,
   getCmsStories,
+  getCmsStoryFeaturedMedia,
   getCmsStoryById,
   getCmsStoryReferences,
   insertCmsStory,
-  updateCmsStory,
+  transitionCmsStory,
+  updateCmsStoryIfCurrent,
   type CmsStoryDto,
   type CmsStoryListQuery,
 } from "@/features/news/server";
@@ -31,7 +33,7 @@ import {
   type StoryStatus,
 } from "./story.model";
 import { calculateReadTime } from "@/features/news/server/services/story-reader.model";
-import { buildTransitionPatch, parseTags } from "./story.workflow";
+import { parseTags } from "./story.workflow";
 import { getMediaReferenceView, isSelectableMedia } from "@/features/admin/media/media.service";
 import { resolveFeaturedMediaSelection } from "@/features/admin/media/media.model";
 import { validateFeaturedMediaChange } from "./story-featured-media-policy";
@@ -45,7 +47,7 @@ const STORY_STATUSES: readonly StoryStatus[] = ["draft", "pending_review", "appr
 const reporterReviewIdSchema = z.uuid();
 
 export class StoryManagementError extends Error {
-  constructor(readonly code: "NOT_FOUND" | "FORBIDDEN" | "DUPLICATE_SLUG" | "INVALID_TRANSITION" | "VALIDATION", message: string) {
+  constructor(readonly code: "NOT_FOUND" | "FORBIDDEN" | "DUPLICATE_SLUG" | "INVALID_TRANSITION" | "INVALID_SCHEDULE" | "CONFLICT" | "VALIDATION", message: string) {
     super(message);
     this.name = "StoryManagementError";
   }
@@ -77,6 +79,12 @@ export type StoryListView = Readonly<{
   canBulkPublish: boolean;
   canBulkArchive: boolean;
   canBulkDelete: boolean;
+}>;
+
+export type StoryReviewQueueView = Omit<StoryListView, "items" | "canCreate" | "canBulkPublish" | "canBulkArchive" | "canBulkDelete"> & Readonly<{
+  items: readonly (StoryListView["items"][number] & {
+    featuredMedia: Awaited<ReturnType<typeof getCmsStoryFeaturedMedia>> extends ReadonlyMap<string, infer T> ? T | null : never;
+  })[];
 }>;
 
 function asStatus(value?: string): DatabaseEnum<"story_status"> | undefined {
@@ -261,7 +269,7 @@ export async function createStory(admin: AdminIdentity, input: StoryFormValues):
   });
 }
 
-export async function saveStory(admin: AdminIdentity, id: string, input: StoryFormValues): Promise<CmsStoryDto> {
+export async function saveStory(admin: AdminIdentity, id: string, expectedUpdatedAt: string, input: StoryFormValues): Promise<CmsStoryDto> {
   const story = await getCmsStoryById(id);
   if (!story) throw new StoryManagementError("NOT_FOUND", "Story not found.");
   if (!getAllowedStoryCommands(
@@ -278,7 +286,7 @@ export async function saveStory(admin: AdminIdentity, id: string, input: StoryFo
     throw new StoryManagementError("DUPLICATE_SLUG", "That slug is already used for this language.");
   }
   await assertFeaturedMediaSelection(admin, values.featuredMediaId || null, story.featuredMediaId);
-  return updateCmsStory(id, {
+  const updated = await updateCmsStoryIfCurrent(id, expectedUpdatedAt, {
     ...normalizeForm(
       values,
       admin.role,
@@ -288,12 +296,51 @@ export async function saveStory(admin: AdminIdentity, id: string, input: StoryFo
     ),
     updated_at: new Date().toISOString(),
   });
+  if (!updated) {
+    throw new StoryManagementError("CONFLICT", "Story was changed by another editor. Reload before saving.");
+  }
+  return updated;
+}
+
+export async function getStoryReviewQueueView(admin: AdminIdentity, params: StoryListParams): Promise<StoryReviewQueueView> {
+  const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
+  const references = await getCmsStoryReferences();
+  const result = await getCmsStories({
+    page,
+    pageSize: PAGE_SIZE,
+    search: params.search?.trim() || undefined,
+    status: "pending_review",
+    languageId: params.language || undefined,
+    categoryId: params.category || undefined,
+    sort: "submitted_asc",
+  });
+  const media = await getCmsStoryFeaturedMedia(result.items.flatMap((story) => story.featuredMediaId ? [story.featuredMediaId] : []));
+  const languageNames = new Map(references.languages.map((item) => [item.id, item.name]));
+  const categoryNames = new Map(references.categories.map((item) => [item.id, item.name]));
+  const authorNames = new Map(references.authors.map((item) => [item.id, item.displayName]));
+  return {
+    items: result.items.map((story) => ({
+      ...story,
+      languageName: languageNames.get(story.languageId) ?? "Unknown",
+      categoryName: categoryNames.get(story.categoryId) ?? "Unknown",
+      authorName: story.createdBy ? (authorNames.get(story.createdBy) ?? "Former user") : "System",
+      commands: getAllowedStoryCommands(admin.role, story.status, story.createdBy === admin.id, story.type === "external_article"),
+      featuredMedia: story.featuredMediaId ? media.get(story.featuredMediaId) ?? null : null,
+    })),
+    references,
+    page,
+    pageSize: PAGE_SIZE,
+    total: result.total,
+    totalPages: Math.max(1, Math.ceil(result.total / PAGE_SIZE)),
+    filters: { search: params.search ?? "", status: "pending_review", language: params.language ?? "", category: params.category ?? "", sort: "submitted_asc" },
+  };
 }
 
 export async function runStoryCommand(
   admin: AdminIdentity,
   id: string,
   command: Exclude<StoryCommand, "save" | "request_changes">,
+  expectedUpdatedAt?: string,
   scheduledAt?: string,
   rejectionReason?: string,
 ): Promise<void> {
@@ -306,15 +353,15 @@ export async function runStoryCommand(
     await deleteCmsStory(id);
     return;
   }
-  try {
-    await updateCmsStory(id, buildTransitionPatch(command, story.status, admin.id, new Date().toISOString(), scheduledAt, rejectionReason));
-  } catch (error) {
-    if (error instanceof StoryManagementError) throw error;
-    if (error instanceof Error && error.message.toLowerCase().includes("publish date")) {
-      throw new StoryManagementError("VALIDATION", error.message);
-    }
-    throw error;
-  }
+  if (!expectedUpdatedAt) throw new StoryManagementError("CONFLICT", "Story was changed by another editor. Reload before saving.");
+  const result = await transitionCmsStory({ id, command, expectedUpdatedAt, scheduledAt, rejectionReason });
+  if (result.code === "SUCCESS") return;
+  if (result.code === "NOT_FOUND") throw new StoryManagementError("NOT_FOUND", "Story not found.");
+  if (result.code === "FORBIDDEN") throw new StoryManagementError("FORBIDDEN", "You cannot perform that action.");
+  if (result.code === "CONFLICT") throw new StoryManagementError("CONFLICT", "Story was changed by another editor. Reload before saving.");
+  if (result.code === "INVALID_SCHEDULE") throw new StoryManagementError("INVALID_SCHEDULE", "The publish date must be in the future.");
+  if (result.code === "VALIDATION_ERROR") throw new StoryManagementError("VALIDATION", "Check the workflow fields and try again.");
+  throw new StoryManagementError("INVALID_TRANSITION", "That action is not allowed for this story.");
 }
 
 function isStoryCommandAllowed(
@@ -395,7 +442,7 @@ export async function runReporterStoryReviewCommand(
     }
     reason = parsedReason.reason;
   }
-  await runStoryCommand(admin, storyId, command, scheduledAt, reason);
+  await runStoryCommand(admin, storyId, command, story.updatedAt, scheduledAt, reason);
 }
 
 const reporterCorrectionResultSchema = z.object({ status: z.string() }).passthrough();
@@ -449,12 +496,17 @@ export async function runBulkStoryCommand(
   ids: readonly string[],
   command: "publish" | "archive" | "delete",
 ): Promise<void> {
+  const expectedUpdatedAt = new Map<string, string>();
   try {
     await runPreauthorizedStoryBatch(
       ids,
-      getCmsStoryById,
+      async (id) => {
+        const story = await getCmsStoryById(id);
+        if (story) expectedUpdatedAt.set(id, story.updatedAt);
+        return story;
+      },
       (story) => isStoryCommandAllowed(admin, story, command),
-      (id) => runStoryCommand(admin, id, command),
+      (id) => runStoryCommand(admin, id, command, expectedUpdatedAt.get(id)),
     );
   } catch (error) {
     if (error instanceof StoryBatchAuthorizationError) {

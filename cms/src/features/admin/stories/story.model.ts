@@ -10,8 +10,11 @@ export type StoryCommand =
   | "request_changes"
   | "approve"
   | "reject"
+  | "send_back"
   | "publish"
   | "schedule"
+  | "cancel_schedule"
+  | "unpublish"
   | "archive"
   | "delete";
 
@@ -228,7 +231,8 @@ export function getAllowedStoryCommands(
     }
     if (status === "approved") return ["publish", "schedule", "archive"];
     if (status === "scheduled") return ["publish", "archive"];
-    if (status === "published" || status === "rejected") return ["archive"];
+    if (status === "published") return ["archive"];
+    if (status === "rejected") return ["archive"];
     return [];
   }
 
@@ -240,28 +244,32 @@ export function getAllowedStoryCommands(
     if (isExternalArticle && status === "draft") {
       commands = ["save", "approve", "reject"];
     } else if (status === "pending_review") {
-      commands = ["save", "approve"];
+      commands = ["save", "approve", "reject"];
     } else if (status === "approved") {
       commands = ["publish", "schedule", "archive"];
     } else if (status === "scheduled") {
-      commands = ["publish", "archive"];
+      commands = ["publish", "schedule", "cancel_schedule", "archive"];
     } else if (status === "published") {
-      commands = ["archive"];
+      commands = ["unpublish", "archive"];
+    } else if (status === "rejected") {
+      commands = ["send_back"];
     } else {
       commands = [];
     }
   } else if (status === "archived") {
     commands = ["delete"];
   } else if (status === "draft") {
-    commands = ["save", "submit", "approve", "reject", "publish", "schedule", "archive", "delete"];
+    commands = ["save", "submit", "approve", "reject", "publish", "schedule", "delete"];
   } else if (status === "pending_review") {
-    commands = ["save", "approve", "reject", "publish", "schedule", "archive", "delete"];
+    commands = ["save", "approve", "reject", "publish", "schedule", "delete"];
   } else if (status === "approved") {
     commands = ["save", "publish", "schedule", "archive", "delete"];
   } else if (status === "scheduled") {
-    commands = ["save", "publish", "archive", "delete"];
+    commands = ["save", "publish", "schedule", "cancel_schedule", "archive", "delete"];
   } else if (status === "published") {
-    commands = ["save", "archive", "delete"];
+    commands = ["save", "unpublish", "archive", "delete"];
+  } else if (status === "rejected") {
+    commands = ["save", "send_back", "delete"];
   } else {
     commands = ["save", "approve", "reject", "publish", "schedule", "archive", "delete"];
   }
