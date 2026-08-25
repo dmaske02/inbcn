@@ -67,7 +67,7 @@ test("reporter exposes required scripts and uses shared packages", async () => {
 
 - [ ] **Step 2: Run the test and verify failure**
 
-Run: `npm test --workspace @inbcn/reporter`  
+Run: `npm test --workspace @inbcn/reporter`
 Expected: FAIL because the reporter workspace does not exist.
 
 - [ ] **Step 3: Add the minimal workspace**
@@ -91,8 +91,8 @@ export const env = Object.freeze({
 
 - [ ] **Step 4: Install and verify the workspace**
 
-Run: `npm install --cache "$(mktemp -d)"`  
-Run: `npm test --workspace @inbcn/reporter && npm run typecheck --workspace @inbcn/reporter && npm run build --workspace @inbcn/reporter`  
+Run: `npm install --cache "$(mktemp -d)"`
+Run: `npm test --workspace @inbcn/reporter && npm run typecheck --workspace @inbcn/reporter && npm run build --workspace @inbcn/reporter`
 Expected: all pass; `/` renders a simple INBCN Reporter landing page.
 
 - [ ] **Step 5: Commit**
@@ -136,7 +136,7 @@ test("reporter foundation enables RLS and protects provider identifiers", () => 
 
 - [ ] **Step 2: Run the contract and verify failure**
 
-Run: `npm test --workspace @inbcn/reporter -- reporter-schema.contract.test.mjs`  
+Run: `npm test --workspace @inbcn/reporter -- reporter-schema.contract.test.mjs`
 Expected: FAIL because the migration is absent.
 
 - [ ] **Step 3: Implement the migration**
@@ -147,13 +147,13 @@ Use security-definer functions with fixed `search_path = ''`, explicit role chec
 
 - [ ] **Step 4: Apply locally and regenerate types**
 
-Run: `npx supabase db reset`  
-Run: `npx supabase gen types typescript --local > packages/database/src/database.types.ts`  
+Run: `npx supabase db reset`
+Run: `npx supabase gen types typescript --local > packages/database/src/database.types.ts`
 Expected: migration applies without warnings and generated types contain every new relation and `reporter` enum member.
 
 - [ ] **Step 5: Run schema verification**
 
-Run: `npm test --workspace @inbcn/reporter && npm run typecheck`  
+Run: `npm test --workspace @inbcn/reporter && npm run typecheck`
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
@@ -187,7 +187,7 @@ assert.equal(authorizeReporterIdentity({ id: "u1", role: "admin" }, null).ok, fa
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `npm test --workspace @inbcn/reporter -- authorization.model.test.mjs`  
+Run: `npm test --workspace @inbcn/reporter -- authorization.model.test.mjs`
 Expected: FAIL because the model is absent.
 
 - [ ] **Step 3: Implement OTP actions and protected layout**
@@ -196,7 +196,7 @@ Validate E.164 Indian phone numbers with `^\\+91[6-9]\\d{9}$`, require CAPTCHA o
 
 - [ ] **Step 4: Verify auth behavior**
 
-Run: `npm test --workspace @inbcn/reporter && npm run typecheck --workspace @inbcn/reporter`  
+Run: `npm test --workspace @inbcn/reporter && npm run typecheck --workspace @inbcn/reporter`
 Expected: PASS; tests cover applicant access, active reporter access, staff-role denial, inactive reporter denial, malformed phone, and OTP error redaction.
 
 - [ ] **Step 5: Commit**
@@ -231,7 +231,7 @@ assert.equal(getApplicationDeadline("2026-08-22T00:00:00.000Z"), "2026-09-21T00:
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `npm test --workspace @inbcn/reporter -- application.model.test.mjs`  
+Run: `npm test --workspace @inbcn/reporter -- application.model.test.mjs`
 Expected: FAIL because the application model is absent.
 
 - [ ] **Step 3: Implement application forms and service**
@@ -257,7 +257,7 @@ export interface HostedKycProvider {
 
 - [ ] **Step 4: Verify disabled and enabled boundaries**
 
-Run: `npm test --workspace @inbcn/reporter`  
+Run: `npm test --workspace @inbcn/reporter`
 Expected: PASS; required consent gates payment, invalid portrait bytes are rejected, disabled KYC returns 503, invalid signatures return 401, duplicate provider events return 200 without a second transition, and no raw provider body is persisted.
 
 - [ ] **Step 5: Commit**
@@ -289,7 +289,7 @@ assert.equal(creditRenewal("2027-08-22T00:00:00.000Z", "2027-09-01T00:00:00.000Z
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `npm test --workspace @inbcn/reporter -- razorpay.signature.test.mjs payment.model.test.mjs`  
+Run: `npm test --workspace @inbcn/reporter -- razorpay.signature.test.mjs payment.model.test.mjs`
 Expected: FAIL because payment modules are absent.
 
 - [ ] **Step 3: Implement native REST/HMAC integration**
@@ -298,7 +298,7 @@ Create Razorpay Orders for exactly `10000` paise and `INR`; attach only internal
 
 - [ ] **Step 4: Verify money-path behavior**
 
-Run: `npm test --workspace @inbcn/reporter && npm test --workspace @inbcn/cms`  
+Run: `npm test --workspace @inbcn/reporter && npm test --workspace @inbcn/cms`
 Expected: PASS for invalid signature, duplicate webhook, wrong amount, captured payment, duplicate payment, refund retry, and asynchronous refund confirmation.
 
 - [ ] **Step 5: Commit**
@@ -333,7 +333,7 @@ assert.equal(membershipAccess({ status: "expired", direct: true, live: true }), 
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `npm test --workspace @inbcn/cms -- reporter.model.test.mjs`  
+Run: `npm test --workspace @inbcn/cms -- reporter.model.test.mjs`
 Expected: FAIL because reporter administration is absent.
 
 - [ ] **Step 3: Implement admin review atomically**
@@ -342,7 +342,7 @@ Require verified legal name/adult outcome, every current consent version, and an
 
 - [ ] **Step 4: Verify full onboarding flow**
 
-Run: `npm test && npm run typecheck && npm run build`  
+Run: `npm test && npm run typecheck && npm run build`
 Expected: all workspaces pass; admin-only controls are enforced and the reporter dashboard reflects pending, approved, grace, expired, and suspended states.
 
 - [ ] **Step 5: Commit**

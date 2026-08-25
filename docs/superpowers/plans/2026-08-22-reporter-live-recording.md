@@ -51,7 +51,7 @@ test("live schema requires approval and keeps recordings private", () => {
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `npm test --workspace @inbcn/reporter -- live-schema.contract.test.mjs`  
+Run: `npm test --workspace @inbcn/reporter -- live-schema.contract.test.mjs`
 Expected: FAIL because the migration is absent.
 
 - [ ] **Step 3: Implement schema and atomic decisions**
@@ -60,8 +60,8 @@ Constrain request status, approved window, expected duration, room-name uniquene
 
 - [ ] **Step 4: Apply and regenerate types**
 
-Run: `npx supabase db reset && npx supabase gen types typescript --local > packages/database/src/database.types.ts`  
-Run: `npm test --workspace @inbcn/reporter && npm run typecheck`  
+Run: `npx supabase db reset && npx supabase gen types typescript --local > packages/database/src/database.types.ts`
+Run: `npm test --workspace @inbcn/reporter && npm run typecheck`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -95,7 +95,7 @@ assert.equal(validateApprovedWindow("2026-08-22T11:00:00Z", "2026-08-22T10:00:00
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `npm test --workspace @inbcn/reporter -- live-request.model.test.mjs`  
+Run: `npm test --workspace @inbcn/reporter -- live-request.model.test.mjs`
 Expected: FAIL because live-request logic is absent.
 
 - [ ] **Step 3: Implement request and admin review surfaces**
@@ -104,7 +104,7 @@ Collect title, purpose, intended locality, expected start, and duration. Do not 
 
 - [ ] **Step 4: Verify portal and CMS**
 
-Run: `npm test --workspace @inbcn/reporter && npm test --workspace @inbcn/cms && npm run typecheck`  
+Run: `npm test --workspace @inbcn/reporter && npm test --workspace @inbcn/cms && npm run typecheck`
 Expected: PASS for permission, membership gating, ownership, window validation, admin-only approval, duplicate approval, and termination.
 
 - [ ] **Step 5: Commit**
@@ -134,7 +134,7 @@ assert.equal(sessionPolicy({ status: "approved", now: start, startsAt: start, en
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `npm test --workspace @inbcn/reporter -- live-session.model.test.mjs live-session.service.test.mjs`  
+Run: `npm test --workspace @inbcn/reporter -- live-session.model.test.mjs live-session.service.test.mjs`
 Expected: FAIL because session service is absent.
 
 - [ ] **Step 3: Reuse LiveKit patterns with narrower grants**
@@ -143,7 +143,7 @@ Create the approved room with bounded empty timeout. Generate an access token wh
 
 - [ ] **Step 4: Verify grants and idempotency**
 
-Run: `npm test --workspace @inbcn/reporter`  
+Run: `npm test --workspace @inbcn/reporter`
 Expected: PASS for wrong reporter, pre-window, post-window, revoked permission, grace, suspension, exact token grants, duplicate session, Egress start failure alert, and successful recording start.
 
 - [ ] **Step 5: Commit**
@@ -177,7 +177,7 @@ assert.equal(recordingAnnouncement("recording"), "This live broadcast is being r
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `npm test --workspace @inbcn/reporter -- broadcast-controller.test.mjs`  
+Run: `npm test --workspace @inbcn/reporter -- broadcast-controller.test.mjs`
 Expected: FAIL because reporter studio is absent.
 
 - [ ] **Step 3: Implement the smallest adapted studio**
@@ -186,7 +186,7 @@ Reuse the existing media-device, preview, connection, and LiveKit client behavio
 
 - [ ] **Step 4: Verify browser behavior**
 
-Run: `npm test --workspace @inbcn/reporter && npm run lint --workspace @inbcn/reporter && npm run build --workspace @inbcn/reporter`  
+Run: `npm test --workspace @inbcn/reporter && npm run lint --workspace @inbcn/reporter && npm run build --workspace @inbcn/reporter`
 Expected: PASS for device denial, preview cleanup, join/leave, reconnect, recording notice, admin termination, and accessible controls.
 
 - [ ] **Step 5: Commit**
@@ -220,7 +220,7 @@ assert.equal(retentionDate("2026-08-22T00:00:00Z"), "2026-11-20T00:00:00.000Z");
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `npm test --workspace @inbcn/reporter -- livekit-webhook.service.test.mjs`  
+Run: `npm test --workspace @inbcn/reporter -- livekit-webhook.service.test.mjs`
 Expected: FAIL because callback processing is absent.
 
 - [ ] **Step 3: Implement verified callbacks and review**
@@ -229,7 +229,7 @@ Use the LiveKit webhook receiver verification from the installed server SDK. Sto
 
 - [ ] **Step 4: Verify callback idempotency and editorial controls**
 
-Run: `npm test --workspace @inbcn/reporter && npm test --workspace @inbcn/cms`  
+Run: `npm test --workspace @inbcn/reporter && npm test --workspace @inbcn/cms`
 Expected: PASS for invalid signature, duplicate event, multiple completed segments, failure alert, editor publish/reject, admin legal hold, and private URL expiry.
 
 - [ ] **Step 5: Commit**
@@ -261,7 +261,7 @@ assert.equal("egressId" in replay, false);
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `npm test --workspace @inbcn/website -- replay.model.test.mjs`  
+Run: `npm test --workspace @inbcn/website -- replay.model.test.mjs`
 Expected: FAIL because replay support is absent.
 
 - [ ] **Step 3: Implement safe replay delivery**
@@ -270,7 +270,7 @@ Return published metadata and a CDN/signed playback URL produced server-side fro
 
 - [ ] **Step 4: Verify public replay**
 
-Run: `npm test --workspace @inbcn/website && npm run typecheck --workspace @inbcn/website && npm run build --workspace @inbcn/website`  
+Run: `npm test --workspace @inbcn/website && npm run typecheck --workspace @inbcn/website && npm run build --workspace @inbcn/website`
 Expected: PASS with no object key, credential, egress ID, exact reporter location, or private notes in anonymous responses.
 
 - [ ] **Step 5: Commit**

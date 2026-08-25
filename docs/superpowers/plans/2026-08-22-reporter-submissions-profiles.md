@@ -51,7 +51,7 @@ test("reporter submission SQL keeps coordinates private and transitions atomic",
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `npm test --workspace @inbcn/reporter -- submission-schema.contract.test.mjs`  
+Run: `npm test --workspace @inbcn/reporter -- submission-schema.contract.test.mjs`
 Expected: FAIL because the migration is absent.
 
 - [ ] **Step 3: Implement tables, constraints, functions, and RLS**
@@ -60,8 +60,8 @@ Revisions contain snapshot JSON constrained to an object, monotonically increasi
 
 - [ ] **Step 4: Apply migration and regenerate types**
 
-Run: `npx supabase db reset && npx supabase gen types typescript --local > packages/database/src/database.types.ts`  
-Run: `npm test --workspace @inbcn/reporter && npm run typecheck`  
+Run: `npx supabase db reset && npx supabase gen types typescript --local > packages/database/src/database.types.ts`
+Run: `npm test --workspace @inbcn/reporter && npm run typecheck`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -93,7 +93,7 @@ assert.equal(isFreshCapture(new Date(now).getTime() - 31 * 60_000, now), false);
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `npm test --workspace @inbcn/reporter -- submission.model.test.mjs`  
+Run: `npm test --workspace @inbcn/reporter -- submission.model.test.mjs`
 Expected: FAIL because the model is absent.
 
 - [ ] **Step 3: Implement minimal server-first flow**
@@ -102,7 +102,7 @@ Validate title, summary, body, active language/category pair, event time, locali
 
 - [ ] **Step 4: Verify service behavior**
 
-Run: `npm test --workspace @inbcn/reporter && npm run typecheck --workspace @inbcn/reporter`  
+Run: `npm test --workspace @inbcn/reporter && npm run typecheck --workspace @inbcn/reporter`
 Expected: PASS for ownership, inactive/expired membership, grace reviewed submission, direct-publish eligibility, stale location, invalid category-language pair, immutable revision, withdrawal, and published-edit denial.
 
 - [ ] **Step 5: Commit**
@@ -133,7 +133,7 @@ assert.equal(validateUpload({ mediaType: "document", mimeType: "application/pdf"
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `npm test --workspace @inbcn/reporter -- upload.model.test.mjs`  
+Run: `npm test --workspace @inbcn/reporter -- upload.model.test.mjs`
 Expected: FAIL because uploads are absent.
 
 - [ ] **Step 3: Implement signed upload lifecycle**
@@ -142,7 +142,7 @@ Issue a short-lived Cloudinary signature only after checking reporter/story owne
 
 - [ ] **Step 4: Verify upload boundary**
 
-Run: `npm test --workspace @inbcn/reporter`  
+Run: `npm test --workspace @inbcn/reporter`
 Expected: PASS for wrong owner, expired signature, unsupported MIME, oversized input, forged public ID, duplicate completion, and successful image/video rows.
 
 - [ ] **Step 5: Commit**
@@ -172,7 +172,7 @@ assert.equal(mapGeolocationError({ code: 1 }), "Location permission is required 
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `npm test --workspace @inbcn/reporter -- local-draft.test.mjs location-capture.test.mjs`  
+Run: `npm test --workspace @inbcn/reporter -- local-draft.test.mjs location-capture.test.mjs`
 Expected: FAIL because helpers are absent.
 
 - [ ] **Step 3: Implement focused client islands**
@@ -181,7 +181,7 @@ Keep the page/server data server-rendered. Use a client editor for form state, l
 
 - [ ] **Step 4: Verify mobile and accessibility contracts**
 
-Run: `npm test --workspace @inbcn/reporter && npm run lint --workspace @inbcn/reporter && npm run build --workspace @inbcn/reporter`  
+Run: `npm test --workspace @inbcn/reporter && npm run lint --workspace @inbcn/reporter && npm run build --workspace @inbcn/reporter`
 Expected: PASS; controls have labels, focus behavior, `aria-live` progress/errors, and disabled states that preserve draft content.
 
 - [ ] **Step 5: Commit**
@@ -219,7 +219,7 @@ assert.equal(canReviewReporterStory("writer", "pending_review"), false);
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `npm test --workspace @inbcn/cms -- reporter-review.service.test.mjs`  
+Run: `npm test --workspace @inbcn/cms -- reporter-review.service.test.mjs`
 Expected: FAIL because reporter review integration is absent.
 
 - [ ] **Step 3: Implement review and directory UI**
@@ -228,7 +228,7 @@ Show immutable submitted revision, current canonical story, private locality/coo
 
 - [ ] **Step 4: Verify CMS behavior**
 
-Run: `npm test --workspace @inbcn/cms && npm run typecheck --workspace @inbcn/cms && npm run build --workspace @inbcn/cms`  
+Run: `npm test --workspace @inbcn/cms && npm run typecheck --workspace @inbcn/cms && npm run build --workspace @inbcn/cms`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -263,7 +263,7 @@ assert.equal(JSON.stringify(publicReporter).includes("phone"), false);
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `npm test --workspace @inbcn/website -- public-reporter.model.test.mjs`  
+Run: `npm test --workspace @inbcn/website -- public-reporter.model.test.mjs`
 Expected: FAIL because public reporter mapping is absent.
 
 - [ ] **Step 3: Implement public attribution**
@@ -272,7 +272,7 @@ Join the safe public reporter view only for reporter-created published stories. 
 
 - [ ] **Step 4: Verify no private leakage**
 
-Run: `npm test --workspace @inbcn/website && npm run typecheck --workspace @inbcn/website && npm run build --workspace @inbcn/website`  
+Run: `npm test --workspace @inbcn/website && npm run typecheck --workspace @inbcn/website && npm run build --workspace @inbcn/website`
 Expected: PASS; tests assert story/profile DTOs contain no phone, DOB, KYC reference, payment, exact coordinate, or review note.
 
 - [ ] **Step 5: Commit**

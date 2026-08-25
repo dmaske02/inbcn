@@ -1,7 +1,7 @@
 # INBCN Reporter Portal Design
 
-**Date:** 2026-08-22  
-**Status:** Product design approved; KYC and SMS vendors require client confirmation  
+**Date:** 2026-08-22
+**Status:** Product design approved; KYC and SMS vendors require client confirmation
 **Scope:** Architecture and product behavior only. This document does not implement application code, migrations, infrastructure, or vendor accounts.
 
 ## Objective

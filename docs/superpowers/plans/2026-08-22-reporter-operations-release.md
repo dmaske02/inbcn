@@ -47,7 +47,7 @@ assert.equal(shouldRefundIncomplete({ paidAt, status: "kyc_pending", now: day30 
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `npm test --workspace @inbcn/reporter -- lifecycle.model.test.mjs lifecycle.service.test.mjs`  
+Run: `npm test --workspace @inbcn/reporter -- lifecycle.model.test.mjs lifecycle.service.test.mjs`
 Expected: FAIL because lifecycle processing is absent.
 
 - [ ] **Step 3: Implement one bounded lifecycle runner**
@@ -58,7 +58,7 @@ Set Vercel cron to `15 2 * * *` (02:15 UTC daily) and require `Authorization: Be
 
 - [ ] **Step 4: Verify rerun safety**
 
-Run: `npm test --workspace @inbcn/reporter`  
+Run: `npm test --workspace @inbcn/reporter`
 Expected: PASS for two identical runs, partial provider failure, legal hold, payment already refunded, renewal arriving during processing, and deletion retry.
 
 - [ ] **Step 5: Commit**
@@ -96,7 +96,7 @@ assert.deepEqual(channelsFor("recording.ready"), ["in_app"]);
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `npm test --workspace @inbcn/reporter -- notification.model.test.mjs`  
+Run: `npm test --workspace @inbcn/reporter -- notification.model.test.mjs`
 Expected: FAIL because notification policy is absent.
 
 - [ ] **Step 3: Implement canonical in-app delivery**
@@ -105,7 +105,7 @@ Insert in-app records inside the business transition transaction. Dispatch SMS a
 
 - [ ] **Step 4: Verify delivery isolation**
 
-Run: `npm test --workspace @inbcn/reporter`  
+Run: `npm test --workspace @inbcn/reporter`
 Expected: PASS for own-notification RLS, read action ownership, SMS disabled, push permission denied, stale push subscription removal, provider failure, safe retry, and forbidden sensitive variables.
 
 - [ ] **Step 5: Commit**
@@ -139,7 +139,7 @@ assert.equal(nextIdentityState("aadhaar_consent_withdrawn"), "alternate_identity
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `npm test --workspace @inbcn/reporter -- privacy.model.test.mjs`  
+Run: `npm test --workspace @inbcn/reporter -- privacy.model.test.mjs`
 Expected: FAIL because privacy-request operations are absent.
 
 - [ ] **Step 3: Implement privacy operations**
@@ -148,8 +148,8 @@ Allow authenticated reporters to request data correction, Aadhaar consent withdr
 
 - [ ] **Step 4: Apply and verify**
 
-Run: `npx supabase db reset && npx supabase gen types typescript --local > packages/database/src/database.types.ts`  
-Run: `npm test && npm run typecheck`  
+Run: `npx supabase db reset && npx supabase gen types typescript --local > packages/database/src/database.types.ts`
+Run: `npm test && npm run typecheck`
 Expected: PASS for privacy-request ownership, consent withdrawal, alternate identity review, admin resolution, and published-attribution protection.
 
 - [ ] **Step 5: Commit**
@@ -184,7 +184,7 @@ test("unapproved applicant cannot open reporter story editor", async ({ page }) 
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `npm run test:e2e -- --project=chromium application.spec.ts`  
+Run: `npm run test:e2e -- --project=chromium application.spec.ts`
 Expected: FAIL until the Playwright configuration and fixtures exist.
 
 - [ ] **Step 3: Implement deterministic fixtures and journeys**
@@ -193,7 +193,7 @@ Use a dedicated local/test Supabase project and provider simulators that validat
 
 - [ ] **Step 4: Run the E2E suite**
 
-Run: `npm run test:e2e`  
+Run: `npm run test:e2e`
 Expected: PASS in local test environment.
 
 - [ ] **Step 5: Commit**
@@ -231,7 +231,7 @@ test("CI verifies all workspaces and keeps provider E2E gated", async () => {
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `node --test docs/reporter-ci.contract.test.mjs`  
+Run: `node --test docs/reporter-ci.contract.test.mjs`
 Expected: FAIL because workflows are absent.
 
 - [ ] **Step 3: Implement CI and runbook**
@@ -240,7 +240,7 @@ Use Node 24 and `npm ci`. Verification runs for every pull request. Reporter E2E
 
 - [ ] **Step 4: Verify locally**
 
-Run: `npm ci --cache "$(mktemp -d)" && npm run lint && npm run typecheck && npm test && npm run build`  
+Run: `npm ci --cache "$(mktemp -d)" && npm run lint && npm run typecheck && npm test && npm run build`
 Expected: PASS; `git status` contains no runtime logs.
 
 - [ ] **Step 5: Commit**
@@ -275,7 +275,7 @@ git commit -m "ci: add reporter verification and operations gates"
 
 - [ ] **Step 2: Run full automated verification**
 
-Run: `npm run lint && npm run typecheck && npm test && npm run build && npm run test:e2e`  
+Run: `npm run lint && npm run typecheck && npm test && npm run build && npm run test:e2e`
 Expected: PASS with saved CI links/test summaries containing synthetic identities only.
 
 - [ ] **Step 3: Execute manual device/accessibility checks**
