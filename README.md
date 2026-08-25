@@ -1,11 +1,12 @@
 # INBCN monorepo
 
-INBCN is split into two independently deployable Next.js 16 applications that share one Supabase project and migration history.
+INBCN is split into three independently deployable Next.js 16 applications that share one Supabase project and migration history.
 
 | Application | Workspace | Vercel root | Production domain |
 | --- | --- | --- | --- |
 | Public website | `website/` | `website` | `https://inbcn.com` |
 | CMS/admin | `cms/` | `cms` | `https://cms.inbcn.com` |
+| Reporter portal | `reporter/` | `reporter` | Configure before production launch |
 
 Shared generated database types live in `packages/database`; pure cross-application contracts live in `packages/domain`. Database migrations remain canonical in the root `supabase/` directory.
 
@@ -24,11 +25,11 @@ Each application can also be validated independently from its directory with `np
 
 ## Environment configuration
 
-Use [`website/.env.example`](website/.env.example) and [`cms/.env.example`](cms/.env.example) as the separate Vercel environment-variable inventories. Never copy CMS secrets into the website project. Both projects use the same public Supabase URL and anon key; only CMS receives the service-role key and Cloudinary write credentials.
+Use [`website/.env.example`](website/.env.example) and [`cms/.env.example`](cms/.env.example) as their Vercel environment-variable inventories. The reporter portal configuration and rollout checklist are documented in [`docs/reporter-portal-handover.md`](docs/reporter-portal-handover.md). Never expose service-role or provider secrets through `NEXT_PUBLIC_*` variables.
 
 ## Deployment notes
 
-- Create two Vercel projects from this repository with root directories `website` and `cms`.
+- Create three Vercel projects from this repository with root directories `website`, `cms`, and `reporter`.
 - The CMS owns the protected `/admin/*` tree, protected Homepage Builder preview, ingestion endpoint, and `cms/vercel.json` cron schedule.
 - The website owns localized public routes and the secret-protected `POST /api/revalidate` endpoint.
 - Set the same `WEBSITE_REVALIDATION_SECRET` in both Vercel projects and set CMS `WEBSITE_URL=https://inbcn.com`.
