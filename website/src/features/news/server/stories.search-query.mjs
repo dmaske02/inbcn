@@ -6,7 +6,7 @@ export function buildPublishedStorySearchRequest(
 ) {
   const from = (query.page - 1) * query.pageSize;
   let request = supabase
-    .from("stories")
+    .from("public_stories")
     .select(columns, { count: "exact" })
     .eq("language_id", query.languageId)
     .eq("status", "published")

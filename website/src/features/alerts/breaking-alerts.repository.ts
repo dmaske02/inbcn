@@ -17,12 +17,25 @@ export async function getActiveBreakingAlerts(languageCode: string) {
   const client = createSupabaseClient<Database>(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const now = new Date().toISOString();
   const { data, error } = await client.from("breaking_alerts")
-    .select(`${COLUMNS},language:languages!breaking_alerts_language_id_fkey!inner(code),category:categories!breaking_alerts_category_id_fkey(slug),story:stories!breaking_alerts_story_id_fkey(slug)`)
+    .select(`${COLUMNS},language:languages!breaking_alerts_language_id_fkey!inner(code),category:categories!breaking_alerts_category_id_fkey(slug)`)
     .eq("status", "active").eq("is_active", true).lte("start_at", now)
     .or(`end_at.is.null,end_at.gt.${now}`).eq("language.code", languageCode)
     .order("priority").order("created_at", { ascending: false });
   if (error) throw error;
-  return data;
+  const storyIds = [...new Set(data.flatMap((alert) => alert.story_id ? [alert.story_id] : []))];
+  if (storyIds.length === 0) return data.map((alert) => ({ ...alert, story: null }));
+  const stories = await client
+    .from("public_stories")
+    .select("id,slug")
+    .in("id", storyIds);
+  if (stories.error) throw stories.error;
+  const storySlugs = new Map(stories.data.map((story) => [story.id, story.slug]));
+  return data.map((alert) => ({
+    ...alert,
+    story: alert.story_id && storySlugs.has(alert.story_id)
+      ? { slug: storySlugs.get(alert.story_id) }
+      : null,
+  }));
 }
 
 export type AlertListQuery = Readonly<{ page: number; pageSize: number; search?: string; status?: string; type?: string; languageId?: string; sort?: string }>;

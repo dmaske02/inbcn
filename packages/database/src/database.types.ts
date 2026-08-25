@@ -790,6 +790,52 @@ export type Database = {
       }
     }
     Views: {
+      public_media: {
+        Row: {
+          alt_text: string | null
+          caption: string | null
+          cloudinary_public_id: string
+          height: number | null
+          id: string
+          secure_url: string
+          width: number | null
+        }
+        Relationships: []
+      }
+      public_stories: {
+        Row: {
+          canonical_url: string | null
+          category_id: string
+          content: string
+          external_author: string | null
+          external_image_height: number | null
+          external_image_url: string | null
+          external_image_width: number | null
+          external_url: string | null
+          featured_media_id: string | null
+          id: string
+          is_breaking: boolean
+          is_featured: boolean
+          is_reporter_story: boolean
+          is_sponsored: boolean
+          language_id: string
+          public_reporter: Json | null
+          published_at: string
+          search_document: unknown
+          seo_description: string | null
+          seo_keywords: string[]
+          seo_title: string | null
+          slug: string
+          source_id: string | null
+          status: Database["public"]["Enums"]["story_status"]
+          story_type: Database["public"]["Enums"]["story_type"]
+          summary: string
+          title: string
+          translation_group_id: string
+          updated_at: string
+        }
+        Relationships: []
+      }
       ingest_run_dashboard: {
         Row: {
           completed_at: string | null
