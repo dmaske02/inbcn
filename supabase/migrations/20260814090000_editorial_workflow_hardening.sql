@@ -17,26 +17,35 @@ $$;
 revoke all on function public.is_story_public(public.story_status, timestamptz) from public;
 grant execute on function public.is_story_public(public.story_status, timestamptz) to anon, authenticated, service_role;
 
-drop policy "Public can read published stories" on public.stories;
-create policy "Public can read eligible stories"
-on public.stories
-for select
-to anon, authenticated
-using (public.is_story_public(status, published_at));
+do $$
+begin
+  -- A linked database may already have the later hardened public projections.
+  -- In that state, do not restore anonymous access to either protected base table.
+  if to_regclass('public.public_stories') is null
+    or to_regclass('public.public_media') is null then
+    drop policy "Public can read published stories" on public.stories;
+    create policy "Public can read eligible stories"
+    on public.stories
+    for select
+    to anon, authenticated
+    using (public.is_story_public(status, published_at));
 
-drop policy "Public can read media for published stories" on public.media;
-create policy "Public can read media for eligible stories"
-on public.media
-for select
-to anon, authenticated
-using (
-  exists (
-    select 1
-    from public.stories
-    where stories.id = media.story_id
-      and public.is_story_public(stories.status, stories.published_at)
-  )
-);
+    drop policy "Public can read media for published stories" on public.media;
+    create policy "Public can read media for eligible stories"
+    on public.media
+    for select
+    to anon, authenticated
+    using (
+      exists (
+        select 1
+        from public.stories
+        where stories.id = media.story_id
+          and public.is_story_public(stories.status, stories.published_at)
+      )
+    );
+  end if;
+end;
+$$;
 
 create table public.story_events (
   id uuid primary key default gen_random_uuid(),

@@ -190,6 +190,7 @@ export const env = Object.freeze({
   }),
   server: Object.freeze({
     nodeEnv: values.NODE_ENV,
+    websiteUrl: values.WEBSITE_URL,
     supabaseServiceRoleKey: values.SUPABASE_SERVICE_ROLE_KEY,
     cloudinaryCloudName: values.CLOUDINARY_CLOUD_NAME,
     cloudinaryApiKey: values.CLOUDINARY_API_KEY,

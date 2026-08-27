@@ -29,12 +29,13 @@ function compact(value) {
 }
 
 function rpc(name, signatureStart = "", source = migration) {
+  const sql = source.replace(/\r\n?/gu, "\n");
   const marker = `create or replace function public.${name}(${signatureStart}`;
-  const start = source.indexOf(marker);
+  const start = sql.indexOf(marker);
   assert.notEqual(start, -1, `missing ${name}`);
-  const end = source.indexOf("\n$$;", start);
+  const end = sql.indexOf("\n$$;", start);
   assert.notEqual(end, -1, `unterminated ${name}`);
-  return compact(source.slice(start, end + 4));
+  return compact(sql.slice(start, end + 4));
 }
 
 test("approval atomically owns public portrait confirmation and every eligibility check", () => {

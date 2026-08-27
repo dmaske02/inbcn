@@ -6,7 +6,7 @@ const migrationUrl = new URL(
   "../../../../supabase/migrations/20260822100000_razorpay_payment_lifecycle.sql",
   import.meta.url,
 );
-const sql = await readFile(migrationUrl, "utf8");
+const sql = (await readFile(migrationUrl, "utf8")).replace(/\r\n?/gu, "\n");
 
 const signatures = {
   reserve_reporter_order: "uuid, uuid, text, jsonb",

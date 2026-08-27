@@ -36,9 +36,9 @@ function compact(value) {
 }
 
 function sqlFunction(name, signatureStart = "") {
-  const sql = correctionMigration.includes(`create or replace function public.${name}(`)
+  const sql = (correctionMigration.includes(`create or replace function public.${name}(`)
     ? correctionMigration
-    : migration;
+    : migration).replace(/\r\n?/gu, "\n");
   const marker = `create or replace function public.${name}(${signatureStart}`;
   const start = sql.indexOf(marker);
   assert.notEqual(start, -1, `missing ${name}`);

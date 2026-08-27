@@ -7,7 +7,8 @@ const names = (await readdir(migrationsDirectory))
   .filter((name) => name.endsWith(".sql"))
   .sort();
 const sql = (await Promise.all(names.map((name) => readFile(new URL(name, migrationsDirectory), "utf8"))))
-  .join("\n");
+  .join("\n")
+  .replace(/\r\n?/gu, "\n");
 
 function latestFunction(name) {
   const marker = `create or replace function public.${name}(`;
