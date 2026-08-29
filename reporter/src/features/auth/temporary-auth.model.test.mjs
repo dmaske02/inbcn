@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { createTemporaryAuthService } from "./temporary-auth.model.ts";
+import { createTemporaryAuthService, validateTemporaryDemoOtp } from "./temporary-auth.model.ts";
+
+test("demo OTP validation is side-effect free and accepts only 1234", () => {
+  assert.deepEqual(validateTemporaryDemoOtp("+919876543210", "1234"), { ok: true, phone: "+919876543210" });
+  assert.deepEqual(validateTemporaryDemoOtp("+919876543210", "9999"), { ok: false });
+});
 
 test("temporary Auth lookup tolerates Supabase's plus-less stored phone", async () => {
   const server = await readFile(new URL("./temporary-auth.server.ts", import.meta.url), "utf8");
@@ -24,6 +29,50 @@ test("1234 creates a confirmed phone user and establishes a session", async () =
 
   assert.deepEqual(events.map(([name]) => name), ["create", "profile", "sign-in"]);
   assert.equal(events[0][1].email, "reporter.919876543210@preview.inbcn.invalid");
+});
+
+test("create mode can defer profile persistence until personal details are submitted", async () => {
+  const events = [];
+  const service = createTemporaryAuthService({
+    findUser: async () => null,
+    createUser: async () => "user-1",
+    rotateCredentials: async () => {},
+    ensureProfile: async () => { events.push("profile"); },
+    signIn: async () => { events.push("sign-in"); },
+    randomPassword: () => "generated-private-password",
+  });
+
+  const userId = await service.signIn(
+    { phone: "+919876543210", code: "1234" },
+    { ensureProfile: false },
+  );
+
+  assert.equal(userId, "user-1");
+  assert.deepEqual(events, ["sign-in"]);
+});
+
+test("fresh demo signup metadata is attached only while creating the temporary Auth user", async () => {
+  let created;
+  const signupProfile = {
+    fullName: "Synthetic Reporter",
+    email: "reporter@example.com",
+    cityLocality: "Synthetic Test Locality",
+    state: "Karnataka",
+    preferredLanguageId: "5ac922dd-5db8-4d18-907f-762d44f12be1",
+    experience: "Community reporting.",
+    introduction: "I want to report verified local civic stories.",
+  };
+  const service = createTemporaryAuthService({
+    findUser: async () => null,
+    createUser: async (input) => { created = input; return "user-1"; },
+    rotateCredentials: async () => {},
+    ensureProfile: async () => {},
+    signIn: async () => {},
+    randomPassword: () => "generated-private-password",
+  });
+
+  await service.signIn({ phone: "+919876543210", code: "1234" }, { signupProfile });
+  assert.deepEqual(created.signupProfile, signupProfile);
 });
 
 test("1234 rotates a returning user's password before sign-in", async () => {

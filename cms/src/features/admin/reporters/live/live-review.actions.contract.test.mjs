@@ -22,3 +22,17 @@ test("the normal CMS form describes provider cleanup and keeps terminal cleanup 
   assert.match(detail, /Retry provider cleanup/u);
   assert.match(detail, /name="reason"/u);
 });
+
+test("live review detail uses CMS editorial cards and accessible decision validation", async () => {
+  const detail = await readFile(new URL("./live-review-detail.tsx", import.meta.url), "utf8");
+  assert.match(detail, /import \{ Badge \}/u);
+  assert.match(detail, /import \{ Card, CardContent, CardFooter, CardHeader \}/u);
+  assert.match(detail, /variant="destructive"/u);
+  assert.match(detail, /type="datetime-local"/u);
+  assert.match(detail, /onInvalid=/u);
+  assert.match(detail, /validity\.valid/u);
+  assert.match(detail, /aria-invalid=/u);
+  assert.match(detail, /Please enter a complete date and time\./u);
+  assert.match(detail, /lg:grid-cols-2/u);
+  assert.doesNotMatch(detail, /noValidate/u);
+});

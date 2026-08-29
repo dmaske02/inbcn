@@ -1,8 +1,9 @@
 import { validateIndianPhone } from "./authorization.model.ts";
+import type { SignupProfile } from "./applicant-profile.model.ts";
 
 type TemporaryAuthDependencies = Readonly<{
   findUser: (phone: string) => Promise<string | null>;
-  createUser: (input: Readonly<{ phone: string; email: string; password: string }>) => Promise<string>;
+  createUser: (input: Readonly<{ phone: string; email: string; password: string; signupProfile?: SignupProfile }>) => Promise<string>;
   rotateCredentials: (userId: string, input: Readonly<{ email: string; password: string }>) => Promise<void>;
   ensureProfile: (userId: string) => Promise<void>;
   signIn: (input: Readonly<{ email: string; password: string }>) => Promise<void>;
@@ -18,22 +19,33 @@ export class TemporaryAuthError extends Error {
   }
 }
 
+export function validateTemporaryDemoOtp(phone: unknown, code: unknown):
+  | Readonly<{ ok: true; phone: string }>
+  | Readonly<{ ok: false }> {
+  return validateIndianPhone(phone) && code === "1234" ? { ok: true, phone } : { ok: false };
+}
+
 export function createTemporaryAuthService(dependencies: TemporaryAuthDependencies) {
   return {
-    async signIn(input: Readonly<{ phone: unknown; code: unknown }>): Promise<void> {
-      if (!validateIndianPhone(input.phone) || input.code !== "1234") {
+    async signIn(
+      input: Readonly<{ phone: unknown; code: unknown }>,
+      options: Readonly<{ ensureProfile?: boolean; signupProfile?: SignupProfile }> = {},
+    ): Promise<string> {
+      const verified = validateTemporaryDemoOtp(input.phone, input.code);
+      if (!verified.ok) {
         throw new TemporaryAuthError("invalid-credentials");
       }
 
       const password = dependencies.randomPassword();
-      const email = `reporter.${input.phone.replace(/\D/g, "")}@preview.inbcn.invalid`;
+      const email = `reporter.${verified.phone.replace(/\D/g, "")}@preview.inbcn.invalid`;
       try {
-        const existingUserId = await dependencies.findUser(input.phone);
+        const existingUserId = await dependencies.findUser(verified.phone);
         const userId = existingUserId
-          ?? await dependencies.createUser({ phone: input.phone, email, password });
+          ?? await dependencies.createUser({ phone: verified.phone, email, password, signupProfile: options.signupProfile });
         if (existingUserId) await dependencies.rotateCredentials(userId, { email, password });
-        await dependencies.ensureProfile(userId);
+        if (options.ensureProfile !== false) await dependencies.ensureProfile(userId);
         await dependencies.signIn({ email, password });
+        return userId;
       } catch (error) {
         if (error instanceof TemporaryAuthError) throw error;
         throw new TemporaryAuthError("unavailable");

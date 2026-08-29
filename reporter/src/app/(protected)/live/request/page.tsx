@@ -12,12 +12,13 @@ export default async function LiveRequestPage() {
   const eligible = canRequestLive({ membership: membership.status, canBroadcastLive: membership.canBroadcastLive });
   return (
     <div className="space-y-6">
-      <Link className="inline-flex rounded-sm text-sm font-medium text-muted-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/live">Back to live broadcasts</Link>
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight">Request a live broadcast</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Live trust and an active membership are required. General reporter trust never approves a specific event: editorial approval sets the broadcast window, and approved broadcasts will be server-recorded.</p>
+      <Link className="inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/live">Back to live</Link>
+      <header className="max-w-3xl">
+        <p className="text-sm font-medium text-muted-foreground">Live workspace</p>
+        <h1 className="mt-1 break-words text-3xl font-semibold tracking-tight">Request a live broadcast</h1>
+        <p className="mt-2 text-sm text-muted-foreground">Share the proposed broadcast details with the newsroom. Editorial approval sets the exact window, and approved broadcasts will be server-recorded.</p>
       </header>
-      {!eligible ? <p className="rounded-lg border border-border p-4 text-sm text-muted-foreground">Your request history remains available, but grace, expired, suspended, disabled, or non-live-trusted accounts cannot create a live request.</p> : null}
+      {!eligible ? <p className="rounded-md border border-border bg-muted/40 p-4 text-sm text-muted-foreground" role="status">Your request history remains available, but grace, expired, suspended, disabled, or non-live-trusted accounts cannot create a live request.</p> : null}
       <LiveRequestForm eligible={eligible} />
     </div>
   );

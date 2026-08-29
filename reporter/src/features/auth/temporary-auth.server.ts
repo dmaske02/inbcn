@@ -5,9 +5,15 @@ import { randomBytes } from "node:crypto";
 import { env } from "../../config/env.ts";
 import { createAdminClient } from "../../lib/supabase/admin.ts";
 import { createClient } from "../../lib/supabase/server.ts";
+import { ensureApplicantProfile } from "./applicant-profile.server.ts";
 import { createTemporaryAuthService, TemporaryAuthError } from "./temporary-auth.model.ts";
+import type { SignupProfile } from "./applicant-profile.model.ts";
 
-export async function signInWithTemporaryOtp(phone: unknown, code: unknown): Promise<void> {
+export async function signInWithTemporaryOtp(
+  phone: unknown,
+  code: unknown,
+  options?: Readonly<{ ensureProfile?: boolean; signupProfile?: SignupProfile }>,
+): Promise<string> {
   if (!env.server.temporaryOnboarding) throw new TemporaryAuthError("disabled");
 
   const admin = createAdminClient();
@@ -29,6 +35,7 @@ export async function signInWithTemporaryOtp(phone: unknown, code: unknown): Pro
         phone: input.phone,
         phone_confirm: true,
         password: input.password,
+        user_metadata: input.signupProfile ? { temporary_reporter_signup: input.signupProfile } : undefined,
       });
       if (error || !data.user) throw error ?? new Error("Temporary user creation failed.");
       return data.user.id;
@@ -41,15 +48,7 @@ export async function signInWithTemporaryOtp(phone: unknown, code: unknown): Pro
       });
       if (error) throw error;
     },
-    async ensureProfile(userId) {
-      const { error } = await admin.from("profiles").upsert({
-        id: userId,
-        username: `reporter_${userId.replaceAll("-", "").slice(0, 16)}`,
-        display_name: "Reporter applicant",
-        role: "reader",
-      }, { onConflict: "id", ignoreDuplicates: true });
-      if (error) throw error;
-    },
+    ensureProfile: ensureApplicantProfile,
     async signIn(input) {
       const supabase = await createClient();
       const { error } = await supabase.auth.signInWithPassword(input);
@@ -58,5 +57,5 @@ export async function signInWithTemporaryOtp(phone: unknown, code: unknown): Pro
     randomPassword: () => randomBytes(32).toString("base64url"),
   });
 
-  await service.signIn({ phone, code });
+  return service.signIn({ phone, code }, options);
 }

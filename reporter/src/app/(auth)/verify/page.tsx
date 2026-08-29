@@ -4,11 +4,13 @@ import { env } from "@/config/env";
 import { validateIndianPhone } from "@/features/auth/authorization.model";
 import { OtpForm } from "@/features/auth/otp-form";
 import { authorizeCurrentReporter } from "@/features/auth/server";
+import { parseAuthMode } from "@/features/auth/signup-intent.model";
 
 export default async function VerifyPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ phone?: string }> }>) {
-  const { phone } = await searchParams;
+}: Readonly<{ searchParams: Promise<{ phone?: string; mode?: string | string[] }> }>) {
+  const { phone, mode: modeValue } = await searchParams;
+  const mode = parseAuthMode(modeValue);
   if (env.server.temporaryOnboarding) {
     redirect("/login");
   }
@@ -25,7 +27,7 @@ export default async function VerifyPage({
     <main className="grid min-h-svh place-items-center px-4 py-10">
       <section className="w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">Verify your mobile number</h1>
-        <div className="mt-6"><OtpForm phone={phone} /></div>
+        <div className="mt-6"><OtpForm mode={mode} phone={phone} /></div>
       </section>
     </main>
   );

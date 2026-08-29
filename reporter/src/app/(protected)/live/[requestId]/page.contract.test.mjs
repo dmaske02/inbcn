@@ -9,4 +9,9 @@ test("studio page fails closed to the reporter-owned approved window and active 
     "membership.status !== \"active\"", "!membership.canBroadcastLive", "now < startsAt", "now >= endsAt", "ReporterBroadcastStudio",
     "catch { notFound(); }",
   ]) assert.ok(source.includes(marker), `missing ${marker}`);
+  assert.match(source, /<ReporterBroadcastStudio request=\{\{/u);
+  for (const field of ["id: request.id", "title: request.title", "intendedLocality: request.intendedLocality", "expectedDurationMinutes: request.expectedDurationMinutes", "approvedStartsAt: request.approvedStartsAt", "approvedEndsAt: request.approvedEndsAt"]) {
+    assert.ok(source.includes(field), `missing presentation field ${field}`);
+  }
+  assert.doesNotMatch(source, /request=\{request\}/u);
 });

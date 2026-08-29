@@ -13,7 +13,7 @@ export function CameraPreview({ track }: Readonly<{ track: LocalVideoTrack | nul
     return () => { track.detach(element); };
   }, [track]);
   return (
-    <div className="relative aspect-video overflow-hidden rounded-lg bg-muted">
+    <div className="relative aspect-video overflow-hidden rounded-md border border-border bg-muted">
       <video aria-label="Live camera preview" autoPlay className="size-full object-cover" muted playsInline ref={ref} />
       {!track ? <p className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-muted-foreground">Start preview to check your camera and microphone.</p> : null}
     </div>

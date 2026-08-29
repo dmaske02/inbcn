@@ -19,5 +19,12 @@ export default async function ReporterLiveStudioPage({ params }: Readonly<{ para
   const now = new Date().getTime();
   if (!request || request.status !== "approved" || !Number.isFinite(startsAt) || !Number.isFinite(endsAt)
     || membership.status !== "active" || !membership.canBroadcastLive || now < startsAt || now >= endsAt) notFound();
-  return <ReporterBroadcastStudio requestId={request.id} />;
+  return <ReporterBroadcastStudio request={{
+    id: request.id,
+    title: request.title,
+    intendedLocality: request.intendedLocality,
+    expectedDurationMinutes: request.expectedDurationMinutes,
+    approvedStartsAt: request.approvedStartsAt,
+    approvedEndsAt: request.approvedEndsAt,
+  }} />;
 }
