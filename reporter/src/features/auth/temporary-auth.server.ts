@@ -6,7 +6,11 @@ import { env } from "../../config/env.ts";
 import { createAdminClient } from "../../lib/supabase/admin.ts";
 import { createClient } from "../../lib/supabase/server.ts";
 import { ensureApplicantProfile } from "./applicant-profile.server.ts";
-import { createTemporaryAuthService, TemporaryAuthError } from "./temporary-auth.model.ts";
+import {
+  createTemporaryAuthService,
+  isTemporaryDemoIdentityEligible,
+  TemporaryAuthError,
+} from "./temporary-auth.model.ts";
 import type { SignupProfile } from "./applicant-profile.model.ts";
 
 export async function signInWithTemporaryOtp(
@@ -27,16 +31,24 @@ export async function signInWithTemporaryOtp(
         if (match) {
           const [{ data: profile, error: profileError }, { data: reporter, error: reporterError }] = await Promise.all([
             admin.from("profiles").select("role, is_active").eq("id", match.id).maybeSingle(),
-            admin.from("reporter_profiles").select("profile_id").eq("profile_id", match.id).maybeSingle(),
+            admin.from("reporter_profiles")
+              .select("profile_id, public_status, access_sync_status")
+              .eq("profile_id", match.id)
+              .maybeSingle(),
           ]);
           if (profileError || reporterError) throw profileError ?? reporterError;
           const authRole = typeof match.app_metadata?.role === "string" ? match.app_metadata.role : null;
           return {
             id: match.id,
             marked: match.app_metadata?.reporter_demo_identity === true,
-            eligible: !reporter
-              && (authRole === null || authRole === "reader")
-              && (!profile || (profile.role === "reader" && profile.is_active)),
+            eligible: isTemporaryDemoIdentityEligible({
+              authRole,
+              profile: profile ? { role: profile.role, isActive: profile.is_active } : null,
+              reporter: reporter ? {
+                publicStatus: reporter.public_status,
+                accessSyncStatus: reporter.access_sync_status,
+              } : null,
+            }),
           };
         }
         if (data.nextPage === null) return null;

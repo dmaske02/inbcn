@@ -116,12 +116,21 @@ test("temporary signup details are metadata only and never become authorization 
 });
 
 test("demo Auth users carry an ownership marker and privileged identities fail closed", async () => {
-  const server = await read("./temporary-auth.server.ts");
+  const [server, model] = await Promise.all([
+    read("./temporary-auth.server.ts"),
+    read("./temporary-auth.model.ts"),
+  ]);
   assert.match(server, /reporter_demo_identity/u);
-  assert.match(server, /role === "reader"/u);
   assert.match(server, /is_active/u);
   assert.match(server, /marked:/u);
   assert.match(server, /eligible:/u);
+  assert.match(model, /authRole === "reader"/u);
+  assert.match(model, /authRole === "reporter"/u);
+  assert.match(model, /profile\.role === "reader"/u);
+  assert.match(model, /profile\?\.role === "reporter"/u);
+  assert.match(model, /profile\.isActive/u);
+  assert.match(model, /publicStatus === "active"/u);
+  assert.match(model, /accessSyncStatus === "succeeded"/u);
 });
 
 test("demo authentication does not enable temporary payment or KYC onboarding", async () => {

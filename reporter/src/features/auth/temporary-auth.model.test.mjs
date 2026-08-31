@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { createTemporaryAuthService, validateTemporaryDemoOtp } from "./temporary-auth.model.ts";
+import {
+  createTemporaryAuthService,
+  isTemporaryDemoIdentityEligible,
+  validateTemporaryDemoOtp,
+} from "./temporary-auth.model.ts";
 
 test("demo OTP validation accepts only the canonical phone with 1234", () => {
   assert.deepEqual(validateTemporaryDemoOtp("+919000000829", "1234"), { ok: true, phone: "+919000000829" });
@@ -30,6 +34,34 @@ test("canonical demo credentials create a marked user and establish a session", 
 
   assert.deepEqual(events.map(([name]) => name), ["create", "profile", "sign-in"]);
   assert.equal(events[0][1].email, "reporter.919000000829@preview.inbcn.invalid");
+});
+
+test("an approved demo reporter is reusable only when signed and database access agree", async () => {
+  const server = (await readFile(new URL("./temporary-auth.server.ts", import.meta.url), "utf8")).replaceAll("\r\n", "\n");
+  assert.match(server, /public_status, access_sync_status/u);
+  assert.doesNotMatch(server, /access_generation|access_sync_generation/u);
+  assert.match(server, /isTemporaryDemoIdentityEligible/u);
+});
+
+test("demo identity eligibility accepts only coherent applicant or active Reporter states", () => {
+  const applicant = {
+    authRole: "reader",
+    profile: { role: "reader", isActive: true },
+    reporter: null,
+  };
+  const reporter = {
+    authRole: "reporter",
+    profile: { role: "reporter", isActive: true },
+    reporter: { publicStatus: "active", accessSyncStatus: "succeeded" },
+  };
+
+  assert.equal(isTemporaryDemoIdentityEligible(applicant), true);
+  assert.equal(isTemporaryDemoIdentityEligible(reporter), true);
+  assert.equal(isTemporaryDemoIdentityEligible({ ...reporter, authRole: "admin" }), false);
+  assert.equal(isTemporaryDemoIdentityEligible({ ...reporter, profile: { role: "reader", isActive: true } }), false);
+  assert.equal(isTemporaryDemoIdentityEligible({ ...reporter, profile: { role: "reporter", isActive: false } }), false);
+  assert.equal(isTemporaryDemoIdentityEligible({ ...reporter, reporter: { publicStatus: "suspended", accessSyncStatus: "succeeded" } }), false);
+  assert.equal(isTemporaryDemoIdentityEligible({ ...reporter, reporter: { publicStatus: "active", accessSyncStatus: "failed" } }), false);
 });
 
 test("create mode can defer profile persistence until personal details are submitted", async () => {

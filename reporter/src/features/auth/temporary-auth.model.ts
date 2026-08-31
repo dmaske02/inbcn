@@ -33,6 +33,24 @@ export function validateTemporaryDemoOtp(phone: unknown, code: unknown):
     : { ok: false };
 }
 
+export function isTemporaryDemoIdentityEligible(input: Readonly<{
+  authRole: string | null;
+  profile: Readonly<{ role: string; isActive: boolean }> | null;
+  reporter: Readonly<{ publicStatus: string; accessSyncStatus: string }> | null;
+}>): boolean {
+  const applicantEligible = input.reporter === null
+    && (input.authRole === null || input.authRole === "reader")
+    && (input.profile === null || (input.profile.role === "reader" && input.profile.isActive));
+  const reporterEligible = input.reporter !== null
+    && input.authRole === "reporter"
+    && input.profile?.role === "reporter"
+    && input.profile.isActive
+    && input.reporter.publicStatus === "active"
+    && input.reporter.accessSyncStatus === "succeeded";
+
+  return applicantEligible || reporterEligible;
+}
+
 export function createTemporaryAuthService(dependencies: TemporaryAuthDependencies) {
   return {
     async signIn(
