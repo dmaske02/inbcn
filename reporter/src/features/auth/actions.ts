@@ -53,8 +53,8 @@ export async function temporarySignInAction(
     };
   }
 
-  if (!env.server.temporaryOnboarding) {
-    return { status: "error", message: "Preview sign-in is unavailable." };
+  if (!env.server.demoMode) {
+    return { status: "error", message: "Demo sign-in is unavailable." };
   }
 
   const mode = parseAuthMode(formData.get("mode"));
@@ -150,8 +150,8 @@ export async function completeTemporarySignupAction(
   _previousState: OtpState,
   formData: FormData,
 ): Promise<OtpState> {
-  if (!env.server.temporaryOnboarding) {
-    return { status: "error", message: "Preview account creation is unavailable." };
+  if (!env.server.demoMode) {
+    return { status: "error", message: "Demo account creation is unavailable." };
   }
 
   const profile = validateSignupProfile({

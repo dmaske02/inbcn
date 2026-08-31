@@ -15,9 +15,9 @@ export default async function LoginPage({
     redirect("/dashboard");
   }
   const requestedMode = parseAuthMode((await searchParams).mode);
-  const creating = env.server.temporaryOnboarding && requestedMode === "create";
+  const creating = env.server.demoMode && requestedMode === "create";
   const mode = creating ? "create" : "signin";
-  const languages = creating && env.server.temporaryOnboarding ? await listSignupLanguages() : [];
+  const languages = creating && env.server.demoMode ? await listSignupLanguages() : [];
 
   return (
     <main className="grid min-h-svh place-items-center px-4 py-10">
@@ -28,8 +28,8 @@ export default async function LoginPage({
             ? "Verify your mobile number to get started with your INBCN reporter application."
             : "Sign in to your Reporter account."}
         </p>
-        <div className="mt-6"><OtpForm languages={languages} mode={mode} temporary={env.server.temporaryOnboarding} /></div>
-        {env.server.temporaryOnboarding ? <p className="mt-6 border-t border-border pt-5 text-center text-sm text-muted-foreground">
+        <div className="mt-6"><OtpForm languages={languages} mode={mode} temporary={env.server.demoMode} /></div>
+        {env.server.demoMode ? <p className="mt-6 border-t border-border pt-5 text-center text-sm text-muted-foreground">
           {creating ? "Already have an account? " : "New to INBCN? "}
           <Link
             className="inline-flex min-h-11 items-center font-medium text-foreground underline underline-offset-4 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"

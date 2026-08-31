@@ -2,13 +2,19 @@ import { validateIndianPhone } from "./authorization.model.ts";
 import type { SignupProfile } from "./applicant-profile.model.ts";
 
 type TemporaryAuthDependencies = Readonly<{
-  findUser: (phone: string) => Promise<string | null>;
+  findUser: (phone: string) => Promise<Readonly<{
+    id: string;
+    marked: boolean;
+    eligible: boolean;
+  }> | null>;
   createUser: (input: Readonly<{ phone: string; email: string; password: string; signupProfile?: SignupProfile }>) => Promise<string>;
   rotateCredentials: (userId: string, input: Readonly<{ email: string; password: string }>) => Promise<void>;
   ensureProfile: (userId: string) => Promise<void>;
   signIn: (input: Readonly<{ email: string; password: string }>) => Promise<void>;
   randomPassword: () => string;
 }>;
+
+export const REPORTER_DEMO_PHONE = "+919000000829";
 
 export class TemporaryAuthError extends Error {
   readonly code: "disabled" | "invalid-credentials" | "unavailable";
@@ -22,7 +28,9 @@ export class TemporaryAuthError extends Error {
 export function validateTemporaryDemoOtp(phone: unknown, code: unknown):
   | Readonly<{ ok: true; phone: string }>
   | Readonly<{ ok: false }> {
-  return validateIndianPhone(phone) && code === "1234" ? { ok: true, phone } : { ok: false };
+  return validateIndianPhone(phone) && phone === REPORTER_DEMO_PHONE && code === "1234"
+    ? { ok: true, phone }
+    : { ok: false };
 }
 
 export function createTemporaryAuthService(dependencies: TemporaryAuthDependencies) {
@@ -39,10 +47,13 @@ export function createTemporaryAuthService(dependencies: TemporaryAuthDependenci
       const password = dependencies.randomPassword();
       const email = `reporter.${verified.phone.replace(/\D/g, "")}@preview.inbcn.invalid`;
       try {
-        const existingUserId = await dependencies.findUser(verified.phone);
-        const userId = existingUserId
+        const existingUser = await dependencies.findUser(verified.phone);
+        if (existingUser && (!existingUser.marked || !existingUser.eligible)) {
+          throw new TemporaryAuthError("invalid-credentials");
+        }
+        const userId = existingUser?.id
           ?? await dependencies.createUser({ phone: verified.phone, email, password, signupProfile: options.signupProfile });
-        if (existingUserId) await dependencies.rotateCredentials(userId, { email, password });
+        if (existingUser) await dependencies.rotateCredentials(userId, { email, password });
         if (options.ensureProfile !== false) await dependencies.ensureProfile(userId);
         await dependencies.signIn({ email, password });
         return userId;

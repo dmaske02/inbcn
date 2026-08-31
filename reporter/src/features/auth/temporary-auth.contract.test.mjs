@@ -4,7 +4,7 @@ import test from "node:test";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
-test("temporary preview auth is gated while provider OTP remains available", async () => {
+test("explicit demo auth is gated separately while provider OTP remains available", async () => {
   const [actions, form, login, verify] = await Promise.all([
     read("./actions.ts"),
     read("./otp-form.tsx"),
@@ -12,15 +12,16 @@ test("temporary preview auth is gated while provider OTP remains available", asy
     read("../../app/(auth)/verify/page.tsx"),
   ]);
 
-  assert.match(actions, /env\.server\.temporaryOnboarding/u);
+  assert.match(actions, /env\.server\.demoMode/u);
   assert.match(actions, /signInWithTemporaryOtp/u);
   assert.match(actions, /signInWithOtp/u);
   assert.match(actions, /verifyOtp/u);
   assert.match(form, /Client preview code/u);
   assert.match(form, /1234/u);
   assert.match(form, /name="token"/u);
-  assert.match(login, /temporaryOnboarding/u);
-  assert.match(verify, /temporaryOnboarding/u);
+  assert.match(login, /demoMode/u);
+  assert.match(verify, /demoMode/u);
+  assert.doesNotMatch(login, /temporaryOnboarding/u);
 });
 
 test("the demo code is isolated from the provider OTP actions", async () => {
@@ -45,7 +46,7 @@ test("login presents distinct sign-in and create-account modes", async () => {
   const login = await read("../../app/(auth)/login/page.tsx");
   assert.match(login, /searchParams/u);
   assert.match(login, /requestedMode === "create"/u);
-  assert.match(login, /env\.server\.temporaryOnboarding && requestedMode/u);
+  assert.match(login, /env\.server\.demoMode && requestedMode/u);
   assert.match(login, /Sign in to your Reporter account\./u);
   assert.match(login, /Create your INBCN account/u);
   assert.match(login, /Verify your mobile number to get started with your INBCN reporter application\./u);
@@ -54,7 +55,7 @@ test("login presents distinct sign-in and create-account modes", async () => {
   assert.match(login, /Create reporter account/u);
   assert.match(login, /Already have an account\?/u);
   assert.match(login, /"Sign in"/u);
-  assert.match(login, /<OtpForm[\s\S]*mode=\{mode\}[\s\S]*temporary=\{env\.server\.temporaryOnboarding\}/u);
+  assert.match(login, /<OtpForm[\s\S]*mode=\{mode\}[\s\S]*temporary=\{env\.server\.demoMode\}/u);
   assert.doesNotMatch(login, /href=[^>]*(?:signup|register|application)/iu);
 });
 
@@ -112,4 +113,24 @@ test("temporary signup details are metadata only and never become authorization 
   const server = await read("./temporary-auth.server.ts");
   assert.match(server, /user_metadata: input\.signupProfile \?/u);
   assert.doesNotMatch(server, /app_metadata:\s*input\.signupProfile/u);
+});
+
+test("demo Auth users carry an ownership marker and privileged identities fail closed", async () => {
+  const server = await read("./temporary-auth.server.ts");
+  assert.match(server, /reporter_demo_identity/u);
+  assert.match(server, /role === "reader"/u);
+  assert.match(server, /is_active/u);
+  assert.match(server, /marked:/u);
+  assert.match(server, /eligible:/u);
+});
+
+test("demo authentication does not enable temporary payment or KYC onboarding", async () => {
+  const [applicationPage, temporaryActions] = await Promise.all([
+    read("../application/../../app/(protected)/application/page.tsx"),
+    read("../application/temporary-onboarding.actions.ts"),
+  ]);
+  assert.match(applicationPage, /temporaryOnboarding=\{env\.server\.temporaryOnboarding\}/u);
+  assert.doesNotMatch(applicationPage, /temporaryOnboarding=\{env\.server\.demoMode\}/u);
+  assert.match(temporaryActions, /env\.server\.temporaryOnboarding/u);
+  assert.doesNotMatch(temporaryActions, /env\.server\.demoMode/u);
 });

@@ -4,9 +4,10 @@ import test from "node:test";
 
 import { createTemporaryAuthService, validateTemporaryDemoOtp } from "./temporary-auth.model.ts";
 
-test("demo OTP validation is side-effect free and accepts only 1234", () => {
-  assert.deepEqual(validateTemporaryDemoOtp("+919876543210", "1234"), { ok: true, phone: "+919876543210" });
-  assert.deepEqual(validateTemporaryDemoOtp("+919876543210", "9999"), { ok: false });
+test("demo OTP validation accepts only the canonical phone with 1234", () => {
+  assert.deepEqual(validateTemporaryDemoOtp("+919000000829", "1234"), { ok: true, phone: "+919000000829" });
+  assert.deepEqual(validateTemporaryDemoOtp("+919876543210", "1234"), { ok: false });
+  assert.deepEqual(validateTemporaryDemoOtp("+919000000829", "9999"), { ok: false });
 });
 
 test("temporary Auth lookup tolerates Supabase's plus-less stored phone", async () => {
@@ -14,7 +15,7 @@ test("temporary Auth lookup tolerates Supabase's plus-less stored phone", async 
   assert.match(server, /user\.phone\?\.replace\(\/\^\\\+\//u);
 });
 
-test("1234 creates a confirmed phone user and establishes a session", async () => {
+test("canonical demo credentials create a marked user and establish a session", async () => {
   const events = [];
   const service = createTemporaryAuthService({
     findUser: async () => null,
@@ -25,10 +26,10 @@ test("1234 creates a confirmed phone user and establishes a session", async () =
     randomPassword: () => "generated-private-password",
   });
 
-  await service.signIn({ phone: "+919876543210", code: "1234" });
+  await service.signIn({ phone: "+919000000829", code: "1234" });
 
   assert.deepEqual(events.map(([name]) => name), ["create", "profile", "sign-in"]);
-  assert.equal(events[0][1].email, "reporter.919876543210@preview.inbcn.invalid");
+  assert.equal(events[0][1].email, "reporter.919000000829@preview.inbcn.invalid");
 });
 
 test("create mode can defer profile persistence until personal details are submitted", async () => {
@@ -43,7 +44,7 @@ test("create mode can defer profile persistence until personal details are submi
   });
 
   const userId = await service.signIn(
-    { phone: "+919876543210", code: "1234" },
+    { phone: "+919000000829", code: "1234" },
     { ensureProfile: false },
   );
 
@@ -71,14 +72,14 @@ test("fresh demo signup metadata is attached only while creating the temporary A
     randomPassword: () => "generated-private-password",
   });
 
-  await service.signIn({ phone: "+919876543210", code: "1234" }, { signupProfile });
+  await service.signIn({ phone: "+919000000829", code: "1234" }, { signupProfile });
   assert.deepEqual(created.signupProfile, signupProfile);
 });
 
-test("1234 rotates a returning user's password before sign-in", async () => {
+test("a marked eligible demo identity is safely reused", async () => {
   const events = [];
   const service = createTemporaryAuthService({
-    findUser: async () => "user-1",
+    findUser: async () => ({ id: "user-1", marked: true, eligible: true }),
     createUser: async () => { throw new Error("must not create duplicate"); },
     rotateCredentials: async () => { events.push("rotate"); },
     ensureProfile: async () => { events.push("profile"); },
@@ -86,9 +87,45 @@ test("1234 rotates a returning user's password before sign-in", async () => {
     randomPassword: () => "generated-private-password",
   });
 
-  await service.signIn({ phone: "+919876543210", code: "1234" });
+  await service.signIn({ phone: "+919000000829", code: "1234" });
 
   assert.deepEqual(events, ["rotate", "profile", "sign-in"]);
+});
+
+test("an unmarked canonical account is rejected before credential rotation", async () => {
+  const events = [];
+  const service = createTemporaryAuthService({
+    findUser: async () => ({ id: "user-1", marked: false, eligible: true }),
+    createUser: async () => { events.push("create"); return "user-1"; },
+    rotateCredentials: async () => { events.push("rotate"); },
+    ensureProfile: async () => { events.push("profile"); },
+    signIn: async () => { events.push("sign-in"); },
+    randomPassword: () => "generated-private-password",
+  });
+
+  await assert.rejects(
+    () => service.signIn({ phone: "+919000000829", code: "1234" }),
+    /invalid-credentials/u,
+  );
+  assert.deepEqual(events, []);
+});
+
+test("a privileged canonical identity is rejected before credential rotation", async () => {
+  const events = [];
+  const service = createTemporaryAuthService({
+    findUser: async () => ({ id: "user-1", marked: true, eligible: false }),
+    createUser: async () => { events.push("create"); return "user-1"; },
+    rotateCredentials: async () => { events.push("rotate"); },
+    ensureProfile: async () => { events.push("profile"); },
+    signIn: async () => { events.push("sign-in"); },
+    randomPassword: () => "generated-private-password",
+  });
+
+  await assert.rejects(
+    () => service.signIn({ phone: "+919000000829", code: "1234" }),
+    /invalid-credentials/u,
+  );
+  assert.deepEqual(events, []);
 });
 
 test("temporary auth rejects every code except 1234 before user lookup", async () => {
@@ -103,7 +140,25 @@ test("temporary auth rejects every code except 1234 before user lookup", async (
   });
 
   await assert.rejects(
-    () => service.signIn({ phone: "+919876543210", code: "9999" }),
+    () => service.signIn({ phone: "+919000000829", code: "9999" }),
+    /invalid-credentials/u,
+  );
+  assert.equal(lookedUp, false);
+});
+
+test("another valid phone with 1234 is rejected before user lookup", async () => {
+  let lookedUp = false;
+  const service = createTemporaryAuthService({
+    findUser: async () => { lookedUp = true; return null; },
+    createUser: async () => "user-1",
+    rotateCredentials: async () => {},
+    ensureProfile: async () => {},
+    signIn: async () => {},
+    randomPassword: () => "generated-private-password",
+  });
+
+  await assert.rejects(
+    () => service.signIn({ phone: "+919876543210", code: "1234" }),
     /invalid-credentials/u,
   );
   assert.equal(lookedUp, false);

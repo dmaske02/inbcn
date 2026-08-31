@@ -136,3 +136,28 @@ test("temporary onboarding cannot be enabled in Vercel production", async () => 
     },
   );
 });
+
+test("demo authentication is disabled by default and explicitly enabled in production", async () => {
+  const importEnvironment = (demoMode, expected) => execFileAsync(
+    process.execPath,
+    [
+      "--conditions=react-server",
+      "--experimental-strip-types",
+      "--input-type=module",
+      "-e",
+      `const { env } = await import("./src/config/env.ts"); if (env.server.demoMode !== ${expected}) process.exit(2)`,
+    ],
+    {
+      cwd: new URL("../..", import.meta.url),
+      env: {
+        ...process.env,
+        REPORTER_DEMO_MODE: demoMode,
+        REPORTER_TEMPORARY_ONBOARDING: "false",
+        VERCEL_ENV: "production",
+      },
+    },
+  );
+
+  await importEnvironment("false", false);
+  await importEnvironment("true", true);
+});

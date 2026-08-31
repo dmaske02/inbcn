@@ -11,7 +11,7 @@ export default async function VerifyPage({
 }: Readonly<{ searchParams: Promise<{ phone?: string; mode?: string | string[] }> }>) {
   const { phone, mode: modeValue } = await searchParams;
   const mode = parseAuthMode(modeValue);
-  if (env.server.temporaryOnboarding) {
+  if (env.server.demoMode) {
     redirect("/login");
   }
   if (!validateIndianPhone(phone)) {
