@@ -8,6 +8,7 @@ const service = await readFile(new URL("./story.service.ts", import.meta.url), "
 const mediaPolicy = await readFile(new URL("./story-featured-media-policy.ts", import.meta.url), "utf8");
 const model = await readFile(new URL("./story.model.ts", import.meta.url), "utf8");
 const repository = await readFile(new URL("../../news/server/stories.repository.ts", import.meta.url), "utf8");
+const mediaActions = await readFile(new URL("../media/media.actions.ts", import.meta.url), "utf8");
 
 test("Story form migrates from the legacy picker to the reusable MediaPicker wrapper", () => {
   assert.match(form, /StoryFeaturedMediaField/u);
@@ -59,6 +60,41 @@ test("Story field preserves writer policy, removal, accessibility, and responsiv
   assert.match(field, /aria-live="polite"/u);
   assert.match(field, /Remove featured image/u);
   assert.match(field, /sm:grid-cols/u);
+});
+
+test("Story featured media offers direct upload without replacing the existing picker", () => {
+  assert.match(field, /Upload image/u);
+  assert.match(field, /Choose from Media Library/u);
+  assert.match(field, /accept="image\/jpeg,image\/png,image\/webp,image\/avif"/u);
+  assert.match(field, /uploadStoryFeaturedMediaAction/u);
+  assert.match(field, /<MediaPicker/u);
+});
+
+test("direct upload collects explicit metadata and selects the returned media", () => {
+  assert.match(field, /name="title"/u);
+  assert.match(field, /name="altText"/u);
+  assert.match(field, /name="caption"/u);
+  assert.match(field, /name="credit"/u);
+  assert.match(field, /required/u);
+  assert.match(field, /selectMedia\(state\.media\)/u);
+  assert.doesNotMatch(field, /setTitle\([^)]*\.name/u);
+  assert.doesNotMatch(field, /setAltText\([^)]*\.name/u);
+});
+
+test("direct upload protects the draft from duplicate submission and reports failures", () => {
+  assert.match(field, /disabled=\{pending\}/u);
+  assert.match(field, /Uploading…/u);
+  assert.match(field, /role="alert"/u);
+  assert.match(field, /state\.message/u);
+});
+
+test("Story direct upload reuses the authenticated media action and returns a library view", () => {
+  const action = mediaActions.match(/export async function uploadStoryFeaturedMediaAction[\s\S]*?\n\}/u)?.[0] ?? "";
+  assert.match(action, /requireAdminUser\(\)/u);
+  assert.match(action, /uploadMedia\(admin, input\)/u);
+  assert.match(action, /getMediaReferenceView/u);
+  assert.match(action, /return \{ status: "success"[^}]*media \}/u);
+  assert.doesNotMatch(action, /cloudinary|apiSecret|CLOUDINARY_API_SECRET/u);
 });
 
 test("the legacy Story-specific picker is removed only after its sole consumer migrates", async () => {

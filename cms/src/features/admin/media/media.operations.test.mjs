@@ -89,6 +89,39 @@ test("upload rejects spoofed MIME before contacting Cloudinary", async () => {
   assert.deepEqual(state.inserted, []);
 });
 
+test("upload requires an explicit title before contacting Cloudinary", async () => {
+  const { operations, state } = fixture();
+
+  await assert.rejects(
+    operations.upload({ ...uploadInput, title: "   " }),
+    (error) => error instanceof MediaManagementError
+      && error.code === "VALIDATION"
+      && error.message === "Image title is required.",
+  );
+  assert.deepEqual(state.uploaded, []);
+});
+
+test("upload requires explicit alt text before contacting Cloudinary", async () => {
+  const { operations, state } = fixture();
+
+  await assert.rejects(
+    operations.upload({ ...uploadInput, altText: "   " }),
+    (error) => error instanceof MediaManagementError
+      && error.code === "VALIDATION"
+      && error.message === "Alt text is required.",
+  );
+  assert.deepEqual(state.uploaded, []);
+});
+
+test("upload persists optional caption and credit through the media record", async () => {
+  const { operations, state } = fixture();
+
+  await operations.upload({ ...uploadInput, caption: "Desk caption", credit: "Photo desk" });
+
+  assert.equal(state.inserted[0].caption, "Desk caption");
+  assert.equal(state.inserted[0].metadata.credit, "Photo desk");
+});
+
 test("Cloudinary failures return a typed sanitized error without persistence", async () => {
   const { operations, state } = fixture({
     cloudinary: { upload: async () => { throw new Error("api_secret=do-not-leak"); } },

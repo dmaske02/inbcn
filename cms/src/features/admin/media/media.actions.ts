@@ -7,6 +7,7 @@ import { requireAdminUser } from "@/features/admin/auth/server";
 import { revalidateWebsite } from "@/features/admin/public-revalidation";
 import {
   MediaManagementError,
+  getMediaReferenceView,
   retireMedia,
   restoreMedia,
   replaceMedia,
@@ -14,6 +15,7 @@ import {
   updateMediaMetadata,
   type MediaFormInput,
   getMediaPickerPage,
+  type MediaLibraryItemView,
   type MediaPickerPage,
 } from "./media.service";
 
@@ -53,6 +55,10 @@ export type MediaActionState = Readonly<{
   message?: string;
 }>;
 
+export type StoryFeaturedMediaUploadState =
+  | Readonly<{ status: "idle" | "error"; message?: string }>
+  | Readonly<{ status: "success"; message: string; media: MediaLibraryItemView }>;
+
 function readForm(formData: FormData): MediaFormInput | null {
   const file = formData.get("file");
   if (!(file instanceof File)) return null;
@@ -66,7 +72,7 @@ function readForm(formData: FormData): MediaFormInput | null {
   };
 }
 
-function safeError(error: unknown): MediaActionState {
+function safeError(error: unknown): Readonly<{ status: "error"; message: string }> {
   if (error instanceof MediaManagementError) {
     return { status: "error", message: error.message };
   }
@@ -93,6 +99,26 @@ export async function uploadMediaAction(
     await uploadMedia(admin, input);
     revalidatePath("/admin/media");
     return { status: "success", message: "Image uploaded to the media library." };
+  } catch (error) {
+    return safeError(error);
+  }
+}
+
+export async function uploadStoryFeaturedMediaAction(
+  _previousState: StoryFeaturedMediaUploadState,
+  formData: FormData,
+): Promise<StoryFeaturedMediaUploadState> {
+  try {
+    const admin = await requireAdminUser();
+    const input = readForm(formData);
+    if (!input) return { status: "error", message: "Choose an image to upload." };
+    const uploaded = await uploadMedia(admin, input);
+    const media = await getMediaReferenceView(uploaded.id);
+    if (!media) {
+      return { status: "error", message: "The uploaded image could not be loaded. Find it in Media Library and select it there." };
+    }
+    revalidatePath("/admin/media");
+    return { status: "success", message: "Image uploaded and selected.", media };
   } catch (error) {
     return safeError(error);
   }
