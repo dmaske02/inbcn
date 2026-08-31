@@ -24,8 +24,7 @@ test("client preview is a synthetic onboarding and reporter application", () => 
   assert.match(proxy, /return updateSession\(request\)/u);
 });
 
-test("temporary onboarding enters the real reporter flow from the preview root", () => {
-  assert.match(home, /env\.server\.temporaryOnboarding/u);
+test("the Reporter root always enters the real authentication flow", () => {
   assert.match(home, /redirect\("\/login"\)/u);
-  assert.match(home, /<ReporterDemo/u);
+  assert.doesNotMatch(home, /temporaryOnboarding|ReporterDemo/u);
 });
