@@ -7,6 +7,7 @@ import { ConsentForm } from "./consent-form";
 import type { ConsentLocale } from "./consent.model";
 import type { ReporterApplicationView } from "./application.repository";
 import { TemporaryOnboardingControls } from "./temporary-onboarding-controls";
+import { DemoPaymentWaiverControl } from "./demo-payment-waiver-control";
 import { ReporterCheckout } from "../payments/reporter-checkout";
 
 const labels = {
@@ -23,10 +24,12 @@ export function ApplicationStatus({
   application,
   razorpayKeyId,
   temporaryOnboarding = false,
+  demoPaymentWaiver = false,
 }: Readonly<{
   application: ReporterApplicationView;
   razorpayKeyId?: string;
   temporaryOnboarding?: boolean;
+  demoPaymentWaiver?: boolean;
 }>) {
   const [message, setMessage] = useState("");
   const [locale, setLocale] = useState<ConsentLocale>("en");
@@ -64,9 +67,13 @@ export function ApplicationStatus({
       ) : null}
       {application.status === "draft" && application.consentsComplete ? (
         <div className="space-y-3">
-          <p className="text-sm">All current consent receipts are stored. Pay the application fee to continue.</p>
+          <p className="text-sm">{demoPaymentWaiver
+            ? "All current consent receipts are stored. Continue using the audited demo payment waiver."
+            : "All current consent receipts are stored. Pay the application fee to continue."}</p>
           {temporaryOnboarding ? (
             <TemporaryOnboardingControls applicationId={application.id} status={application.status} />
+          ) : demoPaymentWaiver ? (
+            <DemoPaymentWaiverControl applicationId={application.id} />
           ) : (
             <ReporterCheckout
               applicationId={application.id}
@@ -78,9 +85,13 @@ export function ApplicationStatus({
       ) : null}
       {application.status === "payment_pending" ? (
         <div className="space-y-3">
-          <p className="text-sm">Resume the existing secure payment order. A retry will not create a second application charge.</p>
+          <p className="text-sm">{demoPaymentWaiver
+            ? "This demo application can continue without creating a payment transaction."
+            : "Resume the existing secure payment order. A retry will not create a second application charge."}</p>
           {temporaryOnboarding ? (
             <TemporaryOnboardingControls applicationId={application.id} status={application.status} />
+          ) : demoPaymentWaiver ? (
+            <DemoPaymentWaiverControl applicationId={application.id} />
           ) : (
             <ReporterCheckout
               applicationId={application.id}

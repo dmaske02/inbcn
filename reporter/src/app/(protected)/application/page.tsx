@@ -3,6 +3,7 @@ import { getCurrentApplication } from "@/features/application/application.reposi
 import { ApplicationStatus } from "@/features/application/application-status";
 import { requireReporterSession } from "@/features/auth/server";
 import { env } from "@/config/env";
+import { getCurrentDemoIdentity } from "@/features/application/demo-payment-waiver.identity";
 
 export default async function ApplicationPage() {
   const actor = await requireReporterSession();
@@ -16,11 +17,13 @@ export default async function ApplicationPage() {
   }
   const application = await getCurrentApplication(actor.userId);
   if (application) {
+    const demoIdentity = env.server.demoMode ? await getCurrentDemoIdentity(actor.userId) : null;
     return (
       <ApplicationStatus
         application={application}
         razorpayKeyId={env.public.razorpayKeyId}
         temporaryOnboarding={env.server.temporaryOnboarding}
+        demoPaymentWaiver={env.server.demoMode && demoIdentity !== null}
       />
     );
   }

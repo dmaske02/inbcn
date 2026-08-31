@@ -181,6 +181,14 @@ export type Database = {
           { foreignKeyName: "reporter_applications_reviewed_by_fkey"; columns: ["reviewed_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
         ]
       }
+      reporter_demo_payment_waivers: {
+        Row: { application_id: string; profile_id: string; waived_at: string }
+        Insert: { application_id: string; profile_id: string; waived_at?: string }
+        Update: { application_id?: string; profile_id?: string; waived_at?: string }
+        Relationships: [
+          { foreignKeyName: "reporter_demo_payment_waivers_application_profile_fkey"; columns: ["application_id", "profile_id"]; isOneToOne: true; referencedRelation: "reporter_applications"; referencedColumns: ["id", "profile_id"] },
+        ]
+      }
       reporter_consents: {
         Row: { id: string; application_id: string; profile_id: string; notice_key: string; notice_version: string; locale: string; consented_at: string; withdrawn_at: string | null; created_at: string }
         Insert: { id?: string; application_id: string; profile_id: string; notice_key: string; notice_version: string; locale: string; consented_at?: string; withdrawn_at?: string | null; created_at?: string }
@@ -1768,6 +1776,7 @@ export type Database = {
       }
     }
     Functions: {
+      waive_demo_reporter_application_payment: { Args: { p_profile_id: string; p_application_id: string }; Returns: Json }
       apply_reporter_payment: {
         Args: { p_razorpay_order_id: string; p_razorpay_payment_id: string; p_amount_paise: number; p_currency: string; p_captured_at: string }
         Returns: string

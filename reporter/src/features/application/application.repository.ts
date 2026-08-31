@@ -340,6 +340,23 @@ export async function completeTemporaryPayment(
   return { state: "completed" };
 }
 
+export async function waiveDemoReporterApplicationPayment(
+  profileId: string,
+  applicationId: string,
+): Promise<Readonly<{ state: "waived"; applicationId: string; status: "kyc_pending"; waivedAt: string }>> {
+  const { data, error } = await createAdminClient().rpc("waive_demo_reporter_application_payment", {
+    p_profile_id: profileId,
+    p_application_id: applicationId,
+  });
+  if (error) throw new ApplicationRepositoryError("Demo payment waiver could not be completed.");
+  const result = resultRecord(data);
+  if (result.state !== "waived" || result.application_id !== applicationId
+    || result.status !== "kyc_pending" || typeof result.waived_at !== "string") {
+    throw new ApplicationRepositoryError("The demo payment waiver response was invalid.");
+  }
+  return { state: "waived", applicationId, status: "kyc_pending", waivedAt: result.waived_at };
+}
+
 export async function completeTemporaryKycApproval(
   profileId: string,
   applicationId: string,
