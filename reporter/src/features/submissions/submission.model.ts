@@ -55,7 +55,7 @@ const storySchema = z.object({
   languageCode: z.enum(REPORTER_LANGUAGE_CODES, "Choose English, Hindi, or Marathi."),
   languageId: z.uuid("Choose a valid language."),
   categoryId: z.uuid("Choose a valid category."),
-  eventOccurredAt: z.string().trim().min(1, "Event time is required."),
+  eventOccurredAt: z.string().trim().optional(),
   mediaIds: z.array(z.uuid("Choose valid uploaded media.")),
   featuredMediaId: z.union([z.uuid("Choose valid featured media."), z.null()]),
 }).superRefine((value, context) => {
@@ -187,8 +187,10 @@ export function validateReporterStoryInput(
 ): FieldValidationResult<ReporterStoryInput> {
   const parsed = storySchema.safeParse(input);
   if (!parsed.success) return { ok: false, fieldErrors: fieldErrors(parsed.error) };
-  const eventTime = strictTimestampMilliseconds(parsed.data.eventOccurredAt);
   const current = nowMilliseconds(now);
+  const eventTime = parsed.data.eventOccurredAt
+    ? strictTimestampMilliseconds(parsed.data.eventOccurredAt)
+    : current;
   if (!Number.isFinite(eventTime) || !Number.isFinite(current) || eventTime > current + 5 * 60_000) {
     return { ok: false, fieldErrors: { eventOccurredAt: ["Enter a valid event time no more than five minutes in the future."] } };
   }

@@ -149,6 +149,15 @@ test("returns field-safe evidence errors for locality, accuracy, and stale captu
   assert.doesNotMatch(JSON.stringify(result), /19\.076|72\.8777/u);
 });
 
+test("defaults a new Reporter story event time from trusted server time when the form omits it", () => {
+  const withoutEventTime = { ...story };
+  delete withoutEventTime.eventOccurredAt;
+  const result = validateReporterStoryInput(withoutEventTime, now);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.data.eventOccurredAt, now);
+});
+
 const transitionReady = {
   dirty: false,
   mediaUploadPending: false,

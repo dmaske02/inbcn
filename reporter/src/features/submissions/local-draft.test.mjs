@@ -29,7 +29,6 @@ const local = {
     languageCode: "en",
     languageId: "33333333-3333-4333-8333-333333333333",
     categoryId: "44444444-4444-4444-8444-444444444444",
-    eventOccurredAt: "2026-08-23T11:00:00.000Z",
     media: [{ id: "55555555-5555-4555-8555-555555555555", title: "Road", type: "image" }],
     featuredMediaId: "55555555-5555-4555-8555-555555555555",
   },
@@ -144,10 +143,10 @@ test("ignores corrupt or oversized records and safely handles disabled or quota 
   assert.equal(saveLocalDraft(broken, local), false);
 });
 
-test("retains bounded partial editor fields, including an empty event time and body beyond fifteen thousand characters", () => {
+test("retains bounded partial editor fields and a body beyond fifteen thousand characters", () => {
   const partial = {
     ...local,
-    fields: { ...local.fields, body: "x".repeat(50_000), eventOccurredAt: "", languageCode: "", languageId: "", categoryId: "" },
+    fields: { ...local.fields, body: "x".repeat(50_000), languageCode: "", languageId: "", categoryId: "" },
   };
   const storage = memoryStorage();
   assert.equal(saveLocalDraft(storage, partial), true);

@@ -13,7 +13,6 @@ export type LocalDraftFields = Readonly<{
   languageCode: "" | "en" | "hi" | "mr";
   languageId: string;
   categoryId: string;
-  eventOccurredAt: string;
   media: readonly LocalDraftMedia[];
   featuredMediaId: string | null;
 }>;
@@ -57,11 +56,10 @@ function parsedFields(value: unknown): LocalDraftFields | null {
   const languageCode = fields.languageCode;
   const languageId = text(fields.languageId, 36);
   const categoryId = text(fields.categoryId, 36);
-  const eventOccurredAt = parsedTime(fields.eventOccurredAt);
   const featuredMediaId = fields.featuredMediaId === null ? null : text(fields.featuredMediaId, 36);
   if (title === null || summary === null || body === null || languageCode !== "" && !LANGUAGES.has(languageCode as string)
     || languageId === null || languageId !== "" && !UUID.test(languageId) || categoryId === null || categoryId !== "" && !UUID.test(categoryId)
-    || eventOccurredAt === null || featuredMediaId === null && fields.featuredMediaId !== null
+    || featuredMediaId === null && fields.featuredMediaId !== null
     || featuredMediaId && !UUID.test(featuredMediaId) || !Array.isArray(fields.media) || fields.media.length > 50) return null;
   const media = fields.media.map((item): LocalDraftMedia | null => {
     if (!item || typeof item !== "object" || Array.isArray(item)) return null;
@@ -76,7 +74,7 @@ function parsedFields(value: unknown): LocalDraftFields | null {
   const canonicalMedia = media as LocalDraftMedia[];
   if (new Set(canonicalMedia.map((item) => item.id)).size !== canonicalMedia.length
     || featuredMediaId && !canonicalMedia.some((item) => item.id === featuredMediaId && item.type === "image")) return null;
-  return { title, summary, body, languageCode: languageCode as LocalDraftFields["languageCode"], languageId, categoryId, eventOccurredAt, media: canonicalMedia, featuredMediaId };
+  return { title, summary, body, languageCode: languageCode as LocalDraftFields["languageCode"], languageId, categoryId, media: canonicalMedia, featuredMediaId };
 }
 
 function parseLocalDraft(value: unknown): LocalDraft | null {

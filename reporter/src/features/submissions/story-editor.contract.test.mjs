@@ -79,9 +79,11 @@ test("new-story save migrates a stale local snapshot, clears its alias, and alwa
   assert.match(actions, /saved\.id !== target\.storyId/u);
 });
 
-test("mobile editor preserves the server language value contract and renders ISO-Z event times for native inputs", () => {
+test("mobile editor preserves the server language value contract without displaying an event-time field", () => {
   assert.match(source, /value=\{`\$\{language\.id\}:\$\{language\.code\}`\}/u);
-  assert.match(source, /value\.endsWith\("Z"\)/u);
+  assert.doesNotMatch(source, /Event time \(India time\)/u);
+  assert.doesNotMatch(source, /type="datetime-local"/u);
+  assert.match(source, /name="eventOccurredAt"[^>]*type="hidden"|type="hidden"[^>]*name="eventOccurredAt"/u);
 });
 
 test("mobile editor requires captured private evidence for review or direct publication", () => {

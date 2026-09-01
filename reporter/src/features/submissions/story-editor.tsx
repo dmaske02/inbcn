@@ -30,15 +30,8 @@ const initialState: EditorActionState = { status: "idle" };
 const fieldClass = "mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground";
 const buttonClass = "min-h-11 rounded-md px-4 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground disabled:cursor-not-allowed disabled:opacity-60";
 
-function indiaDateTime(value: string): string {
-  if (!value.includes("T") || !(value.endsWith("Z") || /[+-]\d{2}:\d{2}$/u.test(value))) return value;
-  const parts = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date(value));
-  const date = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${date.year}-${date.month}-${date.day}T${date.hour}:${date.minute}`;
-}
-
 function editorFields(story: Readonly<{
-  title: string; summary: string; body: string; languageId: string; categoryId: string; eventOccurredAt: string; featuredMediaId: string | null;
+  title: string; summary: string; body: string; languageId: string; categoryId: string; featuredMediaId: string | null;
 }>, languages: References["languages"], media: readonly Media[]): LocalDraftFields {
   return {
     title: story.title,
@@ -47,7 +40,6 @@ function editorFields(story: Readonly<{
     languageCode: languages.find((language) => language.id === story.languageId)?.code ?? "",
     languageId: story.languageId,
     categoryId: story.categoryId,
-    eventOccurredAt: indiaDateTime(story.eventOccurredAt),
     media,
     featuredMediaId: story.featuredMediaId,
   };
@@ -186,7 +178,7 @@ export function StoryEditor({
 
   function restoreDraft() {
     if (!restore) return;
-    setFields({ ...restore.fields, eventOccurredAt: indiaDateTime(restore.fields.eventOccurredAt) });
+    setFields(restore.fields);
     saveTracker.current.edit();
     setDirty(true);
     persistence.current?.schedule(restore);
@@ -268,6 +260,7 @@ export function StoryEditor({
       <input name="longitude" type="hidden" value={location?.longitude ?? ""} />
       <input name="accuracy" type="hidden" value={location?.accuracy ?? ""} />
       <input name="capturedAt" type="hidden" value={location?.capturedAt ?? ""} />
+      <input name="eventOccurredAt" type="hidden" value={story.eventOccurredAt} />
       {fields.media.map((item) => <input key={item.id} name="mediaIds" type="hidden" value={item.id} />)}
       {restore ? (
         <section aria-labelledby="restore-draft-heading" className="rounded-md border border-border p-3">
@@ -285,7 +278,6 @@ export function StoryEditor({
         updateFields((current) => ({ ...current, languageId: language?.id ?? "", languageCode: language?.code ?? "", categoryId: "" }));
       }} required value={fields.languageId ? `${fields.languageId}:${fields.languageCode}` : ""}>{isPersisted ? null : <option value="">Choose a language</option>}{references.languages.map((language) => <option key={language.id} value={`${language.id}:${language.code}`}>{language.nativeName}</option>)}</select></label>
       <label className="block text-sm font-medium">Category<select className={fieldClass} name="categoryId" onChange={(event) => updateFields((current) => ({ ...current, categoryId: event.target.value }))} required value={fields.categoryId}><option value="">Choose a category</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-      <label className="block text-sm font-medium">Event time (India time)<input className={fieldClass} name="eventOccurredAt" onChange={(event) => updateFields((current) => ({ ...current, eventOccurredAt: event.target.value }))} required type="datetime-local" value={fields.eventOccurredAt} /></label>
       {isPersisted && editable ? <MediaUploader storyId={storyId} onPendingChange={setMediaUploadPending} onUploaded={(item) => updateFields((current) => current.media.some((mediaItem) => mediaItem.id === item.id) ? current : { ...current, media: [...current.media, item] })} /> : <p className="rounded-md border border-border p-3 text-sm text-muted-foreground">Save this first draft before adding media.</p>}
       {fields.media.length ? <section aria-labelledby="attached-media-heading"><h2 id="attached-media-heading" className="font-medium">Attached media</h2><ol className="mt-2 space-y-2">{fields.media.map((item, index) => <li key={item.id} className="flex items-center gap-2 rounded-md border border-border p-2"><span className="min-w-0 flex-1 truncate">{item.title}</span><button aria-label={`Move media up: ${item.title}`} className={buttonClass} disabled={index === 0 || isSaving} onClick={() => updateFields((current) => ({ ...current, media: current.media.map((mediaItem, position) => position === index ? current.media[index - 1] : position === index - 1 ? current.media[index] : mediaItem) }))} type="button">Move media up</button><button aria-label={`Move media down: ${item.title}`} className={buttonClass} disabled={index === fields.media.length - 1 || isSaving} onClick={() => updateFields((current) => ({ ...current, media: current.media.map((mediaItem, position) => position === index ? current.media[index + 1] : position === index + 1 ? current.media[index] : mediaItem) }))} type="button">Move media down</button><button aria-label={`Remove media: ${item.title}`} className={buttonClass} disabled={isSaving} onClick={() => updateFields((current) => ({ ...current, media: current.media.filter((mediaItem) => mediaItem.id !== item.id), featuredMediaId: current.featuredMediaId === item.id ? null : current.featuredMediaId }))} type="button">Remove media</button></li>)}</ol></section> : null}
       {featuredMedia.length ? <label className="block text-sm font-medium">Featured image<select className={fieldClass} name="featuredMediaId" onChange={(event) => updateFields((current) => ({ ...current, featuredMediaId: event.target.value || null }))} value={fields.featuredMediaId ?? ""}><option value="">None</option>{featuredMedia.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label> : <input name="featuredMediaId" type="hidden" value="" />}
