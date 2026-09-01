@@ -1,4 +1,4 @@
-import type { CapturedLocation } from "./submission.model.ts";
+import { isFreshCapture, type CapturedLocation } from "./submission.model.ts";
 
 type GeolocationFailure = Readonly<{ code: number }>;
 type Geolocation = Readonly<{
@@ -10,10 +10,21 @@ type Geolocation = Readonly<{
 }>;
 
 export function mapGeolocationError(error: GeolocationFailure): string {
-  if (error.code === 1) return "Location permission is required to submit this story.";
+  if (error.code === 1) return "Location permission is required. Please allow location access and try again.";
   if (error.code === 2) return "Current location is unavailable. Move to a better signal and try again.";
   if (error.code === 3) return "Location capture timed out. Try again while keeping this page open.";
   return "Current location could not be captured. Try again.";
+}
+
+export function shouldRequestAutomaticLocation(input: Readonly<{
+  canSubmit: boolean;
+  attemptStarted: boolean;
+  location: CapturedLocation | null;
+  now: string | number | Date;
+}>): boolean {
+  return input.canSubmit
+    && !input.attemptStarted
+    && (!input.location || !isFreshCapture(input.location.capturedAt, input.now));
 }
 
 export async function captureCurrentLocation(options: Readonly<{

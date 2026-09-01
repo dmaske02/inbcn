@@ -11,7 +11,7 @@ test("mobile editor keeps local recovery and browser capture in one client islan
   assert.match(source, /^"use client";/u);
   assert.match(source, /createDraftPersistence/u);
   assert.match(source, /captureCurrentLocation/u);
-  assert.match(source, /Capture current location/u);
+  assert.match(source, /Requesting current location permission/u);
   assert.match(source, /name="latitude"/u);
   assert.match(source, /type="hidden"/u);
   assert.doesNotMatch(source, /type="number"[^>]*name="latitude"|name="latitude"[^>]*type="number"/u);
@@ -92,6 +92,23 @@ test("mobile editor requires captured private evidence for review or direct publ
   assert.match(source, /directAction/u);
   assert.match(source, /canDirectPublish/u);
   assert.match(source, /disabled=\{!canTransition \|\| transitionPending\}/u);
+});
+
+test("story submission automatically requests private location once and exposes retry only after failure", () => {
+  assert.match(source, /shouldRequestAutomaticLocation/u);
+  assert.match(source, /locationAttemptStarted\.current = true/u);
+  assert.match(source, /useEffect\(\(\) => \{[\s\S]*captureLocation\(\)/u);
+  assert.doesNotMatch(source, />Capture current location</u);
+  assert.match(source, />Retry location</u);
+  assert.match(source, /locationStatus === "error"/u);
+  assert.match(source, /✓ Current location captured/u);
+});
+
+test("existing private location evidence is reused without exposing coordinates as public story fields", () => {
+  assert.match(source, /initialLocation/u);
+  assert.match(source, /name="latitude"[^>]*type="hidden"|type="hidden"[^>]*name="latitude"/u);
+  assert.match(source, /name="longitude"[^>]*type="hidden"|type="hidden"[^>]*name="longitude"/u);
+  assert.doesNotMatch(source, /name="title"[^>]*location|name="summary"[^>]*location|name="body"[^>]*location/u);
 });
 
 test("submission transitions freeze mutable controls and clear only their exact recovery snapshot", () => {

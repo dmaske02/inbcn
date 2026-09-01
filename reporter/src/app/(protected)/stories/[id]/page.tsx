@@ -34,6 +34,12 @@ export default async function ReporterStoryPage({ params }: Readonly<{ params: P
         canDirectPublish={editor.membership.canDirectPublish}
         canSubmit={editor.membership.canSubmit}
         directAction={directPublishReporterStoryAction.bind(null, id)}
+        initialLocation={editor.location ? {
+          latitude: editor.location.latitude,
+          longitude: editor.location.longitude,
+          accuracy: editor.location.accuracy,
+          capturedAt: editor.location.capturedAt,
+        } : null}
         media={editor.media.map((item) => ({ id: item.id, title: item.title, type: item.type === "image" ? "image" : "video" }))}
         references={editor.references}
         saveAction={saveReporterDraftAction.bind(null, { storyId: id, redirectToEditor: false })}

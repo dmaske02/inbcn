@@ -14,7 +14,7 @@ import {
   type LocalDraft,
   type LocalDraftFields,
 } from "./local-draft.ts";
-import { captureCurrentLocation } from "./location-capture.ts";
+import { captureCurrentLocation, shouldRequestAutomaticLocation } from "./location-capture.ts";
 import { MediaUploader } from "./media-uploader.tsx";
 import { canSaveReporterDraft, canTransitionReporterStory, type CapturedLocation } from "./submission.model.ts";
 
@@ -67,6 +67,7 @@ export function StoryEditor({
   saveAction,
   submitAction,
   directAction,
+  initialLocation = null,
   storageStoryId = storyId,
 }: Readonly<{
   userId: string;
@@ -81,15 +82,20 @@ export function StoryEditor({
   saveAction: Action;
   submitAction?: Action;
   directAction?: Action;
+  initialLocation?: CapturedLocation | null;
   storageStoryId?: string;
 }>) {
   const router = useRouter();
   const [fields, setFields] = useState<LocalDraftFields>(() => editorFields(story, references.languages, media));
   const [restore, setRestore] = useState<LocalDraft | null>(null);
-  const [location, setLocation] = useState<CapturedLocation | null>(null);
+  const [location, setLocation] = useState<CapturedLocation | null>(initialLocation);
   const [locality, setLocality] = useState("");
-  const [locationMessage, setLocationMessage] = useState("Capture current location before submitting. This is private evidence, not public story content.");
-  const [capturing, setCapturing] = useState(false);
+  const [locationMessage, setLocationMessage] = useState(initialLocation
+    ? "✓ Current location captured"
+    : "Requesting current location permission…");
+  const [locationStatus, setLocationStatus] = useState<"idle" | "capturing" | "success" | "error">(
+    initialLocation ? "success" : "idle",
+  );
   const [dirty, setDirty] = useState(false);
   const [mediaUploadPending, setMediaUploadPending] = useState(false);
   const [storageMessage, setStorageMessage] = useState("");
@@ -100,6 +106,7 @@ export function StoryEditor({
   const saveTracker = useRef(createDraftSaveTracker());
   const transitionInFlight = useRef(false);
   const transitionSucceeded = useRef(false);
+  const locationAttemptStarted = useRef(false);
   const saveAttemptInput = useRef<HTMLInputElement>(null);
   const saveGenerationInput = useRef<HTMLInputElement>(null);
   const form = useRef<HTMLFormElement>(null);
@@ -189,19 +196,32 @@ export function StoryEditor({
     if (clearRecovery()) setRestore(null);
   }
 
-  async function captureLocation() {
-    setCapturing(true);
+  const captureLocation = useCallback(async () => {
+    locationAttemptStarted.current = true;
+    setLocationStatus("capturing");
+    setLocationMessage("Requesting current location permission…");
     try {
       const captured = await captureCurrentLocation();
       setLocation(captured);
-      setLocationMessage("Current location captured. Confirm the detailed locality before continuing.");
+      setLocationStatus("success");
+      setLocationMessage("✓ Current location captured");
     } catch (error) {
       setLocation(null);
+      setLocationStatus("error");
       setLocationMessage(error instanceof Error ? error.message : "Current location could not be captured. Try again.");
-    } finally {
-      setCapturing(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    if (!shouldRequestAutomaticLocation({
+      canSubmit,
+      attemptStarted: locationAttemptStarted.current,
+      location,
+      now: new Date(),
+    })) return;
+    locationAttemptStarted.current = true;
+    void captureLocation();
+  }, [canSubmit, captureLocation, location]);
 
   function transition(action: Action | undefined) {
     const transitionReady = canTransitionReporterStory({ dirty, mediaUploadPending, location, locality, now: new Date() });
@@ -285,7 +305,7 @@ export function StoryEditor({
       <button className={`${buttonClass} bg-foreground text-background`} disabled={!canSaveDraft} type="submit">{saving ? "Saving…" : "Save draft"}</button>
       {actionMessage(saveState)}
       {storageMessage ? <p aria-live="polite" className="text-sm text-destructive" role="alert">{storageMessage}</p> : null}
-      {canSubmit ? <section aria-labelledby="private-evidence-heading" className="space-y-3 border-t border-border pt-5"><h2 id="private-evidence-heading" className="text-lg font-semibold">Private current-location evidence</h2><p className="text-sm text-muted-foreground">Your exact coordinates, accuracy, and capture time are private evidence for the newsroom and never appear in the story.</p><button className={`${buttonClass} border border-border`} disabled={capturing || transitionPending} onClick={() => void captureLocation()} type="button">{capturing ? "Capturing location…" : "Capture current location"}</button><p aria-live="polite" className="text-sm" role={location ? "status" : undefined}>{locationMessage}</p>{location ? <p className="rounded-md border border-border p-3 text-sm">Private capture: {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)} · accuracy {Math.round(location.accuracy)} m · {new Date(location.capturedAt).toLocaleString()}</p> : null}<label className="block text-sm font-medium">Detailed locality confirmation<input aria-required="true" className={fieldClass} maxLength={200} name="locality" onChange={(event) => setLocality(event.target.value)} value={locality} /></label><div className="flex flex-wrap gap-2"><button className={`${buttonClass} bg-foreground text-background`} disabled={!canTransition || transitionPending} onClick={() => transition(submitAction)} type="button">{transitionPending ? "Working…" : "Submit for review"}</button>{canDirectPublish ? <button className={`${buttonClass} border border-border`} disabled={!canTransition || transitionPending} onClick={() => transition(directAction)} type="button">Publish directly</button> : null}</div>{actionMessage(transitionState)}</section> : null}
+      {canSubmit ? <section aria-labelledby="private-evidence-heading" className="space-y-3 border-t border-border pt-5"><h2 id="private-evidence-heading" className="text-lg font-semibold">Private current-location evidence</h2><p className="text-sm text-muted-foreground">Your exact coordinates, accuracy, and capture time are private evidence for the newsroom and never appear in the story.</p><p aria-live="polite" className="text-sm" role={locationStatus === "error" ? "alert" : "status"}>{locationMessage}</p>{locationStatus === "error" ? <button className={`${buttonClass} border border-border`} disabled={transitionPending} onClick={() => void captureLocation()} type="button">Retry location</button> : null}{location ? <p className="rounded-md border border-border p-3 text-sm">Private capture: {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)} · accuracy {Math.round(location.accuracy)} m · {new Date(location.capturedAt).toLocaleString()}</p> : null}<label className="block text-sm font-medium">Detailed locality confirmation<input aria-required="true" className={fieldClass} maxLength={200} name="locality" onChange={(event) => setLocality(event.target.value)} value={locality} /></label><div className="flex flex-wrap gap-2"><button className={`${buttonClass} bg-foreground text-background`} disabled={!canTransition || transitionPending} onClick={() => transition(submitAction)} type="button">{transitionPending ? "Working…" : "Submit for review"}</button>{canDirectPublish ? <button className={`${buttonClass} border border-border`} disabled={!canTransition || transitionPending} onClick={() => transition(directAction)} type="button">Publish directly</button> : null}</div>{actionMessage(transitionState)}</section> : null}
       </fieldset>
       {cleanupRequired ? <section aria-live="polite" className="space-y-2 rounded-md border border-border p-3" role="status"><p className="text-sm">The story was submitted, but local recovery cleanup failed. Editing remains locked.</p><button className={`${buttonClass} border border-border`} onClick={retryTransitionCleanup} type="button">Retry cleanup and refresh</button></section> : null}
     </form>
