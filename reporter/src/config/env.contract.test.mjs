@@ -107,7 +107,7 @@ test("temporary onboarding is disabled by default and accepted in preview", asyn
   await importEnvironment("true", true);
 });
 
-test("temporary onboarding cannot be enabled in Vercel production", async () => {
+test("temporary onboarding in Vercel production requires explicit demo mode", async () => {
   await assert.rejects(
     execFileAsync(
       process.execPath,
@@ -122,6 +122,7 @@ test("temporary onboarding cannot be enabled in Vercel production", async () => 
         cwd: new URL("../..", import.meta.url),
         env: {
           ...process.env,
+          REPORTER_DEMO_MODE: "false",
           REPORTER_TEMPORARY_ONBOARDING: "true",
           VERCEL_ENV: "production",
         },
@@ -130,9 +131,29 @@ test("temporary onboarding cannot be enabled in Vercel production", async () => 
     (error) => {
       assert.match(
         `${error.stdout ?? ""}${error.stderr ?? ""}`,
-        /REPORTER_TEMPORARY_ONBOARDING cannot be enabled in production/u,
+        /REPORTER_TEMPORARY_ONBOARDING requires REPORTER_DEMO_MODE in production/u,
       );
       return true;
+    },
+  );
+
+  await execFileAsync(
+    process.execPath,
+    [
+      "--conditions=react-server",
+      "--experimental-strip-types",
+      "--input-type=module",
+      "-e",
+      'const { env } = await import("./src/config/env.ts"); if (!env.server.demoMode || !env.server.temporaryOnboarding) process.exit(2)',
+    ],
+    {
+      cwd: new URL("../..", import.meta.url),
+      env: {
+        ...process.env,
+        REPORTER_DEMO_MODE: "true",
+        REPORTER_TEMPORARY_ONBOARDING: "true",
+        VERCEL_ENV: "production",
+      },
     },
   );
 });

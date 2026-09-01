@@ -153,11 +153,12 @@ const environmentSchema = z
       });
     }
     if (values.REPORTER_TEMPORARY_ONBOARDING === "true"
-      && values.VERCEL_ENV === "production") {
+      && values.VERCEL_ENV === "production"
+      && values.REPORTER_DEMO_MODE !== "true") {
       context.addIssue({
         code: "custom",
         path: ["REPORTER_TEMPORARY_ONBOARDING"],
-        message: "REPORTER_TEMPORARY_ONBOARDING cannot be enabled in production.",
+        message: "REPORTER_TEMPORARY_ONBOARDING requires REPORTER_DEMO_MODE in production.",
       });
     }
   });
