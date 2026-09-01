@@ -107,6 +107,18 @@ test("private review projection has independent staff checks and a narrow safe a
   assert.match(compact(migration), /grant execute on function public\.get_reporter_story_review\(uuid\) to authenticated/u);
 });
 
+test("authorized CMS review keeps the complete private Reporter location evidence visible", () => {
+  assert.match(panel, /Exact latitude \/ longitude/u);
+  assert.match(panel, /review\.private_location\.latitude/u);
+  assert.match(panel, /review\.private_location\.longitude/u);
+  assert.match(panel, /Accuracy/u);
+  assert.match(panel, /review\.private_location\.accuracy_meters/u);
+  assert.match(panel, />Captured</u);
+  assert.match(panel, /review\.private_location\.captured_at/u);
+  assert.match(panel, />Locality</u);
+  assert.match(panel, /review\.private_location\.locality/u);
+});
+
 test("changes requests delegate exact latest-revision concurrency to the existing RPC", () => {
   assert.match(service, /\.rpc\("request_reporter_changes", \{[\s\S]*p_story_id: storyId,[\s\S]*p_revision_id: latestRevisionId,[\s\S]*p_reason: reason/u);
   assert.match(service, /canReviewReporterStory\(admin\.role, story\.status\)/u);

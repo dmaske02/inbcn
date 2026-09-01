@@ -11,7 +11,7 @@ test("mobile editor keeps local recovery and browser capture in one client islan
   assert.match(source, /^"use client";/u);
   assert.match(source, /createDraftPersistence/u);
   assert.match(source, /captureCurrentLocation/u);
-  assert.match(source, /Requesting current location permission/u);
+  assert.match(source, /shouldRequestAutomaticLocation/u);
   assert.match(source, /name="latitude"/u);
   assert.match(source, /type="hidden"/u);
   assert.doesNotMatch(source, /type="number"[^>]*name="latitude"|name="latitude"[^>]*type="number"/u);
@@ -101,7 +101,13 @@ test("story submission automatically requests private location once and exposes 
   assert.doesNotMatch(source, />Capture current location</u);
   assert.match(source, />Retry location</u);
   assert.match(source, /locationStatus === "error"/u);
-  assert.match(source, /✓ Current location captured/u);
+});
+
+test("successful private location capture is silent in the Reporter interface", () => {
+  assert.doesNotMatch(source, /✓ Current location captured|Current location captured|Private capture:/u);
+  assert.doesNotMatch(source, /location\.latitude\.toFixed|location\.longitude\.toFixed/u);
+  assert.doesNotMatch(source, /Math\.round\(location\.accuracy\)|new Date\(location\.capturedAt\)\.toLocaleString/u);
+  assert.match(source, /locationStatus === "error" \? <[\s\S]*\{locationMessage\}[\s\S]*Retry location/u);
 });
 
 test("existing private location evidence is reused without exposing coordinates as public story fields", () => {
