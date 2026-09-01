@@ -773,7 +773,8 @@ test("media uploader announces progress and retries pending completion without l
   assert.match(component, /createBrowserUpload/u);
   assert.match(component, /\/api\/uploads\/sign/u);
   assert.match(component, /\/api\/uploads\/complete/u);
-  assert.doesNotMatch(component, /setFile\(null\)/u);
+  const failedUpload = component.slice(component.indexOf("} catch (error)"), component.indexOf("return ("));
+  assert.doesNotMatch(failedUpload, /setFile\(null\)/u);
 });
 
 test("busy uploader state disables every mutable control", async () => {

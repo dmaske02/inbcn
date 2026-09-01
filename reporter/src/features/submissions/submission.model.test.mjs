@@ -168,6 +168,14 @@ test("completed upload and an existing no-media story may submit after the saved
   assert.equal(submissionModel.canTransitionReporterStory({ ...transitionReady, locality: " " }), false);
 });
 
+test("draft saving is allowed only when no media upload is pending and no save is running", () => {
+  assert.equal(typeof submissionModel.canSaveReporterDraft, "function");
+  assert.equal(submissionModel.canSaveReporterDraft({ saving: false, mediaUploadPending: false }), true);
+  assert.equal(submissionModel.canSaveReporterDraft({ saving: false, mediaUploadPending: true }), false);
+  assert.equal(submissionModel.canSaveReporterDraft({ saving: true, mediaUploadPending: false }), false);
+  assert.equal(submissionModel.canSaveReporterDraft({ saving: true, mediaUploadPending: true }), false);
+});
+
 test("derives exact changes-requested and withdrawn semantics from the latest revision", () => {
   assert.equal(canonicalReporterStoryState("draft", null), "draft");
   assert.equal(canonicalReporterStoryState("draft", "changes_requested"), "changes_requested");

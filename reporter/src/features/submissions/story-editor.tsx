@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useCallback, useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
 import type { SubmissionActionState } from "./submission.actions.ts";
@@ -16,7 +16,7 @@ import {
 } from "./local-draft.ts";
 import { captureCurrentLocation } from "./location-capture.ts";
 import { MediaUploader } from "./media-uploader.tsx";
-import { canTransitionReporterStory, type CapturedLocation } from "./submission.model.ts";
+import { canSaveReporterDraft, canTransitionReporterStory, type CapturedLocation } from "./submission.model.ts";
 
 type Action = (state: SubmissionActionState, formData: FormData) => Promise<SubmissionActionState>;
 type EditorActionState = SubmissionActionState & Readonly<{ draftSaveAttempt?: number; draftSaveGeneration?: number }>;
@@ -241,7 +241,11 @@ export function StoryEditor({
     if (clearRecoveryBeforeRefresh(clearRecovery, () => router.refresh())) setCleanupRequired(false);
   }
 
-  function prepareSave() {
+  function prepareSave(event: FormEvent<HTMLFormElement>) {
+    if (!canSaveDraft) {
+      event.preventDefault();
+      return;
+    }
     const token = saveTracker.current.beginSave();
     if (saveAttemptInput.current) saveAttemptInput.current.value = String(token.attempt);
     if (saveGenerationInput.current) saveGenerationInput.current.value = String(token.generation);
@@ -251,6 +255,7 @@ export function StoryEditor({
   const canTransition = canTransitionReporterStory({ dirty, mediaUploadPending, location, locality, now: new Date() });
   const featuredMedia = fields.media.filter((item) => item.type === "image");
   const isSaving = saving || transitionPending;
+  const canSaveDraft = canSaveReporterDraft({ saving: isSaving, mediaUploadPending });
   const transitionLocked = transitionPending || transitionState?.status === "success";
 
   if (!editable) return null;
@@ -284,7 +289,8 @@ export function StoryEditor({
       {isPersisted && editable ? <MediaUploader storyId={storyId} onPendingChange={setMediaUploadPending} onUploaded={(item) => updateFields((current) => current.media.some((mediaItem) => mediaItem.id === item.id) ? current : { ...current, media: [...current.media, item] })} /> : <p className="rounded-md border border-border p-3 text-sm text-muted-foreground">Save this first draft before adding media.</p>}
       {fields.media.length ? <section aria-labelledby="attached-media-heading"><h2 id="attached-media-heading" className="font-medium">Attached media</h2><ol className="mt-2 space-y-2">{fields.media.map((item, index) => <li key={item.id} className="flex items-center gap-2 rounded-md border border-border p-2"><span className="min-w-0 flex-1 truncate">{item.title}</span><button aria-label={`Move media up: ${item.title}`} className={buttonClass} disabled={index === 0 || isSaving} onClick={() => updateFields((current) => ({ ...current, media: current.media.map((mediaItem, position) => position === index ? current.media[index - 1] : position === index - 1 ? current.media[index] : mediaItem) }))} type="button">Move media up</button><button aria-label={`Move media down: ${item.title}`} className={buttonClass} disabled={index === fields.media.length - 1 || isSaving} onClick={() => updateFields((current) => ({ ...current, media: current.media.map((mediaItem, position) => position === index ? current.media[index + 1] : position === index + 1 ? current.media[index] : mediaItem) }))} type="button">Move media down</button><button aria-label={`Remove media: ${item.title}`} className={buttonClass} disabled={isSaving} onClick={() => updateFields((current) => ({ ...current, media: current.media.filter((mediaItem) => mediaItem.id !== item.id), featuredMediaId: current.featuredMediaId === item.id ? null : current.featuredMediaId }))} type="button">Remove media</button></li>)}</ol></section> : null}
       {featuredMedia.length ? <label className="block text-sm font-medium">Featured image<select className={fieldClass} name="featuredMediaId" onChange={(event) => updateFields((current) => ({ ...current, featuredMediaId: event.target.value || null }))} value={fields.featuredMediaId ?? ""}><option value="">None</option>{featuredMedia.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label> : <input name="featuredMediaId" type="hidden" value="" />}
-      <button className={`${buttonClass} bg-foreground text-background`} disabled={isSaving} type="submit">{saving ? "Saving…" : "Save draft"}</button>
+      {mediaUploadPending ? <p aria-live="polite" className="text-sm text-destructive" role="status">Upload or remove the selected file before saving.</p> : null}
+      <button className={`${buttonClass} bg-foreground text-background`} disabled={!canSaveDraft} type="submit">{saving ? "Saving…" : "Save draft"}</button>
       {actionMessage(saveState)}
       {storageMessage ? <p aria-live="polite" className="text-sm text-destructive" role="alert">{storageMessage}</p> : null}
       {canSubmit ? <section aria-labelledby="private-evidence-heading" className="space-y-3 border-t border-border pt-5"><h2 id="private-evidence-heading" className="text-lg font-semibold">Private current-location evidence</h2><p className="text-sm text-muted-foreground">Your exact coordinates, accuracy, and capture time are private evidence for the newsroom and never appear in the story.</p><button className={`${buttonClass} border border-border`} disabled={capturing || transitionPending} onClick={() => void captureLocation()} type="button">{capturing ? "Capturing location…" : "Capture current location"}</button><p aria-live="polite" className="text-sm" role={location ? "status" : undefined}>{locationMessage}</p>{location ? <p className="rounded-md border border-border p-3 text-sm">Private capture: {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)} · accuracy {Math.round(location.accuracy)} m · {new Date(location.capturedAt).toLocaleString()}</p> : null}<label className="block text-sm font-medium">Detailed locality confirmation<input aria-required="true" className={fieldClass} maxLength={200} name="locality" onChange={(event) => setLocality(event.target.value)} value={locality} /></label><div className="flex flex-wrap gap-2"><button className={`${buttonClass} bg-foreground text-background`} disabled={!canTransition || transitionPending} onClick={() => transition(submitAction)} type="button">{transitionPending ? "Working…" : "Submit for review"}</button>{canDirectPublish ? <button className={`${buttonClass} border border-border`} disabled={!canTransition || transitionPending} onClick={() => transition(directAction)} type="button">Publish directly</button> : null}</div>{actionMessage(transitionState)}</section> : null}

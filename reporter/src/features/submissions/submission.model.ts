@@ -126,6 +126,13 @@ export function canTransitionReporterStory(input: Readonly<{
     && Boolean(input.locality.trim());
 }
 
+export function canSaveReporterDraft(input: Readonly<{
+  saving: boolean;
+  mediaUploadPending: boolean;
+}>): boolean {
+  return !input.saving && !input.mediaUploadPending;
+}
+
 export function canonicalReporterStoryState(
   canonicalStatus: string,
   latestRevisionOutcome: string | null,

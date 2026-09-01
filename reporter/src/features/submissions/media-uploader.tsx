@@ -57,12 +57,24 @@ export function MediaUploader({
   const [message, setMessage] = useState("Choose a photo or video to upload.");
   const [progress, setProgress] = useState(0);
   const [completedId, setCompletedId] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const pendingCompletion = useRef<PendingCompletion | null>(null);
   const activeTransfer = useRef<ReturnType<typeof createBrowserUpload> | null>(null);
   const mediaType: UploadMediaType | null = file?.type.startsWith("image/")
     ? "image"
     : file?.type.startsWith("video/") ? "video" : null;
   const busy = isUploadBusy(phase);
+
+  function clearSelection() {
+    setFile(null);
+    pendingCompletion.current = null;
+    setCompletedId(null);
+    setProgress(0);
+    setPhase("idle");
+    setMessage("Choose a photo or video to upload.");
+    if (fileInput.current) fileInput.current.value = "";
+    onPendingChange?.(false);
+  }
 
   async function upload() {
     if (!file || !mediaType || busy) return;
@@ -161,6 +173,7 @@ export function MediaUploader({
       <label htmlFor="story-media-file">Photo or video</label>
       <input
         id="story-media-file"
+        ref={fileInput}
         type="file"
         disabled={busy}
         accept=".jpg,.jpeg,.png,.webp,.avif,.mp4,.webm,image/jpeg,image/png,image/webp,image/avif,video/mp4,video/webm"
@@ -203,6 +216,7 @@ export function MediaUploader({
           {phase === "error" ? "Retry" : "Upload media"}
         </button>
       )}
+      {file && phase !== "complete" && !busy ? <button type="button" onClick={clearSelection}>Remove selected file</button> : null}
     </section>
   );
 }

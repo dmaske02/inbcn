@@ -43,6 +43,15 @@ test("an incomplete selected upload blocks review submission until canonical com
   assert.match(source, /canTransitionReporterStory/u);
 });
 
+test("an incomplete selected upload blocks draft saving until completion or removal", () => {
+  assert.match(source, /canSaveReporterDraft/u);
+  assert.match(source, /event\.preventDefault\(\)/u);
+  assert.match(source, /disabled=\{!canSaveDraft\}/u);
+  assert.match(source, /Upload or remove the selected file before saving\./u);
+  assert.match(uploader, /Remove selected file/u);
+  assert.match(uploader, /onPendingChange\?\.\(false\)/u);
+});
+
 test("editor tracks save attempts against edit generations and uses the new-draft recovery alias", () => {
   assert.match(source, /createDraftSaveTracker/u);
   assert.match(source, /storageStoryId/u);
