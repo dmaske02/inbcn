@@ -112,6 +112,20 @@ export function isFreshCapture(
     && captured >= current - 30 * 60_000;
 }
 
+export function canTransitionReporterStory(input: Readonly<{
+  dirty: boolean;
+  mediaUploadPending: boolean;
+  location: Pick<CapturedLocation, "capturedAt"> | null;
+  locality: string;
+  now: string | number | Date;
+}>): boolean {
+  return !input.dirty
+    && !input.mediaUploadPending
+    && input.location !== null
+    && isFreshCapture(input.location.capturedAt, input.now)
+    && Boolean(input.locality.trim());
+}
+
 export function canonicalReporterStoryState(
   canonicalStatus: string,
   latestRevisionOutcome: string | null,

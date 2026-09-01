@@ -149,6 +149,25 @@ test("returns field-safe evidence errors for locality, accuracy, and stale captu
   assert.doesNotMatch(JSON.stringify(result), /19\.076|72\.8777/u);
 });
 
+const transitionReady = {
+  dirty: false,
+  mediaUploadPending: false,
+  location: { capturedAt: now },
+  locality: "Dadar West",
+  now,
+};
+
+test("selected image with an incomplete or failed upload blocks submission", () => {
+  assert.equal(typeof submissionModel.canTransitionReporterStory, "function");
+  assert.equal(submissionModel.canTransitionReporterStory({ ...transitionReady, mediaUploadPending: true }), false);
+});
+
+test("completed upload and an existing no-media story may submit after the saved-draft gate is clear", () => {
+  assert.equal(submissionModel.canTransitionReporterStory(transitionReady), true);
+  assert.equal(submissionModel.canTransitionReporterStory({ ...transitionReady, location: null }), false);
+  assert.equal(submissionModel.canTransitionReporterStory({ ...transitionReady, locality: " " }), false);
+});
+
 test("derives exact changes-requested and withdrawn semantics from the latest revision", () => {
   assert.equal(canonicalReporterStoryState("draft", null), "draft");
   assert.equal(canonicalReporterStoryState("draft", "changes_requested"), "changes_requested");

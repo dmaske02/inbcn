@@ -16,7 +16,7 @@ import {
 } from "./local-draft.ts";
 import { captureCurrentLocation } from "./location-capture.ts";
 import { MediaUploader } from "./media-uploader.tsx";
-import { isFreshCapture, type CapturedLocation } from "./submission.model.ts";
+import { canTransitionReporterStory, type CapturedLocation } from "./submission.model.ts";
 
 type Action = (state: SubmissionActionState, formData: FormData) => Promise<SubmissionActionState>;
 type EditorActionState = SubmissionActionState & Readonly<{ draftSaveAttempt?: number; draftSaveGeneration?: number }>;
@@ -99,6 +99,7 @@ export function StoryEditor({
   const [locationMessage, setLocationMessage] = useState("Capture current location before submitting. This is private evidence, not public story content.");
   const [capturing, setCapturing] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [mediaUploadPending, setMediaUploadPending] = useState(false);
   const [storageMessage, setStorageMessage] = useState("");
   const [transitionState, setTransitionState] = useState<SubmissionActionState | null>(null);
   const [cleanupRequired, setCleanupRequired] = useState(false);
@@ -211,7 +212,8 @@ export function StoryEditor({
   }
 
   function transition(action: Action | undefined) {
-    if (transitionSucceeded.current || transitionInFlight.current || dirty || !action || !form.current || !location || !isFreshCapture(location.capturedAt, new Date()) || !locality.trim()) return;
+    const transitionReady = canTransitionReporterStory({ dirty, mediaUploadPending, location, locality, now: new Date() });
+    if (transitionSucceeded.current || transitionInFlight.current || !transitionReady || !action || !form.current) return;
     transitionInFlight.current = true;
     setTransitionState(null);
     const formData = new FormData(form.current);
@@ -246,7 +248,7 @@ export function StoryEditor({
   }
 
   const categories = references.categories.filter((category) => category.languageId === fields.languageId);
-  const canTransition = Boolean(!dirty && location && isFreshCapture(location.capturedAt, new Date()) && locality.trim());
+  const canTransition = canTransitionReporterStory({ dirty, mediaUploadPending, location, locality, now: new Date() });
   const featuredMedia = fields.media.filter((item) => item.type === "image");
   const isSaving = saving || transitionPending;
   const transitionLocked = transitionPending || transitionState?.status === "success";
@@ -279,7 +281,7 @@ export function StoryEditor({
       }} required value={fields.languageId ? `${fields.languageId}:${fields.languageCode}` : ""}>{isPersisted ? null : <option value="">Choose a language</option>}{references.languages.map((language) => <option key={language.id} value={`${language.id}:${language.code}`}>{language.nativeName}</option>)}</select></label>
       <label className="block text-sm font-medium">Category<select className={fieldClass} name="categoryId" onChange={(event) => updateFields((current) => ({ ...current, categoryId: event.target.value }))} required value={fields.categoryId}><option value="">Choose a category</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
       <label className="block text-sm font-medium">Event time (India time)<input className={fieldClass} name="eventOccurredAt" onChange={(event) => updateFields((current) => ({ ...current, eventOccurredAt: event.target.value }))} required type="datetime-local" value={fields.eventOccurredAt} /></label>
-      {isPersisted && editable ? <MediaUploader storyId={storyId} onUploaded={(item) => updateFields((current) => current.media.some((mediaItem) => mediaItem.id === item.id) ? current : { ...current, media: [...current.media, item] })} /> : <p className="rounded-md border border-border p-3 text-sm text-muted-foreground">Save this first draft before adding media.</p>}
+      {isPersisted && editable ? <MediaUploader storyId={storyId} onPendingChange={setMediaUploadPending} onUploaded={(item) => updateFields((current) => current.media.some((mediaItem) => mediaItem.id === item.id) ? current : { ...current, media: [...current.media, item] })} /> : <p className="rounded-md border border-border p-3 text-sm text-muted-foreground">Save this first draft before adding media.</p>}
       {fields.media.length ? <section aria-labelledby="attached-media-heading"><h2 id="attached-media-heading" className="font-medium">Attached media</h2><ol className="mt-2 space-y-2">{fields.media.map((item, index) => <li key={item.id} className="flex items-center gap-2 rounded-md border border-border p-2"><span className="min-w-0 flex-1 truncate">{item.title}</span><button aria-label={`Move media up: ${item.title}`} className={buttonClass} disabled={index === 0 || isSaving} onClick={() => updateFields((current) => ({ ...current, media: current.media.map((mediaItem, position) => position === index ? current.media[index - 1] : position === index - 1 ? current.media[index] : mediaItem) }))} type="button">Move media up</button><button aria-label={`Move media down: ${item.title}`} className={buttonClass} disabled={index === fields.media.length - 1 || isSaving} onClick={() => updateFields((current) => ({ ...current, media: current.media.map((mediaItem, position) => position === index ? current.media[index + 1] : position === index + 1 ? current.media[index] : mediaItem) }))} type="button">Move media down</button><button aria-label={`Remove media: ${item.title}`} className={buttonClass} disabled={isSaving} onClick={() => updateFields((current) => ({ ...current, media: current.media.filter((mediaItem) => mediaItem.id !== item.id), featuredMediaId: current.featuredMediaId === item.id ? null : current.featuredMediaId }))} type="button">Remove media</button></li>)}</ol></section> : null}
       {featuredMedia.length ? <label className="block text-sm font-medium">Featured image<select className={fieldClass} name="featuredMediaId" onChange={(event) => updateFields((current) => ({ ...current, featuredMediaId: event.target.value || null }))} value={fields.featuredMediaId ?? ""}><option value="">None</option>{featuredMedia.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label> : <input name="featuredMediaId" type="hidden" value="" />}
       <button className={`${buttonClass} bg-foreground text-background`} disabled={isSaving} type="submit">{saving ? "Saving…" : "Save draft"}</button>

@@ -32,6 +32,17 @@ test("editor owns attached-media hidden inputs after an uploader callback", () =
   assert.match(source, /fields\.media\.map\(\(item\) => <input[^>]+name="mediaIds"/u);
 });
 
+test("an incomplete selected upload blocks review submission until canonical completion", () => {
+  assert.match(uploader, /onPendingChange/u);
+  assert.match(uploader, /onPendingChange\?\.\(selectedFile !== null\)/u);
+  assert.match(uploader, /onUploaded\?\.\([\s\S]*onPendingChange\?\.\(false\)/u);
+  const failedUpload = uploader.slice(uploader.indexOf("} catch (error)"), uploader.indexOf("return ("));
+  assert.doesNotMatch(failedUpload, /onPendingChange\?\.\(false\)/u);
+  assert.match(source, /mediaUploadPending/u);
+  assert.match(source, /onPendingChange=\{setMediaUploadPending\}/u);
+  assert.match(source, /canTransitionReporterStory/u);
+});
+
 test("editor tracks save attempts against edit generations and uses the new-draft recovery alias", () => {
   assert.match(source, /createDraftSaveTracker/u);
   assert.match(source, /storageStoryId/u);
@@ -65,8 +76,7 @@ test("mobile editor preserves the server language value contract and renders ISO
 });
 
 test("mobile editor requires captured private evidence for review or direct publication", () => {
-  assert.match(source, /const canTransition = Boolean\(!dirty && location && isFreshCapture\(location\.capturedAt, new Date\(\)\) && locality\.trim\(\)\)/u);
-  assert.match(source, /isFreshCapture\(location\.capturedAt, new Date\(\)\)/u);
+  assert.match(source, /const canTransition = canTransitionReporterStory\(\{ dirty, mediaUploadPending, location, locality, now: new Date\(\) \}\)/u);
   assert.match(source, /submitAction/u);
   assert.match(source, /directAction/u);
   assert.match(source, /canDirectPublish/u);
