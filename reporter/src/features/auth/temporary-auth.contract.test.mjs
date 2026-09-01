@@ -91,7 +91,7 @@ test("create-mode OTP advances without creating an account or session", async ()
   const end = actions.indexOf("export async function requestOtpAction");
   const stepOne = actions.slice(start, end);
   const createBranch = stepOne.slice(stepOne.indexOf('if (mode === "create")'), stepOne.indexOf("  try {"));
-  assert.match(stepOne, /validateTemporaryDemoOtp/u);
+  assert.match(stepOne, /validateTemporarySignupOtp/u);
   assert.doesNotMatch(createBranch, /signInWithTemporaryOtp/u);
   assert.match(actions, /status: "verified"/u);
   assert.match(actions, /verifiedPhone: phone/u);

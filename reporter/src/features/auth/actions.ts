@@ -9,7 +9,7 @@ import { ensureApplicantProfile } from "./applicant-profile.server";
 import { otpProviderErrorMessage, validateIndianPhone } from "./authorization.model";
 import { authorizeCurrentReporter } from "./server";
 import { authDestination, parseAuthMode } from "./signup-intent.model";
-import { validateTemporaryDemoOtp } from "./temporary-auth.model";
+import { validateTemporarySignupOtp } from "./temporary-auth.model";
 import { signInWithTemporaryOtp } from "./temporary-auth.server";
 
 export type OtpState = Readonly<{
@@ -59,7 +59,7 @@ export async function temporarySignInAction(
 
   const mode = parseAuthMode(formData.get("mode"));
   if (mode === "create") {
-    const verified = validateTemporaryDemoOtp(phone, token);
+    const verified = validateTemporarySignupOtp(phone, token);
     if (!verified.ok) {
       return { status: "error", message: "The preview code is incorrect.", fieldErrors: { token: ["Enter the preview code 1234."] } };
     }
@@ -169,7 +169,7 @@ export async function completeTemporarySignupAction(
 
   const phone = phoneFrom(formData);
   const token = formData.get("token");
-  if (!validateTemporaryDemoOtp(phone, token).ok) {
+  if (!validateTemporarySignupOtp(phone, token).ok) {
     return { status: "error", message: "Verify your mobile number again." };
   }
 

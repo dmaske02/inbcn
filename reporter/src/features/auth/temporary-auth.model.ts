@@ -33,6 +33,12 @@ export function validateTemporaryDemoOtp(phone: unknown, code: unknown):
     : { ok: false };
 }
 
+export function validateTemporarySignupOtp(phone: unknown, code: unknown):
+  | Readonly<{ ok: true; phone: string }>
+  | Readonly<{ ok: false }> {
+  return validateIndianPhone(phone) && code === "1234" ? { ok: true, phone } : { ok: false };
+}
+
 export function isTemporaryDemoIdentityEligible(input: Readonly<{
   authRole: string | null;
   profile: Readonly<{ role: string; isActive: boolean }> | null;
@@ -57,7 +63,9 @@ export function createTemporaryAuthService(dependencies: TemporaryAuthDependenci
       input: Readonly<{ phone: unknown; code: unknown }>,
       options: Readonly<{ ensureProfile?: boolean; signupProfile?: SignupProfile }> = {},
     ): Promise<string> {
-      const verified = validateTemporaryDemoOtp(input.phone, input.code);
+      const verified = options.signupProfile
+        ? validateTemporarySignupOtp(input.phone, input.code)
+        : validateTemporaryDemoOtp(input.phone, input.code);
       if (!verified.ok) {
         throw new TemporaryAuthError("invalid-credentials");
       }
