@@ -777,6 +777,41 @@ test("media uploader announces progress and retries pending completion without l
   assert.doesNotMatch(failedUpload, /setFile\(null\)/u);
 });
 
+test("media uploader queues multiple selections and uploads each file independently", async () => {
+  const component = await readFile(new URL("../submissions/media-uploader.tsx", import.meta.url), "utf8").catch(() => "");
+  assert.match(component, /type="file"[\s\S]*?multiple/u);
+  assert.match(component, /Array\.from\(event\.target\.files/u);
+  assert.match(component, /QueuedUpload/u);
+  assert.match(component, /pendingUploads[\s\S]*for \(const uploadId of pendingUploads/u);
+  assert.match(component, /onUploaded\?\.\(\{ id: mediaId, title: metadata\.data\.title, type: upload\.mediaType \}\)/u);
+});
+
+test("media uploader keeps per-file metadata and retries only the requested failed item", async () => {
+  const component = await readFile(new URL("../submissions/media-uploader.tsx", import.meta.url), "utf8").catch(() => "");
+  assert.match(component, /uploads\.map\(\(upload\)/u);
+  assert.match(component, /updateUpload\(upload\.id, \{ title:/u);
+  assert.match(component, /updateUpload\(upload\.id, \{ altText:/u);
+  assert.match(component, /uploadOne\(upload\.id\)/u);
+  assert.match(component, /upload\.phase === "error"/u);
+  assert.match(component, /upload\.phase === "complete"/u);
+  assert.match(component, /pendingCompletion/u);
+});
+
+test("media uploader reports the whole queue pending until every item completes or is removed", async () => {
+  const component = await readFile(new URL("../submissions/media-uploader.tsx", import.meta.url), "utf8").catch(() => "");
+  assert.match(component, /uploads\.some\(\(upload\) => upload\.phase !== "complete"\)/u);
+  assert.match(component, /onPendingChange\?\.\(hasIncompleteUploads\)/u);
+  assert.match(component, /filter\(\(upload\) => upload\.id !== uploadId\)/u);
+});
+
+test("media uploader prevents overlapping batch loops before React updates the busy state", async () => {
+  const component = await readFile(new URL("../submissions/media-uploader.tsx", import.meta.url), "utf8").catch(() => "");
+  assert.match(component, /const batchRunning = useRef\(false\)/u);
+  assert.match(component, /if \(batchRunning\.current\) return/u);
+  assert.match(component, /batchRunning\.current = true/u);
+  assert.match(component, /finally \{ batchRunning\.current = false; \}/u);
+});
+
 test("busy uploader state disables every mutable control", async () => {
   for (const phase of ["signing", "uploading", "completing"]) {
     assert.equal(isUploadBusy(phase), true);
@@ -786,8 +821,8 @@ test("busy uploader state disables every mutable control", async () => {
   }
 
   const component = await readFile(new URL("../submissions/media-uploader.tsx", import.meta.url), "utf8").catch(() => "");
-  assert.match(component, /const busy = isUploadBusy\(phase\)/u);
+  assert.match(component, /const busy = uploads\.some\(\(upload\) => isUploadBusy\(upload\.phase\)\)/u);
   assert.match(component, /id="story-media-file"[\s\S]*?disabled=\{busy\}[\s\S]*?\/>/u);
-  assert.match(component, /id="story-media-title"[\s\S]*?disabled=\{busy\}[\s\S]*?\/>/u);
-  assert.match(component, /id="story-media-alt"[\s\S]*?disabled=\{busy\}[\s\S]*?\/>/u);
+  assert.match(component, /story-media-title-\$\{upload\.id\}[\s\S]*?disabled=\{busy \|\| upload\.phase === "complete"\}/u);
+  assert.match(component, /story-media-alt-\$\{upload\.id\}[\s\S]*?disabled=\{busy \|\| upload\.phase === "complete"\}/u);
 });

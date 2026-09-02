@@ -32,12 +32,17 @@ test("editor owns attached-media hidden inputs after an uploader callback", () =
   assert.match(source, /fields\.media\.map\(\(item\) => <input[^>]+name="mediaIds"/u);
 });
 
+test("multiple completed uploader callbacks append distinct canonical media to the same story", () => {
+  assert.match(source, /onUploaded=\{\(item\) => updateFields/u);
+  assert.match(source, /current\.media\.some\(\(mediaItem\) => mediaItem\.id === item\.id\)/u);
+  assert.match(source, /media: \[\.\.\.current\.media, item\]/u);
+  assert.match(source, /fields\.media\.map\(\(item\) => <input key=\{item\.id\} name="mediaIds"/u);
+});
+
 test("an incomplete selected upload blocks review submission until canonical completion", () => {
   assert.match(uploader, /onPendingChange/u);
-  assert.match(uploader, /onPendingChange\?\.\(selectedFile !== null\)/u);
-  assert.match(uploader, /onUploaded\?\.\([\s\S]*onPendingChange\?\.\(false\)/u);
-  const failedUpload = uploader.slice(uploader.indexOf("} catch (error)"), uploader.indexOf("return ("));
-  assert.doesNotMatch(failedUpload, /onPendingChange\?\.\(false\)/u);
+  assert.match(uploader, /const hasIncompleteUploads = uploads\.some\(\(upload\) => upload\.phase !== "complete"\)/u);
+  assert.match(uploader, /onPendingChange\?\.\(hasIncompleteUploads\)/u);
   assert.match(source, /mediaUploadPending/u);
   assert.match(source, /onPendingChange=\{setMediaUploadPending\}/u);
   assert.match(source, /canTransitionReporterStory/u);
@@ -47,9 +52,9 @@ test("an incomplete selected upload blocks draft saving until completion or remo
   assert.match(source, /canSaveReporterDraft/u);
   assert.match(source, /event\.preventDefault\(\)/u);
   assert.match(source, /disabled=\{!canSaveDraft\}/u);
-  assert.match(source, /Upload or remove the selected file before saving\./u);
+  assert.match(source, /Upload or remove all selected files before saving\./u);
   assert.match(uploader, /Remove selected file/u);
-  assert.match(uploader, /onPendingChange\?\.\(false\)/u);
+  assert.match(uploader, /current\.filter\(\(upload\) => upload\.id !== uploadId\)/u);
 });
 
 test("editor tracks save attempts against edit generations and uses the new-draft recovery alias", () => {

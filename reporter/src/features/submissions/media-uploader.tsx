@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   type BrowserUploadAuthorization,
@@ -18,6 +18,19 @@ type PendingCompletion = Readonly<{
   authorization: BrowserUploadAuthorization;
   assetId: string;
   mediaType: UploadMediaType;
+}>;
+
+type QueuedUpload = Readonly<{
+  id: string;
+  file: File;
+  mediaType: UploadMediaType | null;
+  title: string;
+  altText: string;
+  phase: UploadPhase;
+  message: string;
+  progress: number;
+  completedId: string | null;
+  pendingCompletion: PendingCompletion | null;
 }>;
 
 function authorization(value: unknown, mediaType: UploadMediaType): BrowserUploadAuthorization | null {
@@ -50,54 +63,68 @@ export function MediaUploader({
   onUploaded?: (media: Readonly<{ id: string; title: string; type: UploadMediaType }>) => void;
   onPendingChange?: (pending: boolean) => void;
 }>) {
-  const [file, setFile] = useState<File | null>(null);
-  const [title, setTitle] = useState("");
-  const [altText, setAltText] = useState("");
-  const [phase, setPhase] = useState<UploadPhase>("idle");
-  const [message, setMessage] = useState("Choose a photo or video to upload.");
-  const [progress, setProgress] = useState(0);
-  const [completedId, setCompletedId] = useState<string | null>(null);
+  const [uploads, setUploads] = useState<readonly QueuedUpload[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
-  const pendingCompletion = useRef<PendingCompletion | null>(null);
-  const activeTransfer = useRef<ReturnType<typeof createBrowserUpload> | null>(null);
-  const mediaType: UploadMediaType | null = file?.type.startsWith("image/")
-    ? "image"
-    : file?.type.startsWith("video/") ? "video" : null;
-  const busy = isUploadBusy(phase);
+  const uploadsRef = useRef<readonly QueuedUpload[]>([]);
+  const activeTransfers = useRef(new Map<string, ReturnType<typeof createBrowserUpload>>());
+  const runningUploads = useRef(new Set<string>());
+  const batchRunning = useRef(false);
+  const busy = uploads.some((upload) => isUploadBusy(upload.phase));
+  const hasIncompleteUploads = uploads.some((upload) => upload.phase !== "complete");
 
-  function clearSelection() {
-    setFile(null);
-    pendingCompletion.current = null;
-    setCompletedId(null);
-    setProgress(0);
-    setPhase("idle");
-    setMessage("Choose a photo or video to upload.");
-    if (fileInput.current) fileInput.current.value = "";
-    onPendingChange?.(false);
+  useEffect(() => {
+    onPendingChange?.(hasIncompleteUploads);
+  }, [hasIncompleteUploads, onPendingChange]);
+
+  function replaceUploads(update: (current: readonly QueuedUpload[]) => readonly QueuedUpload[]) {
+    setUploads((current) => {
+      const next = update(current);
+      uploadsRef.current = next;
+      return next;
+    });
   }
 
-  async function upload() {
-    if (!file || !mediaType || busy) return;
+  function updateUpload(uploadId: string, update: Partial<QueuedUpload>) {
+    replaceUploads((current) => current.map((upload) => upload.id === uploadId ? { ...upload, ...update } : upload));
+  }
+
+  function removeUpload(uploadId: string) {
+    if (runningUploads.current.has(uploadId)) return;
+    replaceUploads((current) => current.filter((upload) => upload.id !== uploadId));
+  }
+
+  async function uploadOne(uploadId: string) {
+    const upload = uploadsRef.current.find((item) => item.id === uploadId);
+    if (!upload || !upload.mediaType || upload.phase === "complete"
+      || isUploadBusy(upload.phase) || runningUploads.current.has(uploadId)) return;
+    const { file, mediaType } = upload;
     const validFile = validateUpload({
       mediaType,
       filename: file.name,
       bytes: file.size,
       mimeType: file.type,
     });
-    const metadata = validateUploadMetadata({ mediaType, title, originalFilename: file.name, altText });
+    const metadata = validateUploadMetadata({
+      mediaType,
+      title: upload.title,
+      originalFilename: file.name,
+      altText: upload.altText,
+    });
     if (!validFile.ok || !metadata.ok) {
-      setPhase("error");
-      setMessage(mediaType === "image"
+      updateUpload(uploadId, {
+        phase: "error",
+        message: mediaType === "image"
         ? "Choose an allowed image and provide a title and alt text."
-        : "Choose an allowed video and provide a title.");
+        : "Choose an allowed video and provide a title.",
+      });
       return;
     }
 
+    runningUploads.current.add(uploadId);
+    let pending = upload.pendingCompletion;
     try {
-      let pending = pendingCompletion.current;
       if (!pending) {
-        setPhase("signing");
-        setMessage("Preparing secure upload…");
+        updateUpload(uploadId, { phase: "signing", message: "Preparing secure upload…", progress: 0 });
         const signResponse = await fetch("/api/uploads/sign", {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -110,27 +137,25 @@ export function MediaUploader({
           }),
         });
         const signed = authorization(signResponse.ok ? await signResponse.json() : null, mediaType);
+        // This handler runs only after an explicit upload action; freshness must use the action-time clock.
+        // eslint-disable-next-line react-hooks/purity
         if (!signed || !isSignedUploadFresh(signed.timestamp, Math.floor(Date.now() / 1_000))) {
           throw new UploadClientError("failed");
         }
-        setPhase("uploading");
-        setProgress(0);
-        setMessage("Uploading… 0%");
+        updateUpload(uploadId, { phase: "uploading", message: "Uploading… 0%", progress: 0 });
         const transfer = createBrowserUpload(file, signed, {
           onProgress(value) {
-            setProgress(value);
-            setMessage(`Uploading… ${value}%`);
+            updateUpload(uploadId, { progress: value, message: `Uploading… ${value}%` });
           },
         });
-        activeTransfer.current = transfer;
+        activeTransfers.current.set(uploadId, transfer);
         const uploaded = await transfer.promise;
-        activeTransfer.current = null;
+        activeTransfers.current.delete(uploadId);
         pending = { authorization: signed, assetId: uploaded.assetId, mediaType };
-        pendingCompletion.current = pending;
+        updateUpload(uploadId, { pendingCompletion: pending });
       }
 
-      setPhase("completing");
-      setMessage("Confirming uploaded media…");
+      updateUpload(uploadId, { phase: "completing", message: "Confirming uploaded media…" });
       const completeResponse = await fetch("/api/uploads/complete", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -150,73 +175,81 @@ export function MediaUploader({
       const mediaId = completed && typeof completed === "object" && "id" in completed
         && typeof completed.id === "string" ? completed.id : null;
       if (!mediaId) throw new UploadClientError("failed");
-      pendingCompletion.current = null;
-      setCompletedId(mediaId);
-      setProgress(100);
-      setPhase("complete");
-      setMessage("Upload complete.");
-      onUploaded?.({ id: mediaId, title: metadata.data.title, type: mediaType });
-      onPendingChange?.(false);
+      updateUpload(uploadId, {
+        completedId: mediaId,
+        pendingCompletion: null,
+        progress: 100,
+        phase: "complete",
+        message: "Upload complete.",
+      });
+      onUploaded?.({ id: mediaId, title: metadata.data.title, type: upload.mediaType });
     } catch (error) {
-      activeTransfer.current = null;
-      setPhase("error");
-      setMessage(error instanceof UploadClientError && error.code === "cancelled"
+      activeTransfers.current.delete(uploadId);
+      updateUpload(uploadId, {
+        pendingCompletion: pending,
+        phase: "error",
+        message: error instanceof UploadClientError && error.code === "cancelled"
         ? "Upload cancelled. You can retry the selected file."
-        : pendingCompletion.current
+        : pending
           ? "The upload is safe. Retry to finish saving it."
-          : "The upload failed. Retry the selected file.");
+          : "The upload failed. Retry the selected file.",
+      });
+    } finally {
+      runningUploads.current.delete(uploadId);
     }
   }
 
+  async function uploadPending() {
+    if (batchRunning.current) return;
+    batchRunning.current = true;
+    try {
+      const pendingUploads = uploadsRef.current
+        .filter((upload) => upload.phase === "idle")
+        .map((upload) => upload.id);
+      for (const uploadId of pendingUploads) await uploadOne(uploadId);
+    } finally { batchRunning.current = false; }
+  }
+
   return (
-    <section aria-label="Story media upload">
-      <label htmlFor="story-media-file">Photo or video</label>
+    <section aria-label="Story media uploads" className="space-y-3">
+      <label htmlFor="story-media-file">Photos or videos</label>
       <input
         id="story-media-file"
         ref={fileInput}
         type="file"
+        multiple
         disabled={busy}
         accept=".jpg,.jpeg,.png,.webp,.avif,.mp4,.webm,image/jpeg,image/png,image/webp,image/avif,video/mp4,video/webm"
         onChange={(event) => {
-          const selectedFile = event.target.files?.[0] ?? null;
-          setFile(selectedFile);
-          onPendingChange?.(selectedFile !== null);
-          pendingCompletion.current = null;
-          setCompletedId(null);
-          setProgress(0);
-          setPhase("idle");
-          setMessage("Ready to upload.");
+          const selectedFiles = Array.from(event.target.files ?? []);
+          if (!selectedFiles.length) return;
+          const queued = selectedFiles.map((file): QueuedUpload => ({
+            id: crypto.randomUUID(),
+            file,
+            mediaType: file.type.startsWith("image/") ? "image" : file.type.startsWith("video/") ? "video" : null,
+            title: file.name.replace(/\.[^.]+$/u, "").slice(0, 200),
+            altText: "",
+            phase: "idle",
+            message: "Pending upload.",
+            progress: 0,
+            completedId: null,
+            pendingCompletion: null,
+          }));
+          replaceUploads((current) => [...current, ...queued]);
+          event.target.value = "";
         }}
       />
-      <label htmlFor="story-media-title">Media title</label>
-      <input
-        id="story-media-title"
-        value={title}
-        maxLength={200}
-        disabled={busy}
-        onChange={(event) => setTitle(event.target.value)}
-      />
-      <label htmlFor="story-media-alt">Alt text {mediaType === "video" ? "(optional)" : ""}</label>
-      <textarea
-        id="story-media-alt"
-        value={altText}
-        maxLength={500}
-        disabled={busy}
-        onChange={(event) => setAltText(event.target.value)}
-      />
-      <div aria-live="polite" role={phase === "error" ? "alert" : "status"}>
-        {message}
-        {phase === "uploading" ? <progress max={100} value={progress}>{progress}%</progress> : null}
-      </div>
-      {completedId && !onUploaded ? <input type="hidden" name="mediaIds" value={completedId} /> : null}
-      {phase === "uploading" ? (
-        <button type="button" onClick={() => activeTransfer.current?.cancel()}>Cancel upload</button>
-      ) : (
-        <button type="button" disabled={!file || busy} onClick={() => void upload()}>
-          {phase === "error" ? "Retry" : "Upload media"}
-        </button>
-      )}
-      {file && phase !== "complete" && !busy ? <button type="button" onClick={clearSelection}>Remove selected file</button> : null}
+      {uploads.length ? <ul className="space-y-3">{uploads.map((upload) => <li className="space-y-2 rounded-md border border-border p-3" key={upload.id}>
+        <p className="break-all text-sm font-medium">{upload.file.name}</p>
+        <label className="block text-sm" htmlFor={`story-media-title-${upload.id}`}>Media title<input id={`story-media-title-${upload.id}`} value={upload.title} maxLength={200} disabled={busy || upload.phase === "complete"} onChange={(event) => updateUpload(upload.id, { title: event.target.value })} /></label>
+        <label className="block text-sm" htmlFor={`story-media-alt-${upload.id}`}>Alt text {upload.mediaType === "video" ? "(optional)" : ""}<textarea id={`story-media-alt-${upload.id}`} value={upload.altText} maxLength={500} disabled={busy || upload.phase === "complete"} onChange={(event) => updateUpload(upload.id, { altText: event.target.value })} /></label>
+        <div aria-live="polite" role={upload.phase === "error" ? "alert" : "status"}>{upload.message}{upload.phase === "uploading" ? <progress max={100} value={upload.progress}>{upload.progress}%</progress> : null}</div>
+        {upload.completedId && !onUploaded ? <input type="hidden" name="mediaIds" value={upload.completedId} /> : null}
+        {upload.phase === "uploading" ? <button type="button" onClick={() => activeTransfers.current.get(upload.id)?.cancel()}>Cancel upload</button> : null}
+        {upload.phase === "error" ? <button type="button" disabled={busy} onClick={() => void uploadOne(upload.id)}>Retry</button> : null}
+        {upload.phase !== "complete" && !isUploadBusy(upload.phase) ? <button type="button" disabled={busy} onClick={() => removeUpload(upload.id)}>Remove selected file</button> : null}
+      </li>)}</ul> : <p>Choose one or more photos or videos to upload.</p>}
+      <button type="button" disabled={busy || !uploads.some((upload) => upload.phase === "idle")} onClick={() => void uploadPending()}>Upload media</button>
     </section>
   );
 }
