@@ -74,6 +74,19 @@ export type UploadMetadata = Readonly<{
   altText: string | null;
 }>;
 
+export function deriveUploadMetadata(
+  originalFilename: string,
+  mediaType: UploadMediaType,
+): UploadMetadata {
+  const filename = originalFilename.trim();
+  const extensionIndex = filename.lastIndexOf(".");
+  const extension = extensionIndex >= 0 ? filename.slice(extensionIndex + 1).toLocaleLowerCase("en") : "";
+  const allowedExtensions = mediaType === "image" ? IMAGE_EXTENSIONS : VIDEO_EXTENSIONS;
+  const rawStem = extensionIndex > 0 && allowedExtensions.has(extension) ? filename.slice(0, extensionIndex) : filename;
+  const stem = rawStem.trim().slice(0, 200) || "media";
+  return { title: stem, originalFilename: filename, altText: stem };
+}
+
 export function validateUploadMetadata(input: Readonly<{
   mediaType: unknown;
   title: unknown;

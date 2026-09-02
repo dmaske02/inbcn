@@ -8,6 +8,7 @@ import {
   type UploadPhase,
   UploadClientError,
   createBrowserUpload,
+  deriveUploadMetadata,
   isUploadBusy,
   isSignedUploadFresh,
   validateUpload,
@@ -24,8 +25,6 @@ type QueuedUpload = Readonly<{
   id: string;
   file: File;
   mediaType: UploadMediaType | null;
-  title: string;
-  altText: string;
   phase: UploadPhase;
   message: string;
   progress: number;
@@ -104,18 +103,12 @@ export function MediaUploader({
       bytes: file.size,
       mimeType: file.type,
     });
-    const metadata = validateUploadMetadata({
-      mediaType,
-      title: upload.title,
-      originalFilename: file.name,
-      altText: upload.altText,
-    });
+    const generatedMetadata = deriveUploadMetadata(file.name, mediaType);
+    const metadata = validateUploadMetadata({ mediaType, ...generatedMetadata });
     if (!validFile.ok || !metadata.ok) {
       updateUpload(uploadId, {
         phase: "error",
-        message: mediaType === "image"
-        ? "Choose an allowed image and provide a title and alt text."
-        : "Choose an allowed video and provide a title.",
+        message: "This file cannot be uploaded. Remove it and choose a supported photo or video.",
       });
       return;
     }
@@ -124,7 +117,7 @@ export function MediaUploader({
     let pending = upload.pendingCompletion;
     try {
       if (!pending) {
-        updateUpload(uploadId, { phase: "signing", message: "Preparing secure upload…", progress: 0 });
+        updateUpload(uploadId, { phase: "signing", message: "Getting ready…", progress: 0 });
         const signResponse = await fetch("/api/uploads/sign", {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -142,10 +135,10 @@ export function MediaUploader({
         if (!signed || !isSignedUploadFresh(signed.timestamp, Math.floor(Date.now() / 1_000))) {
           throw new UploadClientError("failed");
         }
-        updateUpload(uploadId, { phase: "uploading", message: "Uploading… 0%", progress: 0 });
+        updateUpload(uploadId, { phase: "uploading", message: `Uploading ${file.name}… 0%`, progress: 0 });
         const transfer = createBrowserUpload(file, signed, {
           onProgress(value) {
-            updateUpload(uploadId, { progress: value, message: `Uploading… ${value}%` });
+            updateUpload(uploadId, { progress: value, message: `Uploading ${file.name}… ${value}%` });
           },
         });
         activeTransfers.current.set(uploadId, transfer);
@@ -155,7 +148,7 @@ export function MediaUploader({
         updateUpload(uploadId, { pendingCompletion: pending });
       }
 
-      updateUpload(uploadId, { phase: "completing", message: "Confirming uploaded media…" });
+      updateUpload(uploadId, { phase: "completing", message: "Finishing upload…" });
       const completeResponse = await fetch("/api/uploads/complete", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -180,7 +173,7 @@ export function MediaUploader({
         pendingCompletion: null,
         progress: 100,
         phase: "complete",
-        message: "Upload complete.",
+        message: "Uploaded ✓",
       });
       onUploaded?.({ id: mediaId, title: metadata.data.title, type: upload.mediaType });
     } catch (error) {
@@ -189,10 +182,10 @@ export function MediaUploader({
         pendingCompletion: pending,
         phase: "error",
         message: error instanceof UploadClientError && error.code === "cancelled"
-        ? "Upload cancelled. You can retry the selected file."
+        ? "Upload cancelled — Retry"
         : pending
-          ? "The upload is safe. Retry to finish saving it."
-          : "The upload failed. Retry the selected file.",
+          ? "Upload needs to finish — Retry"
+          : "Upload failed — Retry",
       });
     } finally {
       runningUploads.current.delete(uploadId);
@@ -211,9 +204,10 @@ export function MediaUploader({
   }
 
   return (
-    <section aria-label="Story media uploads" className="space-y-3">
-      <label htmlFor="story-media-file">Photos or videos</label>
+    <section aria-label="Story media uploads" className="space-y-3 rounded-md border border-border p-4">
+      <h2 className="font-medium">Photos &amp; Videos</h2>
       <input
+        className="sr-only"
         id="story-media-file"
         ref={fileInput}
         type="file"
@@ -227,8 +221,6 @@ export function MediaUploader({
             id: crypto.randomUUID(),
             file,
             mediaType: file.type.startsWith("image/") ? "image" : file.type.startsWith("video/") ? "video" : null,
-            title: file.name.replace(/\.[^.]+$/u, "").slice(0, 200),
-            altText: "",
             phase: "idle",
             message: "Pending upload.",
             progress: 0,
@@ -239,17 +231,17 @@ export function MediaUploader({
           event.target.value = "";
         }}
       />
-      {uploads.length ? <ul className="space-y-3">{uploads.map((upload) => <li className="space-y-2 rounded-md border border-border p-3" key={upload.id}>
+      <button className="min-h-11 rounded-md border border-border px-4 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground disabled:cursor-not-allowed disabled:opacity-60" disabled={busy} onClick={() => fileInput.current?.click()} type="button">Choose Photos or Videos</button>
+      <p className="text-sm text-muted-foreground">Select one or more photos or videos from your device.</p>
+      {uploads.length ? <><p className="text-sm font-medium">{uploads.length} {uploads.length === 1 ? "file" : "files"} selected</p><ul className="space-y-2">{uploads.map((upload) => <li className="space-y-2 rounded-md border border-border p-3" key={upload.id}>
         <p className="break-all text-sm font-medium">{upload.file.name}</p>
-        <label className="block text-sm" htmlFor={`story-media-title-${upload.id}`}>Media title<input id={`story-media-title-${upload.id}`} value={upload.title} maxLength={200} disabled={busy || upload.phase === "complete"} onChange={(event) => updateUpload(upload.id, { title: event.target.value })} /></label>
-        <label className="block text-sm" htmlFor={`story-media-alt-${upload.id}`}>Alt text {upload.mediaType === "video" ? "(optional)" : ""}<textarea id={`story-media-alt-${upload.id}`} value={upload.altText} maxLength={500} disabled={busy || upload.phase === "complete"} onChange={(event) => updateUpload(upload.id, { altText: event.target.value })} /></label>
-        <div aria-live="polite" role={upload.phase === "error" ? "alert" : "status"}>{upload.message}{upload.phase === "uploading" ? <progress max={100} value={upload.progress}>{upload.progress}%</progress> : null}</div>
+        <div aria-live="polite" className="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between" role={upload.phase === "error" ? "alert" : "status"}><span>{upload.message}</span>{upload.phase === "uploading" ? <progress className="w-full sm:max-w-40" max={100} value={upload.progress}>{upload.progress}%</progress> : null}</div>
         {upload.completedId && !onUploaded ? <input type="hidden" name="mediaIds" value={upload.completedId} /> : null}
-        {upload.phase === "uploading" ? <button type="button" onClick={() => activeTransfers.current.get(upload.id)?.cancel()}>Cancel upload</button> : null}
+        <div className="flex flex-wrap gap-2">{upload.phase === "uploading" ? <button type="button" onClick={() => activeTransfers.current.get(upload.id)?.cancel()}>Cancel upload</button> : null}
         {upload.phase === "error" ? <button type="button" disabled={busy} onClick={() => void uploadOne(upload.id)}>Retry</button> : null}
-        {upload.phase !== "complete" && !isUploadBusy(upload.phase) ? <button type="button" disabled={busy} onClick={() => removeUpload(upload.id)}>Remove selected file</button> : null}
-      </li>)}</ul> : <p>Choose one or more photos or videos to upload.</p>}
-      <button type="button" disabled={busy || !uploads.some((upload) => upload.phase === "idle")} onClick={() => void uploadPending()}>Upload media</button>
+        {upload.phase !== "complete" && !isUploadBusy(upload.phase) ? <button type="button" disabled={busy} onClick={() => removeUpload(upload.id)}>Remove file</button> : null}</div>
+      </li>)}</ul></> : null}
+      <button className="min-h-11 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground disabled:cursor-not-allowed disabled:opacity-60" type="button" disabled={busy || !uploads.some((upload) => upload.phase === "idle")} onClick={() => void uploadPending()}>Upload Photos &amp; Videos</button>
     </section>
   );
 }

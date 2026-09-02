@@ -9,6 +9,7 @@ import {
   UploadClientError,
   cloudinaryUploadChunks,
   createBrowserUpload,
+  deriveUploadMetadata,
   isUploadBusy,
   isSignedUploadFresh,
   validateProviderAsset,
@@ -37,6 +38,23 @@ const videoCases = [
   ["clip.mp4", "video/mp4"],
   ["clip.webm", "video/webm"],
 ];
+
+test("derives hidden canonical metadata from the filename stem", () => {
+  for (const [filename, expected, mediaType] of [
+    ["messi.webp", "messi", "image"],
+    ["messi-photo.jpg", "messi-photo", "image"],
+    ["IMG_1234.png", "IMG_1234", "image"],
+    ["interview.mp4", "interview", "video"],
+  ]) {
+    const metadata = deriveUploadMetadata(filename, mediaType);
+    assert.deepEqual(metadata, {
+      title: expected,
+      originalFilename: filename,
+      altText: expected,
+    });
+    assert.equal(validateUploadMetadata({ mediaType, ...metadata }).ok, true);
+  }
+});
 
 test("accepts each exact image and video allowlist entry at its byte cap", () => {
   for (const [filename, mimeType] of imageCases) {
@@ -786,15 +804,28 @@ test("media uploader queues multiple selections and uploads each file independen
   assert.match(component, /onUploaded\?\.\(\{ id: mediaId, title: metadata\.data\.title, type: upload\.mediaType \}\)/u);
 });
 
-test("media uploader keeps per-file metadata and retries only the requested failed item", async () => {
+test("media uploader derives hidden per-file metadata and retries only the requested failed item", async () => {
   const component = await readFile(new URL("../submissions/media-uploader.tsx", import.meta.url), "utf8").catch(() => "");
   assert.match(component, /uploads\.map\(\(upload\)/u);
-  assert.match(component, /updateUpload\(upload\.id, \{ title:/u);
-  assert.match(component, /updateUpload\(upload\.id, \{ altText:/u);
+  assert.match(component, /deriveUploadMetadata\(file\.name, mediaType\)/u);
+  assert.doesNotMatch(component, />Media title</u);
+  assert.doesNotMatch(component, />Alt text/u);
+  assert.doesNotMatch(component, /<textarea/u);
   assert.match(component, /uploadOne\(upload\.id\)/u);
   assert.match(component, /upload\.phase === "error"/u);
   assert.match(component, /upload\.phase === "complete"/u);
   assert.match(component, /pendingCompletion/u);
+});
+
+test("media uploader presents a compact beginner-friendly selected file list", async () => {
+  const component = await readFile(new URL("../submissions/media-uploader.tsx", import.meta.url), "utf8").catch(() => "");
+  assert.match(component, /Photos &amp; Videos/u);
+  assert.match(component, /Choose Photos or Videos/u);
+  assert.match(component, /Select one or more photos or videos from your device\./u);
+  assert.match(component, /uploads\.length === 1 \? "file" : "files"/u);
+  assert.match(component, /\{upload\.file\.name\}/u);
+  assert.match(component, /Upload Photos &amp; Videos/u);
+  assert.doesNotMatch(component, /URL\.createObjectURL|<img|<video/u);
 });
 
 test("media uploader reports the whole queue pending until every item completes or is removed", async () => {
@@ -823,6 +854,5 @@ test("busy uploader state disables every mutable control", async () => {
   const component = await readFile(new URL("../submissions/media-uploader.tsx", import.meta.url), "utf8").catch(() => "");
   assert.match(component, /const busy = uploads\.some\(\(upload\) => isUploadBusy\(upload\.phase\)\)/u);
   assert.match(component, /id="story-media-file"[\s\S]*?disabled=\{busy\}[\s\S]*?\/>/u);
-  assert.match(component, /story-media-title-\$\{upload\.id\}[\s\S]*?disabled=\{busy \|\| upload\.phase === "complete"\}/u);
-  assert.match(component, /story-media-alt-\$\{upload\.id\}[\s\S]*?disabled=\{busy \|\| upload\.phase === "complete"\}/u);
+  assert.match(component, /disabled=\{busy \|\| !uploads\.some\(\(upload\) => upload\.phase === "idle"\)\}/u);
 });

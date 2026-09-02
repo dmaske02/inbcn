@@ -53,7 +53,7 @@ test("an incomplete selected upload blocks draft saving until completion or remo
   assert.match(source, /event\.preventDefault\(\)/u);
   assert.match(source, /disabled=\{!canSaveDraft\}/u);
   assert.match(source, /Upload or remove all selected files before saving\./u);
-  assert.match(uploader, /Remove selected file/u);
+  assert.match(uploader, /Remove file/u);
   assert.match(uploader, /current\.filter\(\(upload\) => upload\.id !== uploadId\)/u);
 });
 
