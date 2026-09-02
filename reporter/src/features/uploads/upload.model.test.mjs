@@ -23,6 +23,7 @@ import {
 import {
   cloudinaryAssetLookupOptions,
   createCloudinaryUploadProvider,
+  fetchCloudinaryAsset,
 } from "./cloudinary-signature.server.ts";
 import {
   MAX_UPLOAD_ROUTE_BODY_BYTES,
@@ -581,6 +582,37 @@ test("authoritative Cloudinary lookup receives the media type needed for video m
 test("Cloudinary video lookups request authoritative duration metadata without changing image lookups", () => {
   assert.deepEqual(cloudinaryAssetLookupOptions("video"), { image_metadata: true });
   assert.deepEqual(cloudinaryAssetLookupOptions("image"), {});
+});
+
+test("Cloudinary v2 asset lookup passes asset ID, video options, then callback and resolves", async () => {
+  const calls = [];
+  const api = {
+    resource_by_asset_id(assetId, options, callback) {
+      calls.push({ assetId, options, callbackType: typeof callback });
+      callback(undefined, imageAsset);
+    },
+  };
+
+  assert.equal(await fetchCloudinaryAsset(api, "asset-video-1", "video"), imageAsset);
+  assert.deepEqual(calls, [{
+    assetId: "asset-video-1",
+    options: { image_metadata: true },
+    callbackType: "function",
+  }]);
+});
+
+test("Cloudinary v2 asset lookup preserves image options and rejects callback errors", async () => {
+  const expectedError = new Error("lookup failed");
+  const calls = [];
+  const api = {
+    resource_by_asset_id(assetId, options, callback) {
+      calls.push({ assetId, options, callbackType: typeof callback });
+      callback(expectedError);
+    },
+  };
+
+  await assert.rejects(fetchCloudinaryAsset(api, "asset-image-1", "image"), expectedError);
+  assert.deepEqual(calls, [{ assetId: "asset-image-1", options: {}, callbackType: "function" }]);
 });
 
 test("canonical completion serializes concurrent public and asset ID conflicts service-only", async () => {

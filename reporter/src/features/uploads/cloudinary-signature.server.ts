@@ -30,6 +30,32 @@ export function cloudinaryAssetLookupOptions(mediaType: UploadMediaType): Readon
   return mediaType === "video" ? { image_metadata: true } : {};
 }
 
+type CloudinaryAssetApi = Readonly<{
+  resource_by_asset_id(
+    assetId: string,
+    options: Readonly<{ image_metadata?: true }>,
+    callback: (error?: unknown, result?: unknown) => void,
+  ): void;
+}>;
+
+export function fetchCloudinaryAsset(
+  api: CloudinaryAssetApi,
+  assetId: string,
+  mediaType: UploadMediaType,
+): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    api.resource_by_asset_id(
+      assetId,
+      cloudinaryAssetLookupOptions(mediaType),
+      (error, result) => {
+        if (error) reject(error);
+        else if (!result) reject(new Error("Cloudinary returned no asset."));
+        else resolve(result);
+      },
+    );
+  });
+}
+
 function parameters(input: Readonly<{
   publicId: string;
   mediaType: UploadMediaType;
@@ -93,25 +119,13 @@ function configuredProvider() {
   const { cloudName, apiKey, apiSecret } = env.server.cloudinary;
   if (!cloudName || !apiKey || !apiSecret) throw new Error("Cloudinary uploads are not configured.");
   cloudinary.config({ cloud_name: cloudName, api_key: apiKey, api_secret: apiSecret, secure: true });
-  const api = cloudinary.api as unknown as Readonly<{
-    resource_by_asset_id(
-      assetId: string,
-      callback: (error?: unknown, result?: unknown) => void,
-      options?: Readonly<{ image_metadata?: true }>,
-    ): void;
-  }>;
+  const api = cloudinary.api as unknown as CloudinaryAssetApi;
   return createCloudinaryUploadProvider({
     cloudName,
     apiKey,
     apiSecret,
     signRequest: (fixed, secret) => cloudinary.utils.api_sign_request(fixed, secret),
-    fetchAsset: (assetId, mediaType) => new Promise((resolve, reject) => {
-      api.resource_by_asset_id(assetId, (error, result) => {
-        if (error) reject(error);
-        else if (!result) reject(new Error("Cloudinary returned no asset."));
-        else resolve(result);
-      }, cloudinaryAssetLookupOptions(mediaType));
-    }),
+    fetchAsset: (assetId, mediaType) => fetchCloudinaryAsset(api, assetId, mediaType),
   });
 }
 
