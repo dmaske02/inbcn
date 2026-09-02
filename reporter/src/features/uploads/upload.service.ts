@@ -73,7 +73,7 @@ type CloudinaryProvider = Readonly<{
     timestamp: number;
     signature: string;
   }>): boolean;
-  getAsset(assetId: string): Promise<unknown>;
+  getAsset(assetId: string, mediaType: UploadMediaType): Promise<unknown>;
   getCloudName(): string;
 }>;
 
@@ -222,7 +222,7 @@ export function createUploadService(dependencies: Readonly<{
       })) invalidUpload();
       let providerAsset: unknown;
       try {
-        providerAsset = await dependencies.provider.getAsset(input.assetId);
+        providerAsset = await dependencies.provider.getAsset(input.assetId, input.mediaType);
       } catch {
         throw new UploadServiceError("temporarily-unavailable", "The provider could not confirm the upload. Please try again.");
       }

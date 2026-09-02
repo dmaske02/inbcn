@@ -23,8 +23,12 @@ type ProviderOptions = Readonly<{
   apiKey: string;
   apiSecret: string;
   signRequest(parameters: SignatureParameters, secret: string): string;
-  fetchAsset(assetId: string): Promise<unknown>;
+  fetchAsset(assetId: string, mediaType: UploadMediaType): Promise<unknown>;
 }>;
+
+export function cloudinaryAssetLookupOptions(mediaType: UploadMediaType): Readonly<{ image_metadata?: true }> {
+  return mediaType === "video" ? { image_metadata: true } : {};
+}
 
 function parameters(input: Readonly<{
   publicId: string;
@@ -93,6 +97,7 @@ function configuredProvider() {
     resource_by_asset_id(
       assetId: string,
       callback: (error?: unknown, result?: unknown) => void,
+      options?: Readonly<{ image_metadata?: true }>,
     ): void;
   }>;
   return createCloudinaryUploadProvider({
@@ -100,12 +105,12 @@ function configuredProvider() {
     apiKey,
     apiSecret,
     signRequest: (fixed, secret) => cloudinary.utils.api_sign_request(fixed, secret),
-    fetchAsset: (assetId) => new Promise((resolve, reject) => {
+    fetchAsset: (assetId, mediaType) => new Promise((resolve, reject) => {
       api.resource_by_asset_id(assetId, (error, result) => {
         if (error) reject(error);
         else if (!result) reject(new Error("Cloudinary returned no asset."));
         else resolve(result);
-      });
+      }, cloudinaryAssetLookupOptions(mediaType));
     }),
   });
 }
@@ -116,5 +121,5 @@ export const sign = (input: Parameters<ReturnType<typeof createCloudinaryUploadP
 export const verify = (input: Parameters<ReturnType<typeof createCloudinaryUploadProvider>["verify"]>[0]) =>
   configuredProvider().verify(input);
 
-export const getAsset = (assetId: string) => configuredProvider().getAsset(assetId);
+export const getAsset = (assetId: string, mediaType: UploadMediaType) => configuredProvider().getAsset(assetId, mediaType);
 export const getCloudName = () => configuredProvider().getCloudName();

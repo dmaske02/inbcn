@@ -20,7 +20,10 @@ import {
   UploadServiceError,
   createUploadService,
 } from "./upload.service.ts";
-import { createCloudinaryUploadProvider } from "./cloudinary-signature.server.ts";
+import {
+  cloudinaryAssetLookupOptions,
+  createCloudinaryUploadProvider,
+} from "./cloudinary-signature.server.ts";
 import {
   MAX_UPLOAD_ROUTE_BODY_BYTES,
   createUploadRouteHandler,
@@ -312,7 +315,7 @@ function uploadService(overrides = {}) {
       };
     },
     verify: (input) => input.signature === "a".repeat(40) && input.publicId === publicId,
-    getAsset: async (assetId) => { calls.lookedUp.push(assetId); return imageAsset; },
+    getAsset: async (assetId, mediaType) => { calls.lookedUp.push({ assetId, mediaType }); return imageAsset; },
     getCloudName: () => "demo-cloud",
     ...overrides.provider,
   };
@@ -425,7 +428,7 @@ test("completes only after signature and authoritative asset verification", asyn
   const result = await service.completeSignedUpload(profileId, completion);
 
   assert.deepEqual(result, { id: "55555555-5555-4555-8555-555555555555" });
-  assert.deepEqual(calls.lookedUp, [imageAsset.asset_id]);
+  assert.deepEqual(calls.lookedUp, [{ assetId: imageAsset.asset_id, mediaType: "image" }]);
   assert.equal(calls.completed.length, 1);
   assert.deepEqual(calls.completed[0], {
     profileId,
@@ -493,8 +496,8 @@ test("Cloudinary signing covers only server-fixed upload parameters and exposes 
       signatureInputs.push({ parameters, secret });
       return createHash("sha1").update(`${JSON.stringify(parameters)}:${secret}`).digest("hex");
     },
-    async fetchAsset(assetId) {
-      fetched.push(assetId);
+    async fetchAsset(assetId, mediaType) {
+      fetched.push({ assetId, mediaType });
       return imageAsset;
     },
   });
@@ -523,8 +526,61 @@ test("Cloudinary signing covers only server-fixed upload parameters and exposes 
     timestamp: signedAt,
     signature: signed.signature,
   }), false);
-  assert.equal(await provider.getAsset(imageAsset.asset_id), imageAsset);
-  assert.deepEqual(fetched, [imageAsset.asset_id]);
+  assert.equal(await provider.getAsset(imageAsset.asset_id, "image"), imageAsset);
+  assert.deepEqual(fetched, [{ assetId: imageAsset.asset_id, mediaType: "image" }]);
+});
+
+test("completes a supported video using authoritative provider duration metadata", async () => {
+  const videoAsset = {
+    ...imageAsset,
+    asset_id: "asset-video-1",
+    resource_type: "video",
+    format: "mp4",
+    duration: 19.243,
+    secure_url: imageAsset.secure_url.replace("/image/", "/video/").replace(/[.]jpg$/u, ".mp4"),
+  };
+  const { calls, service } = uploadService({
+    provider: { getAsset: async (assetId, mediaType) => {
+      calls.lookedUp.push({ assetId, mediaType });
+      return videoAsset;
+    } },
+  });
+
+  const result = await service.completeSignedUpload(profileId, {
+    ...completion,
+    assetId: videoAsset.asset_id,
+    mediaType: "video",
+    title: "field-report",
+    originalFilename: "field-report.mp4",
+    altText: "field-report",
+  });
+
+  assert.deepEqual(result, { id: "55555555-5555-4555-8555-555555555555" });
+  assert.deepEqual(calls.lookedUp, [{ assetId: videoAsset.asset_id, mediaType: "video" }]);
+  assert.equal(calls.completed[0].asset.durationSeconds, 19.243);
+  assert.equal(calls.completed[0].asset.mediaType, "video");
+});
+
+test("authoritative Cloudinary lookup receives the media type needed for video metadata", async () => {
+  const fetched = [];
+  const provider = createCloudinaryUploadProvider({
+    cloudName: "demo-cloud",
+    apiKey: "public-api-key",
+    apiSecret: "private-api-secret",
+    signRequest: () => "a".repeat(40),
+    async fetchAsset(assetId, mediaType) {
+      fetched.push({ assetId, mediaType });
+      return imageAsset;
+    },
+  });
+
+  await provider.getAsset("asset-video-1", "video");
+  assert.deepEqual(fetched, [{ assetId: "asset-video-1", mediaType: "video" }]);
+});
+
+test("Cloudinary video lookups request authoritative duration metadata without changing image lookups", () => {
+  assert.deepEqual(cloudinaryAssetLookupOptions("video"), { image_metadata: true });
+  assert.deepEqual(cloudinaryAssetLookupOptions("image"), {});
 });
 
 test("canonical completion serializes concurrent public and asset ID conflicts service-only", async () => {
