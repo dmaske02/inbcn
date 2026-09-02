@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { Images, Video } from "lucide-react";
 import { useActionState, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -133,17 +134,66 @@ export function ReporterRevisionPanel({
         </CardContent>
       </Card>
 
+      <Card padding="none" className="border-signal/50 border-l-4 bg-signal/5">
+        <CardHeader className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Images aria-hidden="true" className="size-5 text-signal" />
+            <h2 className="text-xl font-semibold">Submitted media · {review.submitted_media.length} {review.submitted_media.length === 1 ? "file" : "files"}</h2>
+          </div>
+          <p className="text-sm text-muted-foreground">Canonical media attached to this immutable submitted revision.</p>
+        </CardHeader>
+        <CardContent>
+          {review.submitted_media.length ? (
+            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {review.submitted_media.map((media, index) => (
+                <li className="min-w-0 overflow-hidden rounded-md border border-border bg-background text-sm" key={media.id}>
+                  <div className="relative aspect-video overflow-hidden border-b border-border bg-muted/40">
+                    {media.type === "image" ? (
+                      <Image
+                        alt={media.alt_text || `Submitted media ${index + 1}: ${media.original_filename}`}
+                        fill
+                        className="object-contain"
+                        sizes="(max-width: 639px) 100vw, (max-width: 1279px) 50vw, 33vw"
+                        src={media.secure_url}
+                      />
+                    ) : (
+                      <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
+                        <Video aria-hidden="true" className="size-8" />
+                        <span className="font-medium">Video file</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-3 p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold">Media {index + 1}</h3>
+                      {media.id === snapshot.featured_media_id ? <Badge variant="signal">Featured</Badge> : null}
+                    </div>
+                    <dl className="space-y-1 text-muted-foreground">
+                      <div><dt className="sr-only">Filename</dt><dd className="break-words font-medium text-foreground">{media.original_filename}</dd></div>
+                      <div><dt className="sr-only">Media type</dt><dd className="capitalize">{media.type}</dd></div>
+                      {media.width !== null && media.height !== null ? <div><dt className="sr-only">Dimensions</dt><dd>{media.width} × {media.height}</dd></div> : null}
+                      {media.duration_seconds !== null ? <div><dt className="sr-only">Duration</dt><dd>{media.duration_seconds}s</dd></div> : null}
+                    </dl>
+                    <a className="inline-flex min-h-11 items-center text-primary underline underline-offset-4" href={media.secure_url} rel="noreferrer" target="_blank">Open submitted media</a>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="rounded-md border border-dashed border-border bg-background/70 p-5">
+              <h3 className="font-semibold">No media submitted</h3>
+              <p className="mt-1 text-sm text-muted-foreground">This revision does not contain any canonical media.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Card padding="none">
         <CardHeader><h2 className="text-lg font-semibold">Verified reporter</h2></CardHeader>
         <CardContent className="grid gap-5 lg:grid-cols-[10rem_minmax(0,1fr)]">
           <div className="relative aspect-square overflow-hidden rounded-md border border-border bg-muted"><Image alt={`Approved public portrait of ${reporter.legal_name}`} className="object-cover" fill sizes="160px" src={reporter.portrait_url} /></div>
           <div className="space-y-3"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{reporter.legal_name}</h3><Badge variant={reporter.is_active && !reporter.is_suspended ? "verified" : "outline"}>{reporter.public_status}</Badge></div><p className="text-sm text-muted-foreground">/{reporter.public_slug} · {reporter.home_city}, {reporter.home_district}, {reporter.home_state}</p>{reporter.bio ? <p className="text-sm">{reporter.bio}</p> : null}<p className="text-sm">Beats: {reporter.beats.join(", ") || "None supplied"}</p><p className="text-sm">Membership expires {format(reporter.membership_expires_at)}; grace ends {format(reporter.membership_grace_ends_at)}.</p><p className="text-sm">Direct publication: raw {reporter.direct_publish_raw ? "enabled" : "disabled"}, effective {reporter.direct_publish_effective ? "yes" : "no"}. Live: raw {reporter.live_broadcast_raw ? "enabled" : "disabled"}, effective {reporter.live_broadcast_effective ? "yes" : "no"}.</p></div>
         </CardContent>
-      </Card>
-
-      <Card padding="none">
-        <CardHeader><h2 className="text-lg font-semibold">Submitted canonical media</h2></CardHeader>
-        <CardContent>{review.submitted_media.length ? <ul className="grid gap-3 sm:grid-cols-2">{review.submitted_media.map((media) => <li className="rounded-md border border-border p-4 text-sm" key={media.id}><p className="font-medium">{media.title}</p><p className="mt-1 text-muted-foreground">{media.type} · {media.original_filename} · {media.width ?? "?"}×{media.height ?? "?"}{media.duration_seconds ? ` · ${media.duration_seconds}s` : ""}</p><a className="mt-2 inline-flex min-h-11 items-center text-primary underline underline-offset-4" href={media.secure_url} rel="noreferrer" target="_blank">Open submitted media</a></li>)}</ul> : <p className="text-sm text-muted-foreground">No media was submitted with this revision.</p>}</CardContent>
       </Card>
 
       <Card padding="none" className="border-signal/50">
