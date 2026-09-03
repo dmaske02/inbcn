@@ -6,6 +6,12 @@ export const routing = defineRouting({
   localePrefix: "always",
 });
 
+export function localeRoutingHeaders(headers: Headers): Headers {
+  const localeHeaders = new Headers(headers);
+  localeHeaders.delete("accept-language");
+  return localeHeaders;
+}
+
 export function localizePublicPath(
   pathname: string,
   locale: (typeof routing.locales)[number],
