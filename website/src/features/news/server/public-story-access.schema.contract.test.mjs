@@ -9,6 +9,7 @@ const compact = (value) => value.replace(/\s+/gu, " ").trim();
 const [
   migration,
   correctionMigration,
+  canonicalMediaMigration,
   verification,
   storiesRepository,
   searchQuery,
@@ -18,6 +19,7 @@ const [
 ] = await Promise.all([
   read("supabase/migrations/20260822155000_public_story_access_hardening.sql"),
   read("supabase/migrations/20260822156000_public_media_and_reporter_path_hardening.sql"),
+  read("supabase/migrations/20260903160000_public_story_canonical_media.sql"),
   read("supabase/verification/public-story-access-verification.sql"),
   read("website/src/features/news/server/stories.repository.ts"),
   read("website/src/features/news/server/stories.search-query.mjs"),
@@ -25,6 +27,22 @@ const [
   read("packages/database/src/database.types.ts"),
   read("website/src/app/[locale]/reporters/[slug]/not-found.tsx"),
 ]);
+
+test("published stories expose an effective image from the latest public revision", () => {
+  const sql = compact(canonicalMediaMigration);
+
+  assert.match(sql, /create or replace view public\.public_stories with \(security_barrier = true\)/u);
+  assert.match(sql, /coalesce\( stories\.featured_media_id, \( select media\.id/u);
+  assert.match(sql, /from \( select story_revisions\.associated_media_ids from public\.story_revisions where story_revisions\.story_id = stories\.id and story_revisions\.review_outcome in \('published', 'direct_published'\) order by story_revisions\.revision_number desc limit 1 \) as latest_revision/u);
+  assert.match(sql, /cross join lateral unnest\(latest_revision\.associated_media_ids\) with ordinality as associated_media\(id, position\)/u);
+  assert.match(sql, /join public\.media on media\.id = associated_media\.id/u);
+  assert.match(sql, /media\.story_id = stories\.id/u);
+  assert.match(sql, /media\.media_type = 'image'/u);
+  assert.match(sql, /media\.deleted_at is null/u);
+  assert.match(sql, /media\.secure_url ~ '\^https:\/\/'/u);
+  assert.match(sql, /order by associated_media\.position limit 1 \) \) as featured_media_id/u);
+  assert.doesNotMatch(sql, /story_locations|latitude|longitude|coordinates/iu);
+});
 
 const expectedPublicStoryColumns = [
   "canonical_url",

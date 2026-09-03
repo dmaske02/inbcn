@@ -13,7 +13,9 @@ function story(id, index, overrides = {}) {
     id, translationGroupId: `${id}-translations`, languageId: "en-id",
     categoryId: overrides.categoryId ?? (index % 2 ? "world-id" : "national-id"),
     sourceId: null, type: "staff_article", slug: id, title: overrides.title ?? id,
-    summary: `${id} summary`, featuredMediaId: null, featuredMedia: null,
+    summary: `${id} summary`,
+    featuredMediaId: overrides.featuredMediaId ?? null,
+    featuredMedia: overrides.featuredMedia ?? null,
     externalImageUrl: overrides.externalImageUrl ?? null,
     isFeatured: overrides.isFeatured ?? false, isBreaking: overrides.isBreaking ?? false,
     isSponsored: false, publishedAt: new Date(Date.UTC(2026, 6, 31, 20 - index)).toISOString(),
@@ -99,6 +101,45 @@ test("uses only pinned-banner alerts and the provider image when media is absent
   const result = composeHomepageData("en", input, categories, "inbcn", alerts);
   assert.equal(result.featured?.image.src, externalImageUrl);
   assert.equal(result.pinnedAlert?.id, "pinned");
+});
+
+test("maps canonical media supplied by the public projection into hero and editor-pick images", () => {
+  const featuredMedia = {
+    publicId: "inbcn/reporter/story/story-hero/image-object",
+    secureUrl: "https://res.cloudinary.com/inbcn/image/upload/story-hero.jpg",
+    altText: "Submitted hero image",
+    caption: null,
+    width: 1200,
+    height: 675,
+  };
+  const input = [
+    story("story-hero", 0, {
+      isFeatured: true,
+      featuredMediaId: "hero-media-id",
+      featuredMedia,
+    }),
+    story("story-editor", 1, {
+      featuredMediaId: "editor-media-id",
+      featuredMedia: {
+        ...featuredMedia,
+        publicId: "inbcn/reporter/story/story-editor/image-object",
+        altText: "Submitted editor image",
+      },
+    }),
+  ];
+
+  const result = composeHomepageData("en", input, categories, "inbcn");
+
+  assert.equal(
+    result.featured?.image.src,
+    "https://res.cloudinary.com/inbcn/image/upload/f_auto,q_auto/inbcn/reporter/story/story-hero/image-object",
+  );
+  assert.equal(result.featured?.image.alt, "Submitted hero image");
+  assert.equal(
+    result.editorPicks[0]?.image.src,
+    "https://res.cloudinary.com/inbcn/image/upload/f_auto,q_auto/inbcn/reporter/story/story-editor/image-object",
+  );
+  assert.equal(result.editorPicks[0]?.image.alt, "Submitted editor image");
 });
 
 test("selects the newest active pinned alert from the service snapshot", () => {
