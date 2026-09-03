@@ -312,7 +312,7 @@ export async function getStoryReviewQueueView(admin: AdminIdentity, params: Stor
     status: "pending_review",
     languageId: params.language || undefined,
     categoryId: params.category || undefined,
-    sort: "submitted_asc",
+    sort: "submitted_desc",
   });
   const media = await getCmsStoryFeaturedMedia(result.items.flatMap((story) => story.featuredMediaId ? [story.featuredMediaId] : []));
   const languageNames = new Map(references.languages.map((item) => [item.id, item.name]));
@@ -332,7 +332,7 @@ export async function getStoryReviewQueueView(admin: AdminIdentity, params: Stor
     pageSize: PAGE_SIZE,
     total: result.total,
     totalPages: Math.max(1, Math.ceil(result.total / PAGE_SIZE)),
-    filters: { search: params.search ?? "", status: "pending_review", language: params.language ?? "", category: params.category ?? "", sort: "submitted_asc" },
+    filters: { search: params.search ?? "", status: "pending_review", language: params.language ?? "", category: params.category ?? "", sort: "submitted_desc" },
   };
 }
 

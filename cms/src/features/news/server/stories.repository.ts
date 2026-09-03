@@ -41,7 +41,7 @@ export type CmsStoryListQuery = Readonly<{
   status?: DatabaseEnum<"story_status">;
   languageId?: string;
   categoryId?: string;
-  sort?: "updated_desc" | "updated_asc" | "published_desc" | "submitted_asc" | "title_asc";
+  sort?: "updated_desc" | "updated_asc" | "published_desc" | "submitted_asc" | "submitted_desc" | "title_asc";
 }>;
 
 export type CmsStoryInsert = Database["public"]["Tables"]["stories"]["Insert"];
@@ -477,6 +477,7 @@ export async function getCmsStories(query: CmsStoryListQuery): Promise<CmsStoryL
 
   const sort = query.sort ?? "updated_desc";
   if (sort === "submitted_asc") request = request.order("submitted_at", { ascending: true, nullsFirst: false }).order("id", { ascending: true });
+  else if (sort === "submitted_desc") request = request.order("submitted_at", { ascending: false, nullsFirst: false }).order("id", { ascending: true });
   else if (sort === "title_asc") request = request.order("title", { ascending: true });
   else if (sort === "published_desc") request = request.order("published_at", { ascending: false, nullsFirst: false });
   else request = request.order("updated_at", { ascending: sort === "updated_asc" });
