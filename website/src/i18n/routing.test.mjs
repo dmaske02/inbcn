@@ -6,7 +6,7 @@ import * as routingModule from "./routing.ts";
 test("uses Hindi for unprefixed routes while keeping every explicit locale available", () => {
   assert.equal(routingModule.routing.defaultLocale, "hi");
   assert.equal(routingModule.routing.localePrefix, "always");
-  assert.deepEqual(routingModule.routing.locales, ["en", "hi", "mr"]);
+  assert.deepEqual(routingModule.routing.locales, ["hi", "en", "mr"]);
 });
 
 test("removes browser language from locale routing while preserving saved locale cookies", () => {

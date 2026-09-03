@@ -20,6 +20,18 @@ test("public chrome exposes every approved prototype control and surface", async
   ]) assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });
 
+test("public chrome presents the canonical locale order with matching destinations", async () => {
+  const source = await readFile(new URL("./prototype-chrome.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /routing\.locales\.map\(\(nextLocale\) =>/u);
+  assert.match(source, /nextLocale\.toUpperCase\(\)/u);
+  assert.match(
+    source,
+    /router\.push\(localizePublicPath\(pathname, nextLocale, window\.location\.search, window\.location\.hash\)\)/u,
+  );
+  assert.doesNotMatch(source, /\["EN", "HI", "MR"\]/u);
+});
+
 test("homepage contains the complete prototype editorial sequence", async () => {
   const homepage = await readFile(
     new URL("../../../features/news/components/homepage.tsx", import.meta.url),
