@@ -10,3 +10,16 @@ test("Hero renderers remain independent",async()=>{
   const sidebarFunction=blocks.slice(blocks.indexOf("export function renderHeroSidebar"),blocks.indexOf("export function renderBreakingNews"));
   assert.doesNotMatch(sidebarFunction,/renderHeroStory|HomepageHeroSection/u);
 });
+
+test("Homepage Builder Live TV uses the inverted briefing with player and schedule",async()=>{
+  const [blocks,css]=await Promise.all([
+    readFile("src/features/homepage-renderer/components/homepage-block-renderers.tsx","utf8"),
+    readFile("src/app/globals.css","utf8"),
+  ]);
+  const liveRenderer=blocks.slice(blocks.indexOf("export function renderLiveTv"));
+  assert.match(liveRenderer,/editorial-live-briefing/u);
+  assert.match(liveRenderer,/editorial-live-programme/u);
+  assert.match(liveRenderer,/view\.schedule/u);
+  assert.match(liveRenderer,/LiveTvPlayer/u);
+  assert.match(css,/\.editorial-live-briefing\s*\{[^}]*background:\s*var\(--editorial-inverted\)/su);
+});
