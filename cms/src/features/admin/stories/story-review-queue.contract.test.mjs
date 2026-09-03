@@ -49,6 +49,23 @@ test("review queue groups the current page inside its existing eight-column tabl
   assert.match(queue, /min-w-\[960px\]/u);
 });
 
+test("review queue resolves canonical submitted media and renders image, video, and empty states", () => {
+  const reviewView = service.match(/export async function getStoryReviewQueueView[\s\S]*?\n\}/u)?.[0] ?? "";
+  assert.match(reviewView, /getCmsStoryReviewMedia\(result\.items\)/u);
+  assert.match(reviewView, /featuredMedia:\s*media\.get\(story\.id\) \?\? null/u);
+  assert.match(repository, /getCmsStoryReviewMedia/u);
+  assert.match(repository, /from\("story_revisions"\)[\s\S]*?associated_media_ids/u);
+  assert.match(repository, /order\("revision_number", \{ ascending: false \}\)/u);
+  assert.match(repository, /story\.featuredMediaId \?\? revisionMediaIds\.get\(story\.id\)\?\.\[0\]/u);
+  assert.match(repository, /from\("media"\)[\s\S]*?media_type[\s\S]*?secure_url/u);
+  assert.match(queue, /story\.featuredMedia\?\.type === "image"/u);
+  assert.match(queue, /src=\{story\.featuredMedia\.secureUrl\}/u);
+  assert.match(queue, /story\.featuredMedia\.altText \|\| story\.title/u);
+  assert.match(queue, /<Video/u);
+  assert.match(queue, /story\.featuredMedia\.type === "video" \? "Video" : "Media"/u);
+  assert.match(queue, /<span className="text-muted-foreground">—<\/span>/u);
+});
+
 test("review queue has required editorial fields and an actionable empty state", () => {
   for (const label of ["Featured media", "Headline", "Category", "Locale", "Author", "Submitted", "Status", "Action"]) {
     assert.match(queue, new RegExp(label, "u"));
@@ -56,7 +73,7 @@ test("review queue has required editorial fields and an actionable empty state",
   assert.match(queue, /No Stories are waiting for review\./u);
   assert.match(queue, /New submissions will appear here, newest first\./u);
   assert.match(queue, /featuredMedia/u);
-  assert.match(queue, />Review<\/Link>/u);
+  assert.match(queue, />\s*Review\s*<\/Link>/u);
 });
 
 test("review queue defines loading and recoverable error states", () => {

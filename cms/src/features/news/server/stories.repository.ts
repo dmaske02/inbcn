@@ -529,6 +529,66 @@ export async function getCmsStoryFeaturedMedia(mediaIds: readonly string[]) {
   return new Map(data.map((item) => [item.id, toFeaturedMediaDto(item)]));
 }
 
+export type CmsStoryReviewMedia = Readonly<{
+  id: string;
+  type: DatabaseEnum<"media_type">;
+  secureUrl: string;
+  altText: string | null;
+  width: number | null;
+  height: number | null;
+}>;
+
+export async function getCmsStoryReviewMedia(
+  stories: readonly Readonly<Pick<CmsStoryDto, "id" | "isReporterStory" | "featuredMediaId">>[],
+): Promise<ReadonlyMap<string, CmsStoryReviewMedia>> {
+  if (stories.length === 0) return new Map();
+  const supabase = await createClient();
+  const reporterStoryIds = stories.filter((story) => story.isReporterStory).map((story) => story.id);
+  const revisionMediaIds = new Map<string, readonly string[]>();
+
+  if (reporterStoryIds.length > 0) {
+    const { data, error } = await supabase
+      .from("story_revisions")
+      .select("story_id, revision_number, associated_media_ids")
+      .in("story_id", reporterStoryIds)
+      .order("revision_number", { ascending: false });
+    assertRepositoryQuerySucceeded(error, "load CMS Story review revisions");
+    for (const revision of data) {
+      if (!revisionMediaIds.has(revision.story_id)) {
+        revisionMediaIds.set(revision.story_id, revision.associated_media_ids);
+      }
+    }
+  }
+
+  const mediaIdByStory = new Map<string, string>();
+  for (const story of stories) {
+    const mediaId = story.featuredMediaId ?? revisionMediaIds.get(story.id)?.[0];
+    if (mediaId) mediaIdByStory.set(story.id, mediaId);
+  }
+  if (mediaIdByStory.size === 0) return new Map();
+
+  const { data, error } = await supabase
+    .from("media")
+    .select("id, story_id, media_type, secure_url, alt_text, width, height")
+    .in("id", [...new Set(mediaIdByStory.values())]);
+  assertRepositoryQuerySucceeded(error, "load CMS Story review media");
+  const mediaById = new Map(data.map((media) => [media.id, media]));
+  const result = new Map<string, CmsStoryReviewMedia>();
+  for (const [storyId, mediaId] of mediaIdByStory) {
+    const media = mediaById.get(mediaId);
+    if (!media || media.story_id !== storyId || !media.secure_url.startsWith("https://")) continue;
+    result.set(storyId, {
+      id: media.id,
+      type: media.media_type,
+      secureUrl: media.secure_url,
+      altText: media.alt_text,
+      width: media.width,
+      height: media.height,
+    });
+  }
+  return result;
+}
+
 export async function updateCmsStoryIfCurrent(
   id: string,
   expectedUpdatedAt: string,

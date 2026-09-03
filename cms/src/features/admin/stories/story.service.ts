@@ -6,7 +6,7 @@ import {
   cmsStorySlugExists,
   deleteCmsStory,
   getCmsStories,
-  getCmsStoryFeaturedMedia,
+  getCmsStoryReviewMedia,
   getCmsStoryById,
   getCmsStoryReferences,
   insertCmsStory,
@@ -83,7 +83,7 @@ export type StoryListView = Readonly<{
 
 export type StoryReviewQueueView = Omit<StoryListView, "items" | "canCreate" | "canBulkPublish" | "canBulkArchive" | "canBulkDelete"> & Readonly<{
   items: readonly (StoryListView["items"][number] & {
-    featuredMedia: Awaited<ReturnType<typeof getCmsStoryFeaturedMedia>> extends ReadonlyMap<string, infer T> ? T | null : never;
+    featuredMedia: Awaited<ReturnType<typeof getCmsStoryReviewMedia>> extends ReadonlyMap<string, infer T> ? T | null : never;
   })[];
 }>;
 
@@ -314,7 +314,7 @@ export async function getStoryReviewQueueView(admin: AdminIdentity, params: Stor
     categoryId: params.category || undefined,
     sort: "submitted_desc",
   });
-  const media = await getCmsStoryFeaturedMedia(result.items.flatMap((story) => story.featuredMediaId ? [story.featuredMediaId] : []));
+  const media = await getCmsStoryReviewMedia(result.items);
   const languageNames = new Map(references.languages.map((item) => [item.id, item.name]));
   const categoryNames = new Map(references.categories.map((item) => [item.id, item.name]));
   const authorNames = new Map(references.authors.map((item) => [item.id, item.displayName]));
@@ -325,7 +325,7 @@ export async function getStoryReviewQueueView(admin: AdminIdentity, params: Stor
       categoryName: categoryNames.get(story.categoryId) ?? "Unknown",
       authorName: story.createdBy ? (authorNames.get(story.createdBy) ?? "Former user") : "System",
       commands: getAllowedStoryCommands(admin.role, story.status, story.createdBy === admin.id, story.type === "external_article"),
-      featuredMedia: story.featuredMediaId ? media.get(story.featuredMediaId) ?? null : null,
+      featuredMedia: media.get(story.id) ?? null,
     })),
     references,
     page,

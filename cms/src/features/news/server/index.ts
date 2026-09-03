@@ -14,6 +14,7 @@ export {
   getCmsStoryById,
   getCmsStoryReferences,
   getCmsStoryFeaturedMedia,
+  getCmsStoryReviewMedia,
   cmsStorySlugExists,
   insertCmsStory,
   getImportedStoryIdentities,
@@ -47,6 +48,7 @@ export type {
   CmsStoryReferenceDto,
 } from "./dto";
 export type { CmsStoryListQuery, CmsStoryInsert, CmsStoryUpdate, CmsStoryTransitionCode, CmsStoryTransitionResult } from "./stories.repository";
+export type { CmsStoryReviewMedia } from "./stories.repository";
 export type { ImportedStoryIdentityDto } from "./stories.repository";
 export type {
   CategoryStoryCandidates,
