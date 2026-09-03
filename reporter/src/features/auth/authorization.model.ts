@@ -30,6 +30,12 @@ export function validateIndianPhone(value: unknown): value is string {
   return typeof value === "string" && INDIAN_MOBILE_E164.test(value);
 }
 
+export function normalizeIndianSignInPhone(value: unknown): string | null {
+  return typeof value === "string" && /^[6-9]\d{9}$/.test(value)
+    ? `+91${value}`
+    : null;
+}
+
 export function otpProviderErrorMessage(_error: unknown): string {
   void _error;
   return "We could not send a code. Please try again.";

@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
+import * as authorization from "./authorization.model.ts";
+
+const {
   authorizeReporterIdentity,
   otpProviderErrorMessage,
   validateIndianPhone,
-} from "./authorization.model.ts";
+} = authorization;
 
 test("authorizes an applicant without reporter role or generation", () => {
   assert.deepEqual(authorizeReporterIdentity({ id: "u1", role: null, accessGeneration: null }, null), {
@@ -70,6 +72,21 @@ test("accepts only Indian E.164 mobile numbers", () => {
   assert.equal(validateIndianPhone("+919876543210"), true);
   assert.equal(validateIndianPhone("9876543210"), false);
   assert.equal(validateIndianPhone("+915876543210"), false);
+});
+
+test("normalizes only a ten-digit local Indian number for sign-in", () => {
+  assert.equal(typeof authorization.normalizeIndianSignInPhone, "function");
+  assert.equal(authorization.normalizeIndianSignInPhone("9876543210"), "+919876543210");
+  for (const value of [
+    "+919876543210",
+    "919876543210",
+    "987654321",
+    "98765432101",
+    "5876543210",
+    "98765abcde",
+  ]) {
+    assert.equal(authorization.normalizeIndianSignInPhone(value), null, value);
+  }
 });
 
 test("redacts OTP provider errors", () => {

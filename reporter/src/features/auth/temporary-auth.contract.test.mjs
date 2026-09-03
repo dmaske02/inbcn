@@ -67,6 +67,19 @@ test("temporary preview form requests the code before accepting it", async () =>
   assert.match(form, /name="mode"/u);
 });
 
+test("sign-in shows a fixed Indian prefix while preserving create-mode input", async () => {
+  const [form, actions] = await Promise.all([read("./otp-form.tsx"), read("./actions.ts")]);
+  assert.match(form, /mode === "signin"/u);
+  assert.match(form, />\+91</u);
+  assert.match(form, /inputMode="numeric"/u);
+  assert.match(form, /maxLength=\{10\}/u);
+  assert.match(form, /pattern="\[6-9\]\[0-9\]\{9\}"/u);
+  assert.match(form, /placeholder="9876543210"/u);
+  assert.match(form, /placeholder="\+919876543210"/u);
+  assert.match(actions, /normalizeIndianSignInPhone/u);
+  assert.match(actions, /mode === "signin"/u);
+});
+
 test("create mode is a two-step demo signup and hides details until OTP verification", async () => {
   const [form, actions] = await Promise.all([read("./otp-form.tsx"), read("./actions.ts")]);
   assert.match(form, /Step 1 of 2/u);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState, type ComponentType } from "react";
+import { useActionState, useRef, useState, type ComponentType, type Ref } from "react";
 
 import {
   completeTemporarySignupAction,
@@ -29,6 +29,36 @@ function UnavailableCaptcha() {
   );
 }
 
+function SignInPhoneInput({ disabled, inputRef, invalid, readOnly = false }: Readonly<{
+  disabled: boolean;
+  inputRef?: Ref<HTMLInputElement>;
+  invalid: boolean;
+  readOnly?: boolean;
+}>) {
+  return (
+    <div className="flex min-h-11 overflow-hidden rounded-md border border-input bg-background focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/40">
+      <span className="flex items-center border-r border-input bg-muted/50 px-3 text-base text-foreground" aria-hidden="true">+91</span>
+      <input
+        autoComplete="tel"
+        className={`${inputClassName} rounded-none border-0 focus-visible:ring-0`}
+        disabled={disabled}
+        id="phone"
+        inputMode="numeric"
+        maxLength={10}
+        name="phone"
+        pattern="[6-9][0-9]{9}"
+        placeholder="9876543210"
+        readOnly={readOnly}
+        ref={inputRef}
+        required
+        type="tel"
+        aria-describedby={invalid ? "phone-error" : undefined}
+        aria-invalid={invalid}
+      />
+    </div>
+  );
+}
+
 function RequestOtpForm({ Captcha = UnavailableCaptcha, mode }: Readonly<{ Captcha?: ComponentType<CaptchaSlotProps>; mode: AuthMode }>) {
   const [state, formAction, pending] = useActionState(requestOtpAction, initialState);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
@@ -39,7 +69,7 @@ function RequestOtpForm({ Captcha = UnavailableCaptcha, mode }: Readonly<{ Captc
       <input name="mode" type="hidden" value={mode} />
       <div className="space-y-2">
         <label className="text-sm font-medium" htmlFor="phone">Mobile number</label>
-        <input
+        {mode === "signin" ? <SignInPhoneInput disabled={pending} invalid={Boolean(state.fieldErrors?.phone)} /> : <input
           autoComplete="tel"
           className={inputClassName}
           disabled={pending}
@@ -50,7 +80,7 @@ function RequestOtpForm({ Captcha = UnavailableCaptcha, mode }: Readonly<{ Captc
           type="tel"
           aria-describedby={state.fieldErrors?.phone ? "phone-error" : undefined}
           aria-invalid={Boolean(state.fieldErrors?.phone)}
-        />
+        />}
         {state.fieldErrors?.phone ? <p className="text-sm text-destructive" id="phone-error">{state.fieldErrors.phone[0]}</p> : null}
       </div>
 
@@ -211,7 +241,7 @@ function TemporaryOtpForm({ languages, mode }: Readonly<{ languages: readonly Si
       </> : null}
       <div className="space-y-2">
         <label className="text-sm font-medium" htmlFor="phone">Mobile number</label>
-        <input
+        {mode === "signin" ? <SignInPhoneInput disabled={pending} inputRef={phoneRef} invalid={Boolean(state.fieldErrors?.phone)} readOnly={codeRequested} /> : <input
           autoComplete="tel"
           className={inputClassName}
           disabled={pending}
@@ -224,7 +254,7 @@ function TemporaryOtpForm({ languages, mode }: Readonly<{ languages: readonly Si
           type="tel"
           aria-describedby={state.fieldErrors?.phone ? "phone-error" : undefined}
           aria-invalid={Boolean(state.fieldErrors?.phone)}
-        />
+        />}
         {state.fieldErrors?.phone ? <p className="text-sm text-destructive" id="phone-error">{state.fieldErrors.phone[0]}</p> : null}
       </div>
 

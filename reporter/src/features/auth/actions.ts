@@ -6,7 +6,7 @@ import { env } from "@/config/env";
 import { createClient } from "@/lib/supabase/server";
 import { validateSignupProfile } from "./applicant-profile.model";
 import { ensureApplicantProfile } from "./applicant-profile.server";
-import { otpProviderErrorMessage, validateIndianPhone } from "./authorization.model";
+import { normalizeIndianSignInPhone, otpProviderErrorMessage, validateIndianPhone } from "./authorization.model";
 import { authorizeCurrentReporter } from "./server";
 import { authDestination, parseAuthMode } from "./signup-intent.model";
 import { validateTemporarySignupOtp } from "./temporary-auth.model";
@@ -37,7 +37,10 @@ export async function temporarySignInAction(
   _previousState: OtpState,
   formData: FormData,
 ): Promise<OtpState> {
-  const phone = phoneFrom(formData);
+  const mode = parseAuthMode(formData.get("mode"));
+  const phone = mode === "signin"
+    ? normalizeIndianSignInPhone(formData.get("phone"))
+    : phoneFrom(formData);
   const token = formData.get("token");
 
   if (!phone || typeof token !== "string" || !token.trim()) {
@@ -45,7 +48,7 @@ export async function temporarySignInAction(
       status: "error",
       message: "Check the highlighted fields and try again.",
       fieldErrors: {
-        ...(phone ? {} : { phone: ["Enter an Indian mobile number in +91 format."] }),
+        ...(phone ? {} : { phone: [mode === "signin" ? "Enter a valid 10-digit Indian mobile number." : "Enter an Indian mobile number in +91 format."] }),
         ...(typeof token === "string" && token.trim()
           ? {}
           : { token: ["Enter the preview code."] }),
@@ -57,7 +60,6 @@ export async function temporarySignInAction(
     return { status: "error", message: "Demo sign-in is unavailable." };
   }
 
-  const mode = parseAuthMode(formData.get("mode"));
   if (mode === "create") {
     const verified = validateTemporarySignupOtp(phone, token);
     if (!verified.ok) {
@@ -79,7 +81,10 @@ export async function requestOtpAction(
   _previousState: OtpState,
   formData: FormData,
 ): Promise<OtpState> {
-  const phone = phoneFrom(formData);
+  const mode = parseAuthMode(formData.get("mode"));
+  const phone = mode === "signin"
+    ? normalizeIndianSignInPhone(formData.get("phone"))
+    : phoneFrom(formData);
   const captchaToken = formData.get("captchaToken");
 
   if (!phone || typeof captchaToken !== "string" || !captchaToken.trim()) {
@@ -87,7 +92,7 @@ export async function requestOtpAction(
       status: "error",
       message: "Check the highlighted fields and try again.",
       fieldErrors: {
-        ...(phone ? {} : { phone: ["Enter an Indian mobile number in +91 format."] }),
+        ...(phone ? {} : { phone: [mode === "signin" ? "Enter a valid 10-digit Indian mobile number." : "Enter an Indian mobile number in +91 format."] }),
         ...(typeof captchaToken === "string" && captchaToken.trim()
           ? {}
           : { captchaToken: ["Complete CAPTCHA verification before continuing."] }),
