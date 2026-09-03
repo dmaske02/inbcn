@@ -3,6 +3,12 @@ import test from "node:test";
 
 import * as routingModule from "./routing.ts";
 
+test("uses Hindi for unprefixed routes while keeping every explicit locale available", () => {
+  assert.equal(routingModule.routing.defaultLocale, "hi");
+  assert.equal(routingModule.routing.localePrefix, "always");
+  assert.deepEqual(routingModule.routing.locales, ["en", "hi", "mr"]);
+});
+
 test("switches the locale prefix while preserving the public route and query", () => {
   assert.equal(typeof routingModule.localizePublicPath, "function");
   assert.equal(

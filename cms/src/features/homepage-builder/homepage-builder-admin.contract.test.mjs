@@ -13,6 +13,18 @@ test("protected admin route renders the lean Phase 3 workspace and navigation ex
   assert.match(layout, /\/admin\/homepage-builder/u);
 });
 
+test("Homepage Builder defaults to Hindi while preserving explicit locale selection", async () => {
+  const page = await readFile("src/app/admin/(protected)/homepage-builder/page.tsx", "utf8");
+  const toolbar = await readFile("src/features/homepage-builder/components/workspace/homepage-builder-toolbar.tsx", "utf8");
+
+  assert.match(page, /const locale = Array\.isArray\(params\.locale\) \? params\.locale\[0\] : params\.locale;/u);
+  assert.match(page, /getHomepageEditorWorkspaceView\(admin, locale \?\? "hi"\)/u);
+  for (const locale of ["en", "hi", "mr"]) {
+    assert.match(toolbar, new RegExp(`locale=\\$\\{item\\}`, "u"));
+    assert.match(toolbar, new RegExp(`"${locale}"`, "u"));
+  }
+});
+
 test("workspace components reuse the design system and never query Supabase", async () => {
   for (const file of [
     "workspace/homepage-builder-workspace.tsx",
