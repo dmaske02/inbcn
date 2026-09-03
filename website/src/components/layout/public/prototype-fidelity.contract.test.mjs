@@ -19,7 +19,7 @@ test("public chrome exposes every approved editorial control and surface", async
   ]) assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });
 
-test("homepage contains the complete prototype editorial sequence", async () => {
+test("homepage contains the complete editorial sequence", async () => {
   const homepage = await readFile(
     new URL("../../../features/news/components/homepage.tsx", import.meta.url),
     "utf8",
@@ -33,10 +33,11 @@ test("homepage contains the complete prototype editorial sequence", async () => 
     "Featured story",
     "Top headlines",
     "Latest news",
-    "Trending",
-    "Category rails",
-    "Editor's picks",
+    "Most read",
+    "Across the newsroom",
+    "Editor's pick",
   ]) assert.match(source, new RegExp(section.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+  assert.doesNotMatch(source, /proto-/u);
 });
 
 test("prototype navigation never derives routes for missing backend categories", async () => {

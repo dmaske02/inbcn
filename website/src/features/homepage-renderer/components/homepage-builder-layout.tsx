@@ -13,6 +13,7 @@ function SectionFrame({ section }: Readonly<{ section: PreparedHomepageSection }
   return (
     <section
       className={widthClasses[width]}
+      data-homepage-section-id={section.id}
       data-homepage-container={section.container}
       data-homepage-section-type={section.type}
     >
@@ -26,21 +27,23 @@ export function HomepageBuilderLayout({
 }: Readonly<{ sections: readonly PreparedHomepageSection[] }>) {
   const layout = composeHomepageLayout(sections);
   return (
-    <main className="proto-page">
-      <div className="proto-wrap">
-        <div className="grid grid-cols-12 gap-7">
+    <div className="editorial-page editorial-homepage">
+      <div className="editorial-container editorial-homepage-inner">
+        <div className="editorial-builder-grid grid grid-cols-12 gap-7">
           {layout.map((item) => item.kind === "hero-composition" ? (
             <section
               aria-label="Featured stories"
-              className="proto-hero-composition col-span-12"
+              className="editorial-builder-hero-composition col-span-12"
+              data-homepage-section-id={item.hero.id}
+              data-homepage-sidebar-id={item.sidebar.id}
               key={`${item.hero.id}:${item.sidebar.id}`}
             >
-              <div className="proto-hero-composition-main">{item.hero.node}</div>
-              <div className="proto-hero-composition-sidebar">{item.sidebar.node}</div>
+              <div className="editorial-builder-hero-main">{item.hero.node}</div>
+              <div className="editorial-builder-hero-sidebar">{item.sidebar.node}</div>
             </section>
           ) : <SectionFrame key={item.section.id} section={item.section} />)}
         </div>
       </div>
-    </main>
+    </div>
   );
 }

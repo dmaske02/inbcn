@@ -1,16 +1,241 @@
 import Image from "next/image";
 import Link from "next/link";
-import { AdvertisementPlaceholder } from "@/components/common/advertisement-placeholder";
+
+import {
+  EditorialSectionHeader,
+  EditorialSponsorRow,
+  LedgerStoryRow,
+  RankedStoryList,
+  StoryActionButtons,
+  type LedgerStory,
+} from "@/components/editorial";
 import type { HomepageStory } from "@/features/news/server/services/homepage.service";
 import { getHeroImagePresentation } from "@/features/news/server/services/story-reader.model";
 
-export function publishedLabel(locale:string,publishedAt:string) { return new Intl.DateTimeFormat(locale,{dateStyle:"medium",timeStyle:"short"}).format(new Date(publishedAt)); }
-export function HomepageStoryImage({story,className,priority=false}:{story:HomepageStory;className:string;priority?:boolean}) { const presentation=priority?getHeroImagePresentation(story.image):null; return <div className={className} style={{position:"relative"}}><Image src={story.image.src} alt={story.image.alt} fill priority={priority} loading={priority?"eager":"lazy"} fetchPriority={priority?"high":"auto"} unoptimized={story.image.unoptimized} className="object-cover" style={presentation?{objectFit:presentation.objectFit,objectPosition:presentation.objectPosition,maxWidth:presentation.maxWidth,maxHeight:presentation.maxHeight,margin:"auto"}:undefined} sizes="(min-width: 1024px) 40vw, 100vw"/></div>; }
-export function HomepageAdvertisement({rectangle=false,label="Advertisement"}:{rectangle?:boolean;label?:string}) { return <AdvertisementPlaceholder size={rectangle?"rectangle":"banner"} label={label}/>; }
-export function HomepageHeroSection({locale,story,deck=[]}:{locale:string;story:HomepageStory;deck?:readonly HomepageStory[]}) { return <section className="proto-hero-grid" aria-label="Featured story"><article className="proto-hero-card"><HomepageStoryImage story={story} className="proto-photo proto-hero-photo" priority/><div className="proto-hero-copy"><div className="proto-label">Featured story</div><h1><Link href={story.href}>{story.title}</Link></h1><p>{story.summary}</p><div className="proto-story-meta">{story.categoryName} · {publishedLabel(locale,story.publishedAt)}</div><div className="proto-hero-actions"><Link href={story.href}>Read full analysis</Link><button>Save for later</button></div></div></article>{deck.length?<div className="proto-hero-deck">{deck.map((item)=><article className="proto-brief" key={item.id}><HomepageStoryImage story={item} className="proto-rail-image"/><span className="proto-badge verified">Editor&apos;s pick</span><h2><Link href={item.href}>{item.title}</Link></h2><p>{item.summary}</p></article>)}</div>:null}</section>; }
-export function HomepageHeadlineSection({title="Top headlines",stories}:{title?:string;stories:readonly HomepageStory[]}) { return <section className="proto-section"><div className="proto-section-head"><h2>{title}</h2><div className="proto-section-rule"/><button aria-label="Previous headlines">←</button><button aria-label="Next headlines">→</button></div><div className="proto-headline-row">{stories.map((story,index)=><article className="proto-headline" key={story.id}><span>{String(index+1).padStart(2,"0")}</span><div><div className="proto-label">{story.categoryName}</div><h3><Link href={story.href}>{story.title}</Link></h3><p>{story.summary}</p></div></article>)}</div></section>; }
-export function HomepageFeedSection({locale,title,stories}:{locale:string;title:string;stories:readonly HomepageStory[]}) { return <section className="proto-section"><div className="proto-section-head"><h2>{title}</h2><div className="proto-section-rule"/><Link href={`/${locale}/search`}>View all</Link></div><div className="proto-feed">{stories.map((story)=><article className="proto-feed-card" key={story.id}><HomepageStoryImage story={story} className="proto-thumb"/><div><div className="proto-label">{story.categoryName}</div><h3><Link href={story.href}>{story.title}</Link></h3><p>{story.summary}</p><small>{publishedLabel(locale,story.publishedAt)}</small></div></article>)}</div></section>; }
-export function HomepageRankedSection({title,stories}:{title:string;stories:readonly HomepageStory[]}) { return <section className="proto-panel"><div className="proto-panel-title">{title}</div><ol>{stories.map((story,index)=><li key={story.id}><b>{index+1}</b><Link href={story.href}>{story.title}</Link></li>)}</ol></section>; }
-export type HomepageCategoryRailPresentation=Readonly<{category:Readonly<{id:string;name:string;slug:string}>;stories:readonly HomepageStory[]}>;
-export function HomepageCategoryRails({locale,title="Category rails",rails}:{locale:string;title?:string;rails:readonly HomepageCategoryRailPresentation[]}) { return <section className="proto-section proto-category-rails"><div className="proto-section-head"><h2>{title}</h2><div className="proto-section-rule"/></div>{rails.map(({category,stories})=><div className="proto-rail" key={category.id}><div className="proto-rail-title"><h3>{category.name}</h3><Link href={`/${locale}/category/${category.slug}`}>View all →</Link></div><div className="proto-rail-grid">{stories.map((story)=><article key={story.id}><HomepageStoryImage story={story} className="proto-rail-image"/><div className="proto-label">{category.name}</div><h4><Link href={story.href}>{story.title}</Link></h4><p>{story.summary}</p></article>)}</div></div>)}</section>; }
-export function HomepageEditorsSection({title="Editor's picks",stories}:{title?:string;stories:readonly HomepageStory[]}) { if(!stories.length)return null; return <section className="proto-section proto-editors"><div className="proto-section-head"><h2>{title}</h2><div className="proto-section-rule"/></div><div className="proto-editors-grid"><article className="proto-editors-lead"><HomepageStoryImage story={stories[0]!} className="proto-photo"/><div className="proto-label">{stories[0]!.categoryName}</div><h3><Link href={stories[0]!.href}>{stories[0]!.title}</Link></h3><p>{stories[0]!.summary}</p></article><div className="proto-editors-list">{stories.slice(1).map((story)=><article key={story.id}><div className="proto-label">{story.categoryName}</div><h3><Link href={story.href}>{story.title}</Link></h3></article>)}</div></div></section>; }
+export function publishedLabel(locale: string, publishedAt: string) {
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(publishedAt));
+}
+
+export function toLedgerStory(story: HomepageStory): LedgerStory {
+  return {
+    id: story.id,
+    href: story.href,
+    title: story.title,
+    summary: story.summary,
+    category: story.categoryName ?? "News",
+    publishedAt: story.publishedAt,
+    image: story.image,
+  };
+}
+
+export function HomepageStoryImage({
+  story,
+  className,
+  priority = false,
+}: {
+  story: HomepageStory;
+  className: string;
+  priority?: boolean;
+}) {
+  const presentation = priority ? getHeroImagePresentation(story.image) : null;
+
+  return (
+    <div className={className}>
+      <Image
+        src={story.image.src}
+        alt={story.image.alt}
+        fill
+        priority={priority}
+        loading={priority ? "eager" : "lazy"}
+        fetchPriority={priority ? "high" : "auto"}
+        unoptimized={story.image.unoptimized}
+        sizes="(max-width: 820px) 100vw, 56vw"
+        style={presentation ? {
+          objectFit: presentation.objectFit,
+          objectPosition: presentation.objectPosition,
+          maxWidth: presentation.maxWidth,
+          maxHeight: presentation.maxHeight,
+          margin: "auto",
+        } : undefined}
+      />
+    </div>
+  );
+}
+
+export function HomepageAdvertisement({
+  rectangle = false,
+  label = "Advertisement",
+}: {
+  rectangle?: boolean;
+  label?: string;
+}) {
+  return (
+    <EditorialSponsorRow
+      label={label}
+      slotId={rectangle ? "homepage-secondary" : "homepage-leaderboard"}
+    />
+  );
+}
+
+export function HomepageHeroSection({
+  locale,
+  story,
+  deck = [],
+}: {
+  locale: string;
+  story: HomepageStory;
+  deck?: readonly HomepageStory[];
+}) {
+  return (
+    <>
+      <article className="editorial-home-hero" aria-label="Featured story">
+        <HomepageStoryImage story={story} className="editorial-home-hero-media" priority />
+        <div className="editorial-home-hero-copy">
+          <p className="editorial-home-kicker">Featured story</p>
+          <h1><Link href={story.href}>{story.title}</Link></h1>
+          <p className="editorial-home-hero-summary">{story.summary}</p>
+          <div className="editorial-home-hero-meta">
+            <span>{story.categoryName ?? "News"}</span>
+            <time dateTime={story.publishedAt}>{publishedLabel(locale, story.publishedAt)}</time>
+          </div>
+          <div className="editorial-home-hero-actions">
+            <Link href={story.href}>Read full story</Link>
+            <StoryActionButtons storyId={story.id} title={story.title} url={story.href} />
+          </div>
+        </div>
+      </article>
+      {deck.length ? (
+        <section className="editorial-home-hero-deck" aria-label="More featured stories">
+          {deck.map((item) => (
+            <LedgerStoryRow
+              key={item.id}
+              locale={locale}
+              story={toLedgerStory(item)}
+              showActions={false}
+            />
+          ))}
+        </section>
+      ) : null}
+    </>
+  );
+}
+
+export function HomepageHeadlineSection({
+  title = "Top headlines",
+  stories,
+}: {
+  title?: string;
+  stories: readonly HomepageStory[];
+}) {
+  return (
+    <section className="editorial-home-section">
+      <RankedStoryList title={title} stories={stories} />
+    </section>
+  );
+}
+
+export function HomepageFeedSection({
+  locale,
+  title,
+  stories,
+}: {
+  locale: string;
+  title: string;
+  stories: readonly HomepageStory[];
+}) {
+  return (
+    <section className="editorial-home-section">
+      <EditorialSectionHeader
+        title={title}
+        action={<Link href={`/${locale}/search`}>View all stories</Link>}
+      />
+      <div className="editorial-home-feed">
+        {stories.map((story) => (
+          <LedgerStoryRow key={story.id} locale={locale} story={toLedgerStory(story)} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function HomepageRankedSection({
+  title,
+  stories,
+}: {
+  title: string;
+  stories: readonly HomepageStory[];
+}) {
+  return <RankedStoryList title={title} stories={stories} />;
+}
+
+export type HomepageCategoryRailPresentation = Readonly<{
+  category: Readonly<{ id: string; name: string; slug: string }>;
+  stories: readonly HomepageStory[];
+}>;
+
+export function HomepageCategoryRails({
+  locale,
+  title = "Across the newsroom",
+  rails,
+}: {
+  locale: string;
+  title?: string;
+  rails: readonly HomepageCategoryRailPresentation[];
+}) {
+  return (
+    <section className="editorial-home-section editorial-home-categories">
+      <EditorialSectionHeader title={title} kicker="Sections" />
+      {rails.map(({ category, stories }) => (
+        <section className="editorial-home-category" key={category.id} aria-labelledby={`category-${category.id}`}>
+          <EditorialSectionHeader
+            id={`category-${category.id}`}
+            title={category.name}
+            action={<Link href={`/${locale}/category/${category.slug}`}>Open section</Link>}
+          />
+          <div>
+            {stories.map((story) => (
+              <LedgerStoryRow
+                key={story.id}
+                locale={locale}
+                story={toLedgerStory(story)}
+                showActions={false}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
+    </section>
+  );
+}
+
+export function HomepageEditorsSection({
+  title = "Editor's picks",
+  stories,
+}: {
+  title?: string;
+  stories: readonly HomepageStory[];
+}) {
+  const lead = stories[0];
+  if (!lead) return null;
+
+  return (
+    <section className="editorial-home-editors" aria-label={title}>
+      <p className="editorial-home-kicker">Editor&apos;s pick</p>
+      <article className="editorial-home-editors-lead">
+        <HomepageStoryImage story={lead} className="editorial-home-editors-media" />
+        <h2><Link href={lead.href}>{lead.title}</Link></h2>
+        <p>{lead.summary}</p>
+      </article>
+      <div className="editorial-home-editors-list">
+        {stories.slice(1).map((story) => (
+          <article key={story.id}>
+            <h3><Link href={story.href}>{story.title}</Link></h3>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
