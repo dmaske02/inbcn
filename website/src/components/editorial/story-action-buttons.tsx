@@ -1,9 +1,10 @@
 "use client";
 
 import { Bookmark, Check, Share2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 const SAVED_STORY_IDS_KEY = "inbcn:saved-story-ids:v1";
+const SAVED_STORIES_CHANGE_EVENT = "inbcn:saved-stories-change";
 
 type StoryActionButtonsProps = Readonly<{
   storyId: string;
@@ -20,13 +21,26 @@ function readSavedStoryIds(): string[] {
   }
 }
 
-export function StoryActionButtons({ storyId, title, url }: StoryActionButtonsProps) {
-  const [saved, setSaved] = useState(false);
-  const [shareStatus, setShareStatus] = useState("");
+function subscribeToSavedStories(onStoreChange: () => void) {
+  window.addEventListener("storage", onStoreChange);
+  window.addEventListener(SAVED_STORIES_CHANGE_EVENT, onStoreChange);
+  return () => {
+    window.removeEventListener("storage", onStoreChange);
+    window.removeEventListener(SAVED_STORIES_CHANGE_EVENT, onStoreChange);
+  };
+}
 
-  useEffect(() => {
-    setSaved(readSavedStoryIds().includes(storyId));
-  }, [storyId]);
+function getServerSavedSnapshot() {
+  return false;
+}
+
+export function StoryActionButtons({ storyId, title, url }: StoryActionButtonsProps) {
+  const saved = useSyncExternalStore(
+    subscribeToSavedStories,
+    () => readSavedStoryIds().includes(storyId),
+    getServerSavedSnapshot,
+  );
+  const [shareStatus, setShareStatus] = useState("");
 
   function toggleSaved() {
     const ids = new Set(readSavedStoryIds());
@@ -35,9 +49,9 @@ export function StoryActionButtons({ storyId, title, url }: StoryActionButtonsPr
 
     try {
       window.localStorage.setItem(SAVED_STORY_IDS_KEY, JSON.stringify([...ids]));
-      setSaved(ids.has(storyId));
+      window.dispatchEvent(new Event(SAVED_STORIES_CHANGE_EVENT));
     } catch {
-      setSaved(false);
+      return;
     }
   }
 

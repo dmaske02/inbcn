@@ -92,6 +92,9 @@ test("story actions guard persistent saves and share with a clipboard fallback",
   assert.match(actions, /window\.localStorage\.setItem/u);
   assert.match(actions, /try\s*\{/u);
   assert.match(actions, /Array\.isArray/u);
+  assert.match(actions, /useSyncExternalStore/u);
+  assert.match(actions, /window\.addEventListener\("storage"/u);
+  assert.doesNotMatch(actions, /useEffect\([\s\S]*setSaved/u);
   assert.match(actions, /typeof navigator\.share === "function"/u);
   assert.match(actions, /await navigator\.share\(\{ title, url \}\)/u);
   assert.match(actions, /navigator\.clipboard/u);
