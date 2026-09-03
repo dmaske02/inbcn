@@ -2,6 +2,8 @@ export {
   BreadcrumbPlaceholder,
   breadcrumbPlaceholderVariants,
 } from "./breadcrumb-placeholder";
+export { EditorialShell } from "./editorial-shell";
+export type { EditorialShellLabels } from "./editorial-shell";
 export {
   PublicAdvertisement,
   publicAdvertisementVariants,
