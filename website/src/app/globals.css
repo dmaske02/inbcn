@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
-  --font-heading: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--editorial-sans);
+  --font-mono: var(--editorial-mono);
+  --font-heading: var(--editorial-serif);
   --color-signal: var(--signal);
   --color-signal-foreground: var(--signal-foreground);
   --color-verified: var(--verified);
@@ -78,6 +78,18 @@
 }
 
 :root {
+  --editorial-bg: oklch(98% 0.004 95);
+  --editorial-surface: oklch(100% 0.002 95);
+  --editorial-fg: oklch(20% 0.018 70);
+  --editorial-muted: oklch(48% 0.012 70);
+  --editorial-fg-soft: oklch(96% 0.006 95);
+  --editorial-border: oklch(90% 0.006 95);
+  --editorial-accent: oklch(45% 0.17 28);
+  --editorial-inverted: oklch(17% 0.018 70);
+  --editorial-container: 1180px;
+  --editorial-serif: "Charter", "Iowan Old Style", Georgia, var(--font-inbcn-serif), var(--font-inbcn-serif-devanagari), "Noto Serif", "Noto Serif Devanagari", serif;
+  --editorial-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", var(--font-inbcn-sans), "Noto Sans", sans-serif;
+  --editorial-mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -172,33 +184,33 @@
 
 @layer components {
   .public-site {
-    --background: #f6f3ed;
-    --foreground: #14110f;
-    --card: #fbf9f5;
-    --card-foreground: #14110f;
-    --popover: #fbf9f5;
-    --popover-foreground: #14110f;
-    --primary: #14110f;
-    --primary-foreground: #ffffff;
-    --secondary: #f3eee6;
-    --secondary-foreground: #221e1b;
-    --muted: #e7e0d4;
-    --muted-foreground: #6e655c;
-    --accent: #efeae1;
-    --accent-foreground: #14110f;
-    --destructive: #b3261e;
-    --border: #e3ddd3;
-    --input: #ded7cb;
-    --ring: #b3261e;
-    --signal: #b3261e;
-    --signal-foreground: #ffffff;
+    --background: var(--editorial-bg);
+    --foreground: var(--editorial-fg);
+    --card: var(--editorial-surface);
+    --card-foreground: var(--editorial-fg);
+    --popover: var(--editorial-surface);
+    --popover-foreground: var(--editorial-fg);
+    --primary: var(--editorial-fg);
+    --primary-foreground: var(--editorial-surface);
+    --secondary: var(--editorial-fg-soft);
+    --secondary-foreground: var(--editorial-fg);
+    --muted: var(--editorial-fg-soft);
+    --muted-foreground: var(--editorial-muted);
+    --accent: var(--editorial-fg-soft);
+    --accent-foreground: var(--editorial-fg);
+    --destructive: var(--editorial-accent);
+    --border: var(--editorial-border);
+    --input: var(--editorial-border);
+    --ring: var(--editorial-accent);
+    --signal: var(--editorial-accent);
+    --signal-foreground: var(--editorial-surface);
     --verified: #1f6f4a;
     --verified-foreground: #ffffff;
     --radius: 0.125rem;
     min-width: 0;
-    background: #f6f3ed;
-    color: #14110f;
-    font-family: var(--font-inbcn-sans), "Noto Sans", sans-serif;
+    background: var(--editorial-bg);
+    color: var(--editorial-fg);
+    font-family: var(--editorial-sans);
   }
 
   .public-site h1,
@@ -206,8 +218,8 @@
   .public-site h3,
   .public-site h4,
   .public-site .font-heading {
-    font-family: var(--font-inbcn-serif), var(--font-inbcn-serif-devanagari), "Noto Serif", "Noto Serif Devanagari", serif;
-    text-wrap: pretty;
+    font-family: var(--editorial-serif);
+    text-wrap: balance;
   }
 
   .public-site p {
@@ -215,7 +227,50 @@
   }
 
   .public-site ::selection {
-    background: #f2d8ae;
+    background: color-mix(in oklch, var(--editorial-accent) 22%, var(--editorial-surface));
+  }
+
+  .editorial-page {
+    min-width: 0;
+    background: var(--editorial-bg);
+    color: var(--editorial-fg);
+  }
+
+  .editorial-container {
+    width: calc(100% - 48px);
+    max-width: var(--editorial-container);
+    margin-inline: auto;
+  }
+
+  .editorial-headline {
+    font-family: var(--editorial-serif);
+    text-wrap: balance;
+  }
+
+  .editorial-meta {
+    font-family: var(--editorial-mono);
+    letter-spacing: 0.06em;
+  }
+
+  .editorial-hairline {
+    border-top: 1px solid var(--editorial-border);
+  }
+}
+
+@media (max-width: 640px) {
+  .editorial-container {
+    width: calc(100% - 28px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-site *,
+  .public-site *::before,
+  .public-site *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
