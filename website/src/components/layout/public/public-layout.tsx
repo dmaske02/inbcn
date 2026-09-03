@@ -3,8 +3,8 @@ import type { HTMLAttributes, ReactNode } from "react";
 import { getTranslations } from "next-intl/server";
 
 import { cn } from "@/lib/utils";
+import { EditorialFooter } from "./editorial-footer";
 import { EditorialShell } from "./editorial-shell";
-import { PrototypeFooter } from "./prototype-footer";
 import type { HomepageViewModel } from "@/features/news/server/services/homepage.service";
 import { SkipToContent } from "./skip-to-content";
 import type { PublicLayoutSlots, PublicLocale } from "./types";
@@ -59,7 +59,7 @@ export async function PublicLayout({
         {children}
       </main>
       {footerAdvertisement}
-      {footer ?? <PrototypeFooter locale={locale} />}
+      {footer ?? <EditorialFooter locale={locale} />}
     </div>
   );
 }

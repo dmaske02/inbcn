@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const shellPath = new URL("./editorial-shell.tsx", import.meta.url);
+const footerPath = new URL("./editorial-footer.tsx", import.meta.url);
 const layoutPath = new URL("./public-layout.tsx", import.meta.url);
 const cssPath = new URL("../../../app/globals.css", import.meta.url);
 
@@ -76,4 +77,31 @@ test("editorial shell CSS provides sticky blur, ledger rules, tablet scroll, and
   assert.match(css, /\.editorial-breaking-track\s*\{[^}]*animation:/su);
   assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.editorial-drawer-trigger\s*\{[^}]*display:\s*grid/su);
   assert.match(css, /\.editorial-drawer-links a\s*\{[^}]*min-height:\s*44px/su);
+});
+
+test("editorial footer preserves universal navigation and newsletter contracts", async () => {
+  const [footer, layout, css] = await Promise.all([
+    optionalSource(footerPath),
+    optionalSource(layoutPath),
+    optionalSource(cssPath),
+  ]);
+
+  assert.match(footer, /export async function EditorialFooter/u);
+  assert.match(footer, /className="editorial-footer"/u);
+  assert.match(footer, /className="editorial-container editorial-footer-grid"/u);
+  assert.ok(footer.includes('href={`/${locale}/about`}'));
+  assert.ok(footer.includes('href={`/${locale}/contact`}'));
+  assert.ok(footer.includes('href={`/${locale}/editorial-policy`}'));
+  assert.ok(footer.includes('href={`/${locale}/privacy`}'));
+  assert.ok(footer.includes('href={`/${locale}/live-tv`}'));
+  assert.ok(footer.includes('href={`/${locale}/fact-check`}'));
+  assert.match(footer, /type="email"/u);
+  assert.match(footer, /t\("connect\.subscribe"\)/u);
+  assert.doesNotMatch(footer, /proto-footer/u);
+
+  assert.match(layout, /import \{ EditorialFooter \} from "\.\/editorial-footer"/u);
+  assert.match(layout, /footer \?\? <EditorialFooter locale=\{locale\} \/>/u);
+  assert.doesNotMatch(layout, /PrototypeFooter/u);
+
+  assert.match(css, /\.editorial-footer\s*\{[^}]*border-top:\s*3px solid var\(--editorial-accent\)[^}]*background:\s*var\(--editorial-inverted\)/su);
 });
