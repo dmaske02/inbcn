@@ -38,7 +38,7 @@ export async function Homepage({ locale, data }: HomepageProps) {
               <HomepageRankedSection title="Most read" stories={data.trending} />
             ) : <div />}
             {data.editorPicks.length ? (
-              <HomepageEditorsSection stories={data.editorPicks} />
+              <HomepageEditorsSection locale={locale} stories={data.editorPicks} />
             ) : null}
           </div>
         ) : null}

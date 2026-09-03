@@ -49,10 +49,14 @@ test("homepage hero is a 5:4 split with stable 16:10 image-first media", async (
   assert.match(css, /\.editorial-home-hero\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*5fr\) minmax\(0,\s*4fr\)/su);
   assert.match(
     css,
-    /\.editorial-home-hero\s*\{[^}]*align-items:\s*center/su,
-    "grid stretching must not distort the lead image's 16:10 frame",
+    /\.editorial-home-hero\s*\{[^}]*align-items:\s*start/su,
+    "hero copy and media must share the same top edge",
   );
-  assert.match(css, /\.editorial-home-hero-media,\s*\.editorial-home-editors-media\s*\{[^}]*aspect-ratio:\s*16\s*\/\s*10/su);
+  assert.match(
+    css,
+    /\.editorial-home-hero-copy h1\s*\{[^}]*font-size:\s*clamp\(30px,\s*3\.4vw,\s*50px\)[^}]*line-height:\s*1\.1[^}]*text-wrap:\s*balance/su,
+  );
+  assert.match(css, /\.editorial-home-hero-media\s*\{[^}]*aspect-ratio:\s*16\s*\/\s*10/su);
   assert.match(
     css,
     /\.editorial-home-hero-media,\s*\.editorial-home-editors-media\s*\{[^}]*min-width:\s*0/su,
@@ -85,5 +89,28 @@ test("homepage feeds and discovery consume shared ledger and ranked primitives",
   assert.match(homepage, /className="editorial-home-discovery"/u);
   assert.match(css, /\.editorial-home-discovery\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*2fr\) minmax\(0,\s*1fr\)/su);
   assert.match(sections, /Editor&apos;s pick/u);
+  assert.match(sections, /className="editorial-home-editors-meta"/u);
+  assert.match(sections, /publishedLabel\(locale, lead\.publishedAt\)/u);
+  assert.match(css, /\.editorial-home-editors\s*\{[^}]*border-top:\s*1px solid var\(--editorial-border\)/su);
+  assert.match(css, /\.editorial-home-editors-media\s*\{[^}]*aspect-ratio:\s*16\s*\/\s*9/su);
+  assert.match(css, /\.editorial-home-editors-meta\s*\{[^}]*font-family:\s*var\(--editorial-mono\)/su);
   assert.match(sections, /href=\{`\/\$\{locale\}\/category\/\$\{category\.slug\}`\}/u);
+});
+
+test("Across the newsroom uses a balanced two-column strip without dropping story rows", async () => {
+  const [sections, css] = await Promise.all([
+    readFile(sectionsPath, "utf8"),
+    readFile(cssPath, "utf8"),
+  ]);
+
+  assert.match(sections, /className="editorial-home-category-grid"/u);
+  assert.match(sections, /stories\.map\(\(story\) =>/u);
+  assert.match(
+    css,
+    /\.editorial-home-category-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/su,
+  );
+  assert.match(
+    css,
+    /@media\s*\(max-width:\s*920px\)[\s\S]*\.editorial-home-category-grid\s*\{[^}]*grid-template-columns:\s*1fr/su,
+  );
 });

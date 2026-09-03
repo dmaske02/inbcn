@@ -23,3 +23,9 @@ test("Homepage Builder Live TV uses the inverted briefing with player and schedu
   assert.match(liveRenderer,/LiveTvPlayer/u);
   assert.match(css,/\.editorial-live-briefing\s*\{[^}]*background:\s*var\(--editorial-inverted\)/su);
 });
+
+test("Homepage Builder Editor's Pick forwards locale metadata to the shared treatment",async()=>{
+  const blocks=await readFile("src/features/homepage-renderer/components/homepage-block-renderers.tsx","utf8");
+  assert.match(blocks,/export function renderOpinion\(section: ResolvedHomepageSection, locale: string\)/u);
+  assert.match(blocks,/<HomepageEditorsSection locale=\{locale\}/u);
+});

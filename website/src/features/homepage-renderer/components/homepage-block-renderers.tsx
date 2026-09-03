@@ -57,8 +57,8 @@ export function renderTrending(section: ResolvedHomepageSection) {
   return <HomepageRankedSection title={section.title} stories={requireKind(section, "stories").stories} />;
 }
 
-export function renderOpinion(section: ResolvedHomepageSection) {
-  return <HomepageEditorsSection title={section.title} stories={requireKind(section, "stories").stories} />;
+export function renderOpinion(section: ResolvedHomepageSection, locale: string) {
+  return <HomepageEditorsSection locale={locale} title={section.title} stories={requireKind(section, "stories").stories} />;
 }
 
 export function renderAdvertisement(section: ResolvedHomepageSection) {

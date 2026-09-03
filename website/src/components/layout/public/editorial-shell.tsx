@@ -36,7 +36,6 @@ export type EditorialShellLabels = Readonly<{
   navigation: Readonly<Record<(typeof categories)[number]["key"], string>>;
   actions: Readonly<{
     liveTv: string;
-    login: string;
     openMenu: string;
     closeMenu: string;
     enableAlerts: string;
@@ -149,9 +148,6 @@ export function EditorialShell({
                 {labels.actions.liveTv}
               </Link>
               <SearchDialog locale={locale} labels={labels.searchDialog} />
-              <button type="button" className="editorial-shell-sign-in">
-                {labels.actions.login}
-              </button>
               <button
                 ref={drawerTriggerRef}
                 type="button"
@@ -235,9 +231,6 @@ export function EditorialShell({
               </Link>
             ))}
           </nav>
-          <button type="button" className="editorial-drawer-sign-in">
-            {labels.actions.login}
-          </button>
         </div>
       </dialog>
 

@@ -188,33 +188,37 @@ export function HomepageCategoryRails({
   return (
     <section className="editorial-home-section editorial-home-categories">
       <EditorialSectionHeader title={title} kicker="Sections" />
-      {rails.map(({ category, stories }) => (
-        <section className="editorial-home-category" key={category.id} aria-labelledby={`category-${category.id}`}>
-          <EditorialSectionHeader
-            id={`category-${category.id}`}
-            title={category.name}
-            action={<Link href={`/${locale}/category/${category.slug}`}>Open section</Link>}
-          />
-          <div>
-            {stories.map((story) => (
-              <LedgerStoryRow
-                key={story.id}
-                locale={locale}
-                story={toLedgerStory(story)}
-                showActions={false}
-              />
-            ))}
-          </div>
-        </section>
-      ))}
+      <div className="editorial-home-category-grid">
+        {rails.map(({ category, stories }) => (
+          <section className="editorial-home-category" key={category.id} aria-labelledby={`category-${category.id}`}>
+            <EditorialSectionHeader
+              id={`category-${category.id}`}
+              title={category.name}
+              action={<Link href={`/${locale}/category/${category.slug}`}>Open section</Link>}
+            />
+            <div>
+              {stories.map((story) => (
+                <LedgerStoryRow
+                  key={story.id}
+                  locale={locale}
+                  story={toLedgerStory(story)}
+                  showActions={false}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
     </section>
   );
 }
 
 export function HomepageEditorsSection({
+  locale,
   title = "Editor's picks",
   stories,
 }: {
+  locale: string;
   title?: string;
   stories: readonly HomepageStory[];
 }) {
@@ -226,6 +230,10 @@ export function HomepageEditorsSection({
       <p className="editorial-home-kicker">Editor&apos;s pick</p>
       <article className="editorial-home-editors-lead">
         <HomepageStoryImage story={lead} className="editorial-home-editors-media" />
+        <div className="editorial-home-editors-meta">
+          <span>{lead.categoryName ?? "News"}</span>
+          <time dateTime={lead.publishedAt}>{publishedLabel(locale, lead.publishedAt)}</time>
+        </div>
         <h2><Link href={lead.href}>{lead.title}</Link></h2>
         <p>{lead.summary}</p>
       </article>

@@ -23,6 +23,7 @@ test("editorial shell preserves localized navigation and public action destinati
   assert.match(shell, /key: "ai", path: "search\?q=AI"/u);
   assert.match(shell, /key: "jobs", path: "search\?q=Jobs"/u);
   assert.match(shell, /localizePublicPath\(pathname, nextLocale, window\.location\.search, window\.location\.hash\)/u);
+  assert.doesNotMatch(shell, /labels\.actions\.login|editorial-shell-sign-in|editorial-drawer-sign-in/u);
 });
 
 test("edition strip uses server data and the mobile drawer prioritizes Live TV", async () => {
@@ -64,6 +65,7 @@ test("public layout renders the server-fed editorial shell and localized search 
   for (const key of ["open", "close", "title", "description", "placeholder", "submit"]) {
     assert.match(layout, new RegExp(`searchDialog\\.${key}`, "u"));
   }
+  assert.doesNotMatch(layout, /actions\.login/u);
   assert.doesNotMatch(layout, /PrototypeChrome/u);
 });
 
@@ -77,6 +79,7 @@ test("editorial shell CSS provides sticky blur, ledger rules, tablet scroll, and
   assert.match(css, /\.editorial-breaking-track\s*\{[^}]*animation:/su);
   assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.editorial-drawer-trigger\s*\{[^}]*display:\s*grid/su);
   assert.match(css, /\.editorial-drawer-links a\s*\{[^}]*min-height:\s*44px/su);
+  assert.doesNotMatch(css, /\.editorial-shell-sign-in|\.editorial-drawer-sign-in/u);
 });
 
 test("editorial footer preserves universal navigation and newsletter contracts", async () => {

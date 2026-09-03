@@ -3,12 +3,15 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("article page renders the approved premium server-first structure", async () => {
-  const source = await readFile(new URL("../../../app/[locale]/story/[slug]/page.tsx", import.meta.url), "utf8");
+  const [source, css] = await Promise.all([
+    readFile(new URL("../../../app/[locale]/story/[slug]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../../../app/globals.css", import.meta.url), "utf8"),
+  ]);
 
   assert.match(source, /<ReadingProgress articleId="story-article"/u);
   assert.match(source, /id="story-article"/u);
-  assert.match(source, /placement="desktop"/u);
-  assert.match(source, /placement="mobile"/u);
+  assert.doesNotMatch(source, /StoryShareActions|placement="desktop"|placement="mobile"/u);
+  assert.match(source, /lg:grid-cols-\[minmax\(0,760px\)_320px\]/u);
   assert.match(source, /view\.inlineRelated/u);
   assert.match(source, /view\.previous/u);
   assert.match(source, /view\.next/u);
@@ -17,6 +20,9 @@ test("article page renders the approved premium server-first structure", async (
   }
   assert.match(source, /aria-label="Author information"/u);
   assert.match(source, /view\.story\.image\.caption \?/u);
+  assert.match(source, /className="article-inline-related"/u);
+  assert.match(source, /className="article-inline-related-label"/u);
+  assert.match(css, /\.article-inline-related\s*\{[^}]*border-left:\s*2px solid var\(--editorial-accent\)[^}]*background:\s*var\(--editorial-fg-soft\)/su);
 });
 
 test("article media uses explicit loading priorities without changing the image resolver", async () => {

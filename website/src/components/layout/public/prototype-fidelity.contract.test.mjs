@@ -11,12 +11,12 @@ test("public chrome exposes every approved editorial control and surface", async
     "labels.utility.descriptor",
     "labels.searchDialog",
     "labels.actions.liveTv",
-    "labels.actions.login",
     "labels.actions.enableAlerts",
     "labels.actions.latestUpdate",
     "labels.pinnedAlert",
     "labels.actions.dismiss",
   ]) assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.doesNotMatch(source, /labels\.actions\.login|editorial-shell-sign-in|editorial-drawer-sign-in/u);
 });
 
 test("homepage contains the complete editorial sequence", async () => {
