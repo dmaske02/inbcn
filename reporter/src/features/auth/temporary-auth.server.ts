@@ -16,7 +16,7 @@ import type { SignupProfile } from "./applicant-profile.model.ts";
 export async function signInWithTemporaryOtp(
   phone: unknown,
   code: unknown,
-  options?: Readonly<{ ensureProfile?: boolean; signupProfile?: SignupProfile }>,
+  options?: Readonly<{ allowAccountCreation?: boolean; ensureProfile?: boolean; signupProfile?: SignupProfile }>,
 ): Promise<string> {
   if (!env.server.demoMode) throw new TemporaryAuthError("disabled");
 

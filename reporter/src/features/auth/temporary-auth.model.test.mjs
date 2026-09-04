@@ -110,15 +110,6 @@ test("fresh demo signup metadata is attached only while creating the temporary A
 
 test("a new reporter can sign up with any valid Indian mobile number", async () => {
   const events = [];
-  const signupProfile = {
-    fullName: "New Reporter",
-    email: "new.reporter@example.com",
-    cityLocality: "Pune",
-    state: "Maharashtra",
-    preferredLanguageId: "5ac922dd-5db8-4d18-907f-762d44f12be1",
-    experience: "",
-    introduction: "I want to report verified local stories.",
-  };
   const service = createTemporaryAuthService({
     findUser: async (phone) => { events.push(["lookup", phone]); return null; },
     createUser: async (input) => { events.push(["create", input.phone]); return "user-2"; },
@@ -130,12 +121,35 @@ test("a new reporter can sign up with any valid Indian mobile number", async () 
 
   await service.signIn(
     { phone: "+919876543210", code: "1234" },
-    { ensureProfile: false, signupProfile },
+    { allowAccountCreation: true },
   );
 
   assert.deepEqual(events, [
     ["lookup", "+919876543210"],
     ["create", "+919876543210"],
+  ]);
+});
+
+test("create mode bootstraps and signs in a new reporter without signup details", async () => {
+  const events = [];
+  const service = createTemporaryAuthService({
+    findUser: async () => null,
+    createUser: async (input) => { events.push(["create", input.phone]); return "user-2"; },
+    rotateCredentials: async () => {},
+    ensureProfile: async (userId) => { events.push(["profile", userId]); },
+    signIn: async () => { events.push(["sign-in"]); },
+    randomPassword: () => "generated-private-password",
+  });
+
+  await service.signIn(
+    { phone: "+919876543210", code: "1234" },
+    { allowAccountCreation: true },
+  );
+
+  assert.deepEqual(events, [
+    ["create", "+919876543210"],
+    ["profile", "user-2"],
+    ["sign-in"],
   ]);
 });
 

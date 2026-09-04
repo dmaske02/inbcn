@@ -36,6 +36,10 @@ export function normalizeIndianSignInPhone(value: unknown): string | null {
     : null;
 }
 
+export function normalizeIndianLocalMobile(value: unknown): string | null {
+  return normalizeIndianSignInPhone(value);
+}
+
 export function otpProviderErrorMessage(_error: unknown): string {
   void _error;
   return "We could not send a code. Please try again.";

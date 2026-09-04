@@ -61,7 +61,7 @@ export function createTemporaryAuthService(dependencies: TemporaryAuthDependenci
   return {
     async signIn(
       input: Readonly<{ phone: unknown; code: unknown }>,
-      options: Readonly<{ ensureProfile?: boolean; signupProfile?: SignupProfile }> = {},
+      options: Readonly<{ allowAccountCreation?: boolean; ensureProfile?: boolean; signupProfile?: SignupProfile }> = {},
     ): Promise<string> {
       const verified = validateTemporarySignupOtp(input.phone, input.code);
       if (!verified.ok) {
@@ -75,7 +75,7 @@ export function createTemporaryAuthService(dependencies: TemporaryAuthDependenci
         if (existingUser && (!existingUser.marked || !existingUser.eligible)) {
           throw new TemporaryAuthError("invalid-credentials");
         }
-        if (!existingUser && !options.signupProfile && verified.phone !== REPORTER_DEMO_PHONE) {
+        if (!existingUser && !options.allowAccountCreation && !options.signupProfile && verified.phone !== REPORTER_DEMO_PHONE) {
           throw new TemporaryAuthError("invalid-credentials");
         }
         const userId = existingUser?.id

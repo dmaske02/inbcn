@@ -29,11 +29,11 @@ test("the demo code is isolated from the provider OTP actions", async () => {
   const temporaryStart = actions.indexOf("export async function temporarySignInAction");
   const requestStart = actions.indexOf("export async function requestOtpAction");
   const verifyStart = actions.indexOf("export async function verifyOtpAction");
-  const completeStart = actions.indexOf("export async function completeTemporarySignupAction");
-  assert.ok(temporaryStart >= 0 && requestStart > temporaryStart && verifyStart > requestStart && completeStart > verifyStart);
+  const logoutStart = actions.indexOf("export async function logoutAction");
+  assert.ok(temporaryStart >= 0 && requestStart > temporaryStart && verifyStart > requestStart && logoutStart > verifyStart);
 
   const temporaryAction = actions.slice(temporaryStart, requestStart);
-  const providerActions = actions.slice(requestStart, completeStart);
+  const providerActions = actions.slice(requestStart, logoutStart);
   assert.match(temporaryAction, /signInWithTemporaryOtp/u);
   assert.doesNotMatch(providerActions, /signInWithTemporaryOtp|["']1234["']/u);
   assert.match(providerActions, /signInWithOtp/u);
@@ -67,50 +67,43 @@ test("temporary preview form requests the code before accepting it", async () =>
   assert.match(form, /name="mode"/u);
 });
 
-test("sign-in shows a fixed Indian prefix while preserving create-mode input", async () => {
+test("sign-in preserves its fixed Indian prefix and dedicated normalization", async () => {
   const [form, actions] = await Promise.all([read("./otp-form.tsx"), read("./actions.ts")]);
-  assert.match(form, /mode === "signin"/u);
   assert.match(form, />\+91</u);
   assert.match(form, /inputMode="numeric"/u);
   assert.match(form, /maxLength=\{10\}/u);
   assert.match(form, /pattern="\[6-9\]\[0-9\]\{9\}"/u);
   assert.match(form, /placeholder="9876543210"/u);
-  assert.match(form, /placeholder="\+919876543210"/u);
-  assert.match(actions, /normalizeIndianSignInPhone/u);
-  assert.match(actions, /mode === "signin"/u);
+  assert.doesNotMatch(form, /placeholder="\+919876543210"/u);
+
+  const temporaryStart = actions.indexOf("export async function temporarySignInAction");
+  const requestStart = actions.indexOf("export async function requestOtpAction");
+  const verifyStart = actions.indexOf("export async function verifyOtpAction");
+  assert.match(actions.slice(temporaryStart, requestStart), /normalizeIndianSignInPhone\(formData\.get\("phone"\)\)/u);
+  assert.match(actions.slice(requestStart, verifyStart), /normalizeIndianSignInPhone\(formData\.get\("phone"\)\)/u);
 });
 
-test("create mode is a two-step demo signup and hides details until OTP verification", async () => {
+test("create mode is a single mobile-verification signup without a details step", async () => {
   const [form, actions] = await Promise.all([read("./otp-form.tsx"), read("./actions.ts")]);
-  assert.match(form, /Step 1 of 2/u);
-  assert.match(form, /Verify mobile/u);
-  assert.match(form, /state\.status === "verified"/u);
-  assert.match(form, /Create your Reporter profile/u);
-  assert.match(form, /Step 2 of 2/u);
-  assert.match(form, /name="fullName"/u);
-  assert.match(form, /name="email"/u);
-  assert.match(form, /name="cityLocality"/u);
-  assert.match(form, /name="state"/u);
-  assert.match(form, /name="preferredLanguageId"/u);
-  assert.match(form, /name="experience"/u);
-  assert.match(form, /name="introduction"/u);
-  assert.match(form, /Create reporter account/u);
-  assert.match(actions, /completeTemporarySignupAction/u);
+  assert.match(form, />\+91</u);
+  assert.match(form, /inputMode="numeric"/u);
+  assert.match(form, /maxLength=\{10\}/u);
+  assert.match(form, /placeholder="9876543210"/u);
+  assert.doesNotMatch(form, /Step 1 of 2|Step 2 of 2|Your details|Create your Reporter profile/u);
+  assert.doesNotMatch(form, /name="(?:fullName|email|cityLocality|state|preferredLanguageId|experience|introduction)"/u);
+  assert.doesNotMatch(actions, /completeTemporarySignupAction/u);
 });
 
-test("create-mode OTP advances without creating an account or session", async () => {
+test("create-mode OTP creates the account, bootstraps the profile, signs in, and redirects", async () => {
   const actions = await read("./actions.ts");
   const start = actions.indexOf("export async function temporarySignInAction");
   const end = actions.indexOf("export async function requestOtpAction");
   const stepOne = actions.slice(start, end);
-  const createBranch = stepOne.slice(stepOne.indexOf('if (mode === "create")'), stepOne.indexOf("  try {"));
-  assert.match(stepOne, /validateTemporarySignupOtp/u);
-  assert.doesNotMatch(createBranch, /signInWithTemporaryOtp/u);
-  assert.match(actions, /status: "verified"/u);
-  assert.match(actions, /verifiedPhone: phone/u);
-  assert.match(actions, /signInWithTemporaryOtp\(phone, token/u);
-  assert.match(actions, /ensureApplicantProfile\(userId,/u);
-  assert.match(actions, /redirectAfterAuthentication\("create"\)/u);
+  assert.match(stepOne, /normalizeIndianLocalMobile/u);
+  assert.match(stepOne, /signInWithTemporaryOtp\(phone, token, \{ allowAccountCreation: true \}\)/u);
+  assert.match(stepOne, /redirectAfterAuthentication\("create"\)/u);
+  assert.match(stepOne, /signInWithTemporaryOtp\(phone, token\);/u);
+  assert.doesNotMatch(stepOne, /status: "verified"|verifiedPhone|verifiedToken/u);
 });
 
 test("applicant profile bootstrap is server-only and never overwrites an existing profile", async () => {
