@@ -7,6 +7,7 @@ import {
   isTemporaryDemoIdentityEligible,
   validateTemporaryDemoOtp,
 } from "./temporary-auth.model.ts";
+import * as temporaryAuthModel from "./temporary-auth.model.ts";
 
 test("demo OTP validation accepts only the canonical phone with 1234", () => {
   assert.deepEqual(validateTemporaryDemoOtp("+919000000829", "1234"), { ok: true, phone: "+919000000829" });
@@ -192,6 +193,40 @@ test("a marked eligible demo identity is safely reused", async () => {
   const events = [];
   const service = createTemporaryAuthService({
     findUser: async () => ({ id: "user-1", marked: true, eligible: true }),
+    createUser: async () => { throw new Error("must not create duplicate"); },
+    rotateCredentials: async () => { events.push("rotate"); },
+    ensureProfile: async () => { events.push("profile"); },
+    signIn: async () => { events.push("sign-in"); },
+    randomPassword: () => "generated-private-password",
+  });
+
+  await service.signIn({ phone: "+919876543210", code: "1234" });
+
+  assert.deepEqual(events, ["rotate", "profile", "sign-in"]);
+});
+
+test("legacy preview ownership requires the exact deterministic phone email", () => {
+  assert.equal(temporaryAuthModel.isTemporaryPreviewIdentityOwned?.({
+    phone: "+919876543210",
+    email: "reporter.919876543210@preview.inbcn.invalid",
+    marked: false,
+  }), true);
+  assert.equal(temporaryAuthModel.isTemporaryPreviewIdentityOwned?.({
+    phone: "+919876543210",
+    email: "someone-else@example.com",
+    marked: false,
+  }), false);
+  assert.equal(temporaryAuthModel.isTemporaryPreviewIdentityOwned?.({
+    phone: "+919876543210",
+    email: "someone-else@example.com",
+    marked: true,
+  }), true);
+});
+
+test("an eligible legacy preview identity is safely reused without the newer marker", async () => {
+  const events = [];
+  const service = createTemporaryAuthService({
+    findUser: async () => ({ id: "user-legacy", marked: false, legacyPreview: true, eligible: true }),
     createUser: async () => { throw new Error("must not create duplicate"); },
     rotateCredentials: async () => { events.push("rotate"); },
     ensureProfile: async () => { events.push("profile"); },

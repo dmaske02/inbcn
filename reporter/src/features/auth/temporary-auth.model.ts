@@ -5,6 +5,7 @@ type TemporaryAuthDependencies = Readonly<{
   findUser: (phone: string) => Promise<Readonly<{
     id: string;
     marked: boolean;
+    legacyPreview: boolean;
     eligible: boolean;
   }> | null>;
   createUser: (input: Readonly<{ phone: string; email: string; password: string; signupProfile?: SignupProfile }>) => Promise<string>;
@@ -37,6 +38,16 @@ export function validateTemporarySignupOtp(phone: unknown, code: unknown):
   | Readonly<{ ok: true; phone: string }>
   | Readonly<{ ok: false }> {
   return validateIndianPhone(phone) && code === "1234" ? { ok: true, phone } : { ok: false };
+}
+
+export function isTemporaryPreviewIdentityOwned(input: Readonly<{
+  phone: unknown;
+  email: unknown;
+  marked: unknown;
+}>): boolean {
+  if (input.marked === true) return true;
+  if (!validateIndianPhone(input.phone) || typeof input.email !== "string") return false;
+  return input.email === `reporter.${input.phone.replace(/\D/g, "")}@preview.inbcn.invalid`;
 }
 
 export function isTemporaryDemoIdentityEligible(input: Readonly<{
@@ -72,7 +83,7 @@ export function createTemporaryAuthService(dependencies: TemporaryAuthDependenci
       const email = `reporter.${verified.phone.replace(/\D/g, "")}@preview.inbcn.invalid`;
       try {
         const existingUser = await dependencies.findUser(verified.phone);
-        if (existingUser && (!existingUser.marked || !existingUser.eligible)) {
+        if (existingUser && ((!existingUser.marked && !existingUser.legacyPreview) || !existingUser.eligible)) {
           throw new TemporaryAuthError("invalid-credentials");
         }
         if (!existingUser && !options.allowAccountCreation && !options.signupProfile && verified.phone !== REPORTER_DEMO_PHONE) {
