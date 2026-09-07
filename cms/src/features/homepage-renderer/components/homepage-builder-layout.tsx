@@ -71,7 +71,7 @@ export function HomepageBuilderLayout({
               key={`${item.hero.id}:${item.sidebar.id}`}
             >
               <div>{item.hero.node}</div>
-              <div className="editorial-builder-hero-sidebar">{item.sidebar.node}</div>
+              {item.sidebar.node}
             </section>
             ) : <SectionFrame key={item.section.id} section={item.section} selected={selectedSectionId === item.section.id} />;
           })}

@@ -15,16 +15,18 @@ export function HeroSidebarRenderer({ locale, title, stories }: HeroSidebarPaylo
   if (!stories.length) return null;
 
   return (
-    <aside aria-label={title} className="proto-hero-sidebar">
+    <aside aria-label={title} className="editorial-builder-hero-sidebar">
       <h2 className="sr-only">{title}</h2>
       {stories.map((story) => (
-        <article className="proto-hero-sidebar-card" key={story.id}>
-          <HomepageStoryImage className="proto-hero-sidebar-image" story={story} />
-          <div className="proto-hero-sidebar-copy">
-            <div className="proto-label">{story.categoryName ?? "News"}</div>
+        <article className="editorial-ledger-row log-row" key={story.id}>
+          <div className="editorial-ledger-meta">
+            <span>{story.categoryName ?? "News"}</span>
+            <time dateTime={story.publishedAt}>{publishedLabel(locale,story.publishedAt)}</time>
+          </div>
+          <HomepageStoryImage className="editorial-ledger-image" story={story} />
+          <div className="editorial-ledger-copy">
             <h3><Link href={story.href}>{story.title}</Link></h3>
             <p>{story.summary}</p>
-            <small>{publishedLabel(locale,story.publishedAt)}</small>
           </div>
         </article>
       ))}
