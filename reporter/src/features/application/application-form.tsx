@@ -14,6 +14,9 @@ const inputClass = "mt-1 w-full rounded-md border border-border bg-background px
 export function ApplicationForm() {
   const [state, action, pending] = useActionState(saveApplicationAction, initialState);
   const [locale, setLocale] = useState<ConsentLocale>("en");
+  const portraitError = state.status === "error" && /portrait|upload/iu.test(state.message ?? "")
+    ? state.message
+    : undefined;
 
   return (
     <form action={action} className="space-y-6">
@@ -57,7 +60,7 @@ export function ApplicationForm() {
         </div>
       </fieldset>
 
-      <ProfilePhotoField />
+      <ProfilePhotoField errorMessage={portraitError} pending={pending} />
       <ConsentForm locale={locale} onLocaleChange={setLocale} />
 
       {state.message ? (
