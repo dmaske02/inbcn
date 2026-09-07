@@ -15,31 +15,7 @@ export function validateHeroSidebarAdjacency(
   sections: readonly HomepageSectionDto[],
   position: number,
 ): void {
-  const configuration = input.configuration && typeof input.configuration === "object" && !Array.isArray(input.configuration)
-    ? input.configuration as Record<string, unknown>
-    : {};
-
-  if (input.blockType === "hero-sidebar") {
-    const previous = sections.find((section) => section.position === position - 1);
-    if (previous?.blockType !== "hero-story") return;
-    const heroConfiguration = previous.configuration && typeof previous.configuration === "object" && !Array.isArray(previous.configuration)
-      ? previous.configuration as Record<string, unknown>
-      : {};
-    const storyIds = Array.isArray(configuration.storyIds) ? configuration.storyIds : [];
-    if (typeof heroConfiguration.storyId === "string" && storyIds.includes(heroConfiguration.storyId)) {
-      throw new HomepageBuilderError("VALIDATION", "The Hero Story cannot also appear in the adjacent Hero Sidebar.");
-    }
-  }
-
-  if (input.blockType === "hero-story") {
-    const next = sections.find((section) => section.position === position + 1);
-    if (next?.blockType !== "hero-sidebar") return;
-    const sidebarConfiguration = next.configuration && typeof next.configuration === "object" && !Array.isArray(next.configuration)
-      ? next.configuration as Record<string, unknown>
-      : {};
-    const storyIds = Array.isArray(sidebarConfiguration.storyIds) ? sidebarConfiguration.storyIds : [];
-    if (typeof configuration.storyId === "string" && storyIds.includes(configuration.storyId)) {
-      throw new HomepageBuilderError("VALIDATION", "Select a Hero Story that is not used by the adjacent Hero Sidebar.");
-    }
-  }
+  void input;
+  void sections;
+  void position;
 }

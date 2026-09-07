@@ -14,6 +14,7 @@ type HomepageEditorBlockType = HomepageEditorDraft["blockType"];
 export type BlockEditorProps<TBlockType extends HomepageEditorBlockType = HomepageEditorBlockType> = Readonly<{
   locale: HomepageLocale;
   draft: Extract<HomepageEditorDraft, { blockType: TBlockType }>;
+  storyUsageById: Readonly<Record<string, readonly string[]>>;
   fieldErrors: HomepageEditorFieldErrors;
   onChange(draft: Extract<HomepageEditorDraft, { blockType: TBlockType }>): void;
 }>;

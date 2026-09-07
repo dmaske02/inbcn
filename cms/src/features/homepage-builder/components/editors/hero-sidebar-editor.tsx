@@ -15,16 +15,12 @@ export function HeroSidebarEditor({
   draft,
   fieldErrors,
   onChange,
+  storyUsageById,
 }: BlockEditorProps<"hero-sidebar">) {
   const [selectedStoriesById, setSelectedStoriesById] = useState<Partial<Record<string, StoryPickerOption>>>({});
   const [announcement, setAnnouncement] = useState("");
 
   function selectStory(index: number, story: StoryPickerOption) {
-    if (draft.storyIds.some((storyId, currentIndex) => storyId === story.id && currentIndex !== index)) {
-      setAnnouncement(`${story.title} is already selected.`);
-      return;
-    }
-
     const nextIds = [...draft.storyIds];
     nextIds[index] = story.id;
     const storyIds = nextIds.filter((storyId): storyId is string => Boolean(storyId)).slice(0, 3);
@@ -65,8 +61,11 @@ export function HeroSidebarEditor({
               <div className="flex flex-wrap gap-2">
                 <StoryPicker
                   locale={locale}
+                  currentSlotLabel={`Secondary Story ${index + 1}`}
+                  currentStoryId={draft.storyIds[index] ?? null}
                   onSelect={(story) => selectStory(index, story)}
                   selected={selected}
+                  storyUsageById={storyUsageById}
                   title={`Choose Secondary Story ${index + 1}`}
                   triggerLabel={hasPersistedSelection ? `Change Secondary Story ${index + 1}` : `Choose Secondary Story ${index + 1}`}
                 />

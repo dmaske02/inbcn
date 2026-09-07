@@ -171,6 +171,7 @@ export function AddHomepageSectionDialog({
                   fieldErrors={fieldErrors}
                   locale={locale}
                   onChange={changeDraft}
+                  storyUsageById={{}}
                 />
               ) : (
                 <p className="text-sm text-destructive" role="alert">This section type is not supported.</p>

@@ -39,7 +39,7 @@ const section = (id, blockType, position, configuration) => ({
   updatedAt: "2026-08-12T00:00:00.000Z",
 });
 
-test("adjacent Hero Story and Hero Sidebar cannot select the same story", () => {
+test("adjacent Hero Story and Hero Sidebar permit intentional story reuse", () => {
   const hero = section("hero", "hero-story", 0, { storyId });
   const sidebar = section("sidebar", "hero-sidebar", 1, { storyIds: [categoryId] });
 
@@ -48,16 +48,16 @@ test("adjacent Hero Story and Hero Sidebar cannot select the same story", () => 
     [hero, sidebar],
     1,
   ));
-  assert.throws(() => validateHeroSidebarAdjacency(
+  assert.doesNotThrow(() => validateHeroSidebarAdjacency(
     { blockType: "hero-sidebar", configuration: { storyIds: [storyId] } },
     [hero, sidebar],
     1,
-  ), /Hero Story/u);
-  assert.throws(() => validateHeroSidebarAdjacency(
+  ));
+  assert.doesNotThrow(() => validateHeroSidebarAdjacency(
     { blockType: "hero-story", configuration: { storyId: categoryId } },
     [hero, sidebar],
     0,
-  ), /Hero Sidebar/u);
+  ));
 });
 
 test("non-adjacent Hero Sidebar selections remain independent", () => {
@@ -73,17 +73,17 @@ test("non-adjacent Hero Sidebar selections remain independent", () => {
   ));
 });
 
-test("reordered sections are rejected when drag-and-drop creates an adjacent duplicate", () => {
+test("reordered sections preserve intentional adjacent reuse", () => {
   const hero = section("hero", "hero-story", 0, { storyId });
   const latest = section("latest", "latest-news", 1, { limit: 5 });
   const sidebar = section("sidebar", "hero-sidebar", 2, { storyIds: [storyId] });
   const reordered = [hero, { ...sidebar, position: 1 }, { ...latest, position: 2 }];
 
-  assert.throws(() => validateHeroSidebarAdjacency(
+  assert.doesNotThrow(() => validateHeroSidebarAdjacency(
     { blockType: "hero-sidebar", configuration: sidebar.configuration },
     reordered,
     1,
-  ), /Hero Story/u);
+  ));
 });
 
 test("visual service performs targeted validation for every Hero Sidebar story", async () => {

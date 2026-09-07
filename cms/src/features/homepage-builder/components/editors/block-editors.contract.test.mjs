@@ -28,23 +28,23 @@ test("Hero and Category editors use human-readable pickers without identifier in
   assert.doesNotMatch(source["category-section-editor.tsx"], /type="hidden"|name="categoryId"/u);
 });
 
-test("Hero Sidebar editor exposes three accessible Story Pickers and prevents duplicate selections", async () => {
+test("Hero Sidebar editor exposes three accessible Story Pickers and allows confirmed reuse", async () => {
   const source = await sources();
   const sidebar = source["hero-sidebar-editor.tsx"];
   assert.match(sidebar, /Secondary Story \{index \+ 1\}/u);
   assert.match(sidebar, /<StoryPicker/u);
   assert.match(sidebar, /storyIds/u);
-  assert.match(sidebar, /already selected/u);
+  assert.doesNotMatch(sidebar, /already selected/u);
   assert.match(sidebar, /aria-live="polite"/u);
   assert.match(sidebar, /selectedStoriesById\[draft\.storyIds\[index\] \?\? ""\]/u);
   assert.doesNotMatch(sidebar, /type="hidden"|name="storyIds"|JSON/u);
 });
 
-test("shared and block editors cover approved visual controls and zero-configuration states", async () => {
+test("shared and block editors expose content controls but keep template layout fixed", async () => {
   const source = await sources();
   assert.match(source["shared-section-fields.tsx"], /Section title/u);
   assert.match(source["shared-section-fields.tsx"], /Starts at/u);
-  assert.match(source["shared-section-fields.tsx"], /Container/u);
+  assert.doesNotMatch(source["shared-section-fields.tsx"], /\n\s+Container\r?\n|\n\s+Width\r?\n/u);
   assert.match(source["list-block-editor.tsx"], /Story count/u);
   assert.match(source["list-block-editor.tsx"], /min=\{1\}/u);
   assert.match(source["list-block-editor.tsx"], /max=\{100\}/u);

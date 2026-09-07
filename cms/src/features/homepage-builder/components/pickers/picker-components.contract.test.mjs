@@ -18,6 +18,26 @@ test("Story Picker uses the authenticated locale-aware action and renders editor
   assert.match(source, /triggerLabel = selected \? "Change story" : "Choose story"/u);
 });
 
+test("Story Picker makes current, available, and in-use story states explicit", async () => {
+  const source = await read("story-picker.tsx");
+  assert.match(source, /This story is in use/u);
+  assert.match(source, />In use in \{slot\}</u);
+  assert.match(source, /This story is currently selected/u);
+  assert.match(source, />Current slot: \{currentSlotLabel\}</u);
+  assert.match(source, />Available</u);
+  assert.match(source, /otherUsageSlots\.map/u);
+});
+
+test("Story Picker requires confirmation before intentional reuse", async () => {
+  const storyPicker = await read("story-picker.tsx");
+  const pickerDialog = await read("picker-dialog.tsx");
+  assert.match(storyPicker, /This story is in use in \$\{formatSlotList\(otherUsageSlots\)\}/u);
+  assert.match(storyPicker, /Do you want to use the same story in \$\{currentSlotLabel\}\?/u);
+  assert.match(pickerDialog, />Cancel</u);
+  assert.match(pickerDialog, />Use story</u);
+  assert.match(pickerDialog, /selectionConfirmation/u);
+});
+
 test("Category Picker uses the authenticated locale-aware action and published counts", async () => {
   const source = await read("category-picker.tsx");
   assert.match(source, /^"use client";/u);

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import type { HomepageSectionDto } from "../homepage-builder.types.ts";
+import { isFixedHomepageSelectionId } from "../homepage-fixed-template.model.ts";
 import type {
   EditorActionResult,
   HomepageEditorDraft,
@@ -143,7 +144,7 @@ export function useHomepageAutosave({ locale, state, dispatch, save }: UseHomepa
       const draft = state.draftsBySectionId[sectionId];
       const base = state.baseSections.find((section) => section.id === sectionId);
       const revision = state.draftRevisionById[sectionId] ?? 0;
-      if (!draft || !base || Object.keys(state.validationById[sectionId] ?? {}).length > 0) {
+      if (!draft || (!base && !isFixedHomepageSelectionId(sectionId)) || Object.keys(state.validationById[sectionId] ?? {}).length > 0) {
         scheduler.cancelPending(sectionId);
         tasksRef.current.delete(sectionId);
         continue;
@@ -153,7 +154,7 @@ export function useHomepageAutosave({ locale, state, dispatch, save }: UseHomepa
         sectionId,
         revision,
         onStart: (requestSequence) => dispatch({ type: "save-started", sectionId, requestSequence, draftRevision: revision }),
-        run: () => save({ locale, id: sectionId, expectedUpdatedAt: base.updatedAt, section: visualValues(draft) }),
+        run: () => save({ locale, id: sectionId, expectedUpdatedAt: base?.updatedAt, section: visualValues(draft) }),
         onResult: (result, requestSequence) => {
           if (result.ok) {
             dispatch({ type: "save-succeeded", sectionId, requestSequence, savedDraftRevision: revision, section: result.data });

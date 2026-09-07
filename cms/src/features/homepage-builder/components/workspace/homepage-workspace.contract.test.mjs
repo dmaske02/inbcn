@@ -11,6 +11,9 @@ test("workspace composes the completed reducer, visual inspector, autosave, and 
   assert.match(source, /useHomepageAutosave/u);
   assert.match(source, /useUnsavedChangesGuard/u);
   assert.match(source, /saveVisualHomepageSection/u);
+  assert.match(source, /createVisualHomepageSection/u);
+  assert.match(source, /isFixedHomepageSelectionId/u);
+  assert.match(source, /persistHomepageSection/u);
   assert.match(source, /validateHomepageEditorDraft/u);
   assert.match(source, /<HomepageInspector/u);
 });
@@ -36,37 +39,97 @@ test("toolbar exposes locale navigation while status remains persistent and acce
   assert.doesNotMatch(status, /draftRevision/u);
 });
 
-test("workspace delegates ordering to the sortable section list", async () => {
+test("workspace uses the fixed website structure instead of sortable composition", async () => {
   const source = await read("homepage-builder-workspace.tsx");
-  assert.match(source, /<SectionList/u);
-  assert.match(source, /dispatch/u);
-  assert.doesNotMatch(source, /moveSectionUp|moveSectionDown/u);
+  assert.match(source, /<FixedHomepageSectionList/u);
+  assert.doesNotMatch(source, /<SectionList|AddHomepageSectionDialog|newSectionDraft/u);
 });
 
-test("workspace exposes explicit visual creation and keeps writers read-only", async () => {
+test("every configurable fixed slot resolves to its existing typed editor", async () => {
+  const model = await readFile("src/features/homepage-builder/homepage-fixed-template.model.ts", "utf8");
+  const inspector = await read("homepage-inspector.tsx");
+  for (const type of [
+    "hero-sidebar",
+    "breaking-news",
+    "latest-news",
+    "trending",
+    "opinion",
+    "advertisement-placeholder",
+    "category-section",
+  ]) assert.match(model, new RegExp(`blockType: "${type}"`, "u"));
+  assert.match(inspector, /getVisualBlockEditor\(draft\.blockType\)/u);
+  assert.match(inspector, /selectionLabel/u);
+  assert.match(model, /Fixed site chrome/u);
+});
+
+test("workspace presents the approved three-panel editorial layout", async () => {
+  const source = await read("homepage-builder-workspace.tsx");
+  assert.match(source, /xl:grid-cols-\[17\.5rem_minmax\(0,1fr\)_22rem\]/u);
+  assert.match(source, /aria-label="Sections navigator"/u);
+  assert.match(source, /aria-label="Homepage canvas"/u);
+  assert.match(source, /aria-label="Properties inspector"/u);
+  assert.match(source, /<FixedHomepageSectionList/u);
+  assert.match(source, /<HomepagePreviewFrame/u);
+  assert.match(source, /<HomepageInspector/u);
+});
+
+test("canvas stays primary while responsive controls open sections and properties", async () => {
+  const source = await read("homepage-builder-workspace.tsx");
+  assert.match(source, /useState<"sections" \| "properties" \| null>\(null\)/u);
+  assert.match(source, /Open sections navigator/u);
+  assert.match(source, /Open properties inspector/u);
+  assert.match(source, /Close sections navigator/u);
+  assert.match(source, /Close properties inspector/u);
+  assert.match(source, /xl:hidden/u);
+});
+
+test("toolbar follows the approved Hindi-first locale order", async () => {
+  const toolbar = await read("homepage-builder-toolbar.tsx");
+  assert.match(toolbar, /const LOCALES = \["hi", "en", "mr"\]/u);
+});
+
+test("fixed structure hides arbitrary add, duplicate, delete, and reorder controls", async () => {
   const workspace = await read("homepage-builder-workspace.tsx");
   const toolbar = await read("homepage-builder-toolbar.tsx");
-  const addDialog = await read("add-homepage-section-dialog.tsx");
-  assert.match(workspace, /canManage/u);
-  assert.match(workspace, /newSectionDraft/u);
-  assert.match(workspace, /<AddHomepageSectionDialog/u);
-  assert.match(workspace, /canManage \? \(/u);
+  const fixedList = await readFile("src/features/homepage-builder/components/sections/fixed-homepage-section-list.tsx", "utf8");
   assert.match(toolbar, /HomepageBuilder editorial workspace/u);
-  assert.match(addDialog, /createVisualHomepageSection/u);
-  assert.match(addDialog, /validateHomepageEditorDraft/u);
-  assert.match(addDialog, /getVisualBlockEditor/u);
-  assert.match(addDialog, /Add section/u);
-  assert.match(addDialog, /aria-live="polite"/u);
-  assert.doesNotMatch(addDialog, /Configuration JSON|Block ID|UUID|renderer selector/iu);
+  assert.doesNotMatch(workspace + toolbar + fixedList, /Add section|Move |Duplicate section|Delete section/u);
+  assert.doesNotMatch(fixedList, /DndContext|useSortable|moveHomepageSectionTo/u);
 });
 
-test("all structural controls are permission-gated and read-only mode remains navigable", async () => {
+test("fixed section selection remains permission-neutral and read-only mode remains navigable", async () => {
   const workspace = await read("homepage-builder-workspace.tsx");
-  const sectionList = await readFile("src/features/homepage-builder/components/sections/section-list.tsx", "utf8");
-  const sectionCard = await readFile("src/features/homepage-builder/components/sections/sortable-section-card.tsx", "utf8");
-  assert.match(workspace, /canManage=\{canManage\}/u);
+  const fixedList = await readFile("src/features/homepage-builder/components/sections/fixed-homepage-section-list.tsx", "utf8");
   assert.match(workspace, /Read-only access/u);
-  assert.match(sectionList, /canManage/u);
-  assert.match(sectionCard, /canManage/u);
-  assert.match(sectionCard, /\{canManage \? \(/u);
+  assert.match(fixedList, /onSelect/u);
+  assert.match(fixedList, /aria-pressed/u);
+  assert.doesNotMatch(fixedList, /disabled=\{!item\.draft\}/u);
+  assert.match(fixedList, /onSelect\(item\.selectionId\)/u);
+  assert.match(workspace, /selectedItem/u);
+  assert.match(workspace, /selectionLabel=\{selectedItem\?\.label/u);
+});
+
+test("selected section is forwarded to the real homepage canvas", async () => {
+  const workspace = await read("homepage-builder-workspace.tsx");
+  assert.match(workspace, /selectedSectionId=\{selectedId\}/u);
+});
+
+test("workspace derives all visible story-slot usages for picker status text", async () => {
+  const workspace = await read("homepage-builder-workspace.tsx");
+  const inspector = await read("homepage-inspector.tsx");
+  assert.match(workspace, /storyUsageById/u);
+  assert.match(workspace, /push\("Hero Story"\)/u);
+  assert.match(workspace, /push\(`Secondary Story \$\{index \+ 1\}`\)/u);
+  assert.match(workspace, /storyUsageById=\{storyUsageById\}/u);
+  assert.match(inspector, /storyUsageById=\{storyUsageById\}/u);
+});
+
+test("fixed layout properties are not exposed as editable controls", async () => {
+  const fields = await readFile("src/features/homepage-builder/components/editors/shared-section-fields.tsx", "utf8");
+  assert.doesNotMatch(fields, /\n\s+Container\r?\n/u);
+  assert.doesNotMatch(fields, /\n\s+Width\r?\n/u);
+  assert.match(fields, /Section title/u);
+  assert.match(fields, /Enabled on the homepage/u);
+  assert.match(fields, /Starts at/u);
+  assert.match(fields, /Ends at/u);
 });

@@ -168,6 +168,31 @@
   }
 }
 
+.homepage-preview-section {
+  position: relative;
+  scroll-margin: 24px;
+}
+
+.homepage-preview-selected {
+  outline: 3px solid #b3261e;
+  outline-offset: 8px;
+}
+
+.homepage-preview-selection-public-header .proto-masthead,
+.homepage-preview-selection-public-footer .proto-footer,
+.homepage-preview-selection-leaderboard #main-content,
+.homepage-preview-selection-hero #main-content,
+.homepage-preview-selection-hero-sidebar #main-content,
+.homepage-preview-selection-headlines #main-content,
+.homepage-preview-selection-latest #main-content,
+.homepage-preview-selection-most-read #main-content,
+.homepage-preview-selection-editors-picks #main-content,
+.homepage-preview-selection-mid-feed-ad #main-content,
+.homepage-preview-selection-category-rails #main-content {
+  outline: 3px solid #b3261e;
+  outline-offset: -3px;
+}
+
 @layer components {
   .public-site {
     --background: #f6f3ed;

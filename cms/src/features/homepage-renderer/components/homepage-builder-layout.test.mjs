@@ -43,8 +43,24 @@ test("HomepageBuilderLayout owns all Hero adjacency composition",async()=>{
   const sidebar=await readFile("src/features/homepage-renderer/components/hero-sidebar-renderer.tsx","utf8");
   const blocks=await readFile("src/features/homepage-renderer/components/homepage-block-renderers.tsx","utf8");
   assert.match(layout,/composeHomepageLayout/u);
-  assert.match(layout,/proto-hero-composition/u);
+  assert.match(layout,/editorial-builder-hero-composition/u);
   assert.doesNotMatch(sidebar+blocks,/composeHomepageLayout|hero-composition/u);
+});
+
+test("builder layout follows the public homepage composition and highlights selection",async()=>{
+  const layout=await readFile("src/features/homepage-renderer/components/homepage-builder-layout.tsx","utf8");
+  assert.match(layout,/public-site editorial-page editorial-homepage/u);
+  assert.match(layout,/editorial-home-discovery/u);
+  assert.match(layout,/data-homepage-selected/u);
+  assert.match(layout,/selectedSectionId/u);
+});
+
+test("preview CSS highlights selectable public chrome without changing its renderer", async () => {
+  const css=await readFile("src/app/globals.css","utf8");
+  assert.match(css,/homepage-preview-selection-public-header/u);
+  assert.match(css,/homepage-preview-selection-public-footer/u);
+  assert.match(css,/\.proto-masthead/u);
+  assert.match(css,/\.proto-footer/u);
 });
 
 test("responsive CSS defines desktop 70\/30 composition and stacked smaller layouts",async()=>{

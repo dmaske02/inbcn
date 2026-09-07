@@ -13,6 +13,7 @@ import { PickerResults } from "./picker-results";
 type PickerDialogProps<T extends Readonly<{ id: string }>> = Readonly<{
   locale: HomepageLocale;
   selected: T | null;
+  selectedId?: string | null;
   triggerLabel: string;
   title: string;
   description: string;
@@ -21,12 +22,14 @@ type PickerDialogProps<T extends Readonly<{ id: string }>> = Readonly<{
   search(input: Readonly<{ locale: HomepageLocale; query: string; page: number }>): Promise<EditorActionResult<HomepagePickerPage<T>>>;
   renderItem(item: T): ReactNode;
   renderSelected?(item: T): ReactNode;
+  selectionConfirmation?(item: T): Readonly<{ title: string; description: string }> | null;
   onSelect(item: T): void;
 }>;
 
 export function PickerDialog<T extends Readonly<{ id: string }>>({
   locale,
   selected,
+  selectedId,
   triggerLabel,
   title,
   description,
@@ -35,6 +38,7 @@ export function PickerDialog<T extends Readonly<{ id: string }>>({
   search,
   renderItem,
   renderSelected,
+  selectionConfirmation,
   onSelect,
 }: PickerDialogProps<T>) {
   const [open, setOpen] = useState(false);
@@ -43,6 +47,7 @@ export function PickerDialog<T extends Readonly<{ id: string }>>({
   const [result, setResult] = useState<HomepagePickerPage<T> | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingSelection, setPendingSelection] = useState<T | null>(null);
   const requestSequence = useRef(0);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const descriptionId = useId();
@@ -76,12 +81,18 @@ export function PickerDialog<T extends Readonly<{ id: string }>>({
   }, [locale, open, page, query, search]);
 
   function choose(item: T) {
+    if (selectionConfirmation?.(item)) {
+      setPendingSelection(item);
+      return;
+    }
     onSelect(item);
     setOpen(false);
   }
 
+  const confirmation = pendingSelection ? selectionConfirmation?.(pendingSelection) : null;
+
   return (
-    <DialogPrimitive.Root onOpenChange={setOpen} open={open}>
+    <DialogPrimitive.Root onOpenChange={(nextOpen) => { setOpen(nextOpen); if (!nextOpen) setPendingSelection(null); }} open={open}>
       <DialogPrimitive.Trigger asChild>
         <Button ref={triggerRef} variant="outline">{triggerLabel}</Button>
       </DialogPrimitive.Trigger>
@@ -95,6 +106,18 @@ export function PickerDialog<T extends Readonly<{ id: string }>>({
             triggerRef.current?.focus();
           }}
         >
+          {confirmation && pendingSelection ? (
+            <div className="grid gap-5">
+              <div className="pe-10">
+                <DialogPrimitive.Title className="font-heading text-xl font-semibold tracking-tight">{confirmation.title}</DialogPrimitive.Title>
+                <DialogPrimitive.Description className="mt-2 text-sm leading-relaxed text-muted-foreground" id={descriptionId}>{confirmation.description}</DialogPrimitive.Description>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button onClick={() => setPendingSelection(null)} type="button" variant="outline">Cancel</Button>
+                <Button onClick={() => { onSelect(pendingSelection); setPendingSelection(null); setOpen(false); }} type="button">Use story</Button>
+              </div>
+            </div>
+          ) : <>
           <div className="pe-10">
             <DialogPrimitive.Title className="font-heading text-xl font-semibold tracking-tight">{title}</DialogPrimitive.Title>
             <DialogPrimitive.Description className="mt-1 text-sm leading-relaxed text-muted-foreground" id={descriptionId}>{description}</DialogPrimitive.Description>
@@ -133,9 +156,10 @@ export function PickerDialog<T extends Readonly<{ id: string }>>({
             loading={loading}
             onSelect={choose}
             renderItem={renderItem}
-            selectedId={selected?.id}
+            selectedId={selectedId ?? selected?.id}
           />
           <PickerPagination page={result?.page ?? page} totalPages={result?.totalPages ?? 0} onPageChange={setPage} />
+          </>}
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

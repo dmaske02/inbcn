@@ -11,14 +11,7 @@ export default async function HomepageBuilderPage({ searchParams }: Readonly<{
   const view = await getHomepageEditorWorkspaceView(admin, locale ?? "hi");
 
   return (
-    <div className="grid gap-8">
-      <header>
-        <p className="text-sm font-medium text-muted-foreground">Homepage management</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">Homepage Builder</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Arrange and configure the live localized homepage through a visual editorial workspace.
-        </p>
-      </header>
+    <div>
       <HomepageBuilderWorkspace
         canManage={view.canManage}
         locale={view.locale}

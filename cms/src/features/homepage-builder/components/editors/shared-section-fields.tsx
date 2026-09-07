@@ -15,7 +15,7 @@ function FieldError({ id, message }: Readonly<{ id: string; message?: string }>)
 }
 
 export function SharedSectionFields<T extends HomepageEditorDraft>({ draft, fieldErrors, onChange }: SharedSectionFieldsProps<T>) {
-  function update<Key extends "title" | "container" | "width" | "enabled" | "startsAt" | "endsAt">(
+  function update<Key extends "title" | "enabled" | "startsAt" | "endsAt">(
     key: Key,
     value: T[Key],
   ) {
@@ -38,27 +38,7 @@ export function SharedSectionFields<T extends HomepageEditorDraft>({ draft, fiel
         <FieldError id={`${draft.id}-title-error`} message={fieldErrors.title} />
       </label>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="grid gap-2 text-sm font-medium">
-          Container
-          <select className={inputClassName} onChange={(event) => update("container", event.target.value as T["container"])} value={draft.container}>
-            <option value="main">Main</option>
-            <option value="sidebar">Sidebar</option>
-            <option value="footer">Footer</option>
-          </select>
-        </label>
-        <label className="grid gap-2 text-sm font-medium">
-          Width
-          <select className={inputClassName} onChange={(event) => update("width", event.target.value as T["width"])} value={draft.width}>
-            <option value="full">Full width</option>
-            <option value="half">Half width</option>
-            <option value="third">One third</option>
-            <option value="quarter">One quarter</option>
-          </select>
-        </label>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4">
         <label className="grid gap-2 text-sm font-medium">
           Starts at
           <input

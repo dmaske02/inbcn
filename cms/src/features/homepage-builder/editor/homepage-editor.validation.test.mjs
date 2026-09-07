@@ -89,9 +89,9 @@ test("Hero Sidebar drafts preserve configured order and reject invalid selection
   ]);
   assert.deepEqual(toHomepageSectionInput(draft, definition).configuration, configurations[1][1]);
   assert.deepEqual(validateHomepageEditorDraft(draft, definition), {});
-  assert.equal(validateHomepageEditorDraft({ ...draft, storyIds: [] }, definition).storyIds, "Select between 1 and 3 unique stories.");
-  assert.equal(validateHomepageEditorDraft({ ...draft, storyIds: [draft.storyIds[0], draft.storyIds[0]] }, definition).storyIds, "Select between 1 and 3 unique stories.");
-  assert.equal(validateHomepageEditorDraft({ ...draft, storyIds: ["bad"] }, definition).storyIds, "Select between 1 and 3 unique stories.");
+  assert.equal(validateHomepageEditorDraft({ ...draft, storyIds: [] }, definition).storyIds, "Select between 1 and 3 stories.");
+  assert.equal(validateHomepageEditorDraft({ ...draft, storyIds: [draft.storyIds[0], draft.storyIds[0]] }, definition).storyIds, undefined);
+  assert.equal(validateHomepageEditorDraft({ ...draft, storyIds: ["bad"] }, definition).storyIds, "Select between 1 and 3 stories.");
 });
 
 test("client validation mirrors common and block registry boundaries", () => {

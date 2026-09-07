@@ -53,11 +53,11 @@ test("interactive transport schemas reject every client-controlled persistence f
   assert.doesNotMatch(source, /error\.stack/u);
 });
 
-test("Hero Sidebar transport accepts only one to three unique story ids", async () => {
+test("Hero Sidebar transport accepts one to three story slots including intentional reuse", async () => {
   const source = await readFile("src/features/homepage-builder/homepage-builder.actions.ts", "utf8");
   assert.match(source, /blockType: z\.literal\("hero-sidebar"\)/u);
   assert.match(source, /storyIds: z\.array\(idSchema\)\.min\(1\)\.max\(3\)/u);
-  assert.match(source, /Hero Sidebar stories must be unique/u);
+  assert.doesNotMatch(source, /Hero Sidebar stories must be unique/u);
 });
 
 test("the service derives internal ownership, renderer, block id, and audit values", async () => {

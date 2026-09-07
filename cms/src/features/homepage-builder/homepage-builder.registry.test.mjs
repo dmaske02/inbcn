@@ -20,7 +20,7 @@ test("registry validates story, category, list, and placeholder configurations",
   assert.equal(getHomepageBlockDefinition("live-tv").validate({}).success, true);
 });
 
-test("Hero Sidebar persists only one to three unique story ids", () => {
+test("Hero Sidebar persists one to three story slots and permits intentional reuse", () => {
   const definition = getHomepageBlockDefinition("hero-sidebar");
   const first = "11111111-1111-4111-8111-111111111111";
   const second = "22222222-2222-4222-8222-222222222222";
@@ -30,7 +30,7 @@ test("Hero Sidebar persists only one to three unique story ids", () => {
   assert.equal(definition.validate({ storyIds: [first] }).success, true);
   assert.equal(definition.validate({ storyIds: [first, second, third] }).success, true);
   assert.equal(definition.validate({ storyIds: [] }).success, false);
-  assert.equal(definition.validate({ storyIds: [first, first] }).success, false);
+  assert.equal(definition.validate({ storyIds: [first, first] }).success, true);
   assert.equal(definition.validate({ storyIds: [first, second, third, "44444444-4444-4444-8444-444444444444"] }).success, false);
   assert.equal(definition.validate({ storyIds: ["bad"] }).success, false);
   assert.equal(definition.validate({ storyIds: [first], renderer: "hero-sidebar" }).success, false);

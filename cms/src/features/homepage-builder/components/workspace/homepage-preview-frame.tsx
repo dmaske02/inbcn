@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Monitor, RefreshCw, Smartphone, Tablet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type {
@@ -20,18 +20,40 @@ export function HomepagePreviewFrame({
   revision,
   viewport,
   dispatch,
+  selectedSectionId,
 }: Readonly<{
   locale: HomepageLocale;
   revision: number;
   viewport: HomepageEditorViewport;
   dispatch: React.Dispatch<HomepageEditorEvent>;
+  selectedSectionId: string | null;
 }>) {
   const [refreshSequence, setRefreshSequence] = useState(0);
   const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  const src = `/homepage-builder-preview/${locale}?revision=${revision}&refresh=${refreshSequence}`;
+  const [fitScale, setFitScale] = useState(1);
+  const previewViewportRef = useRef<HTMLDivElement>(null);
+  const src = `/homepage-builder-preview/${locale}?revision=${revision}&refresh=${refreshSequence}&selected=${selectedSectionId ?? ""}`;
   const preset = VIEWPORTS[viewport];
   const loadState = failedSrc === src ? "error" : loadedSrc === src ? "ready" : "loading";
+
+  useEffect(() => {
+    const previewViewport = previewViewportRef.current;
+    if (!previewViewport) return;
+    const observedViewport = previewViewport;
+
+    function fitPreview() {
+      const styles = window.getComputedStyle(observedViewport);
+      const horizontalPadding = Number.parseFloat(styles.paddingLeft) + Number.parseFloat(styles.paddingRight);
+      const availableWidth = Math.max(0, observedViewport.clientWidth - horizontalPadding);
+      setFitScale(Math.min(1, availableWidth / preset.width));
+    }
+
+    fitPreview();
+    const resizeObserver = new ResizeObserver(fitPreview);
+    resizeObserver.observe(observedViewport);
+    return () => resizeObserver.disconnect();
+  }, [preset.width]);
 
   const announcement = loadState === "loading"
     ? "Refreshing homepage preview."
@@ -43,11 +65,12 @@ export function HomepagePreviewFrame({
     <section aria-labelledby="homepage-preview-heading" className="grid gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold" id="homepage-preview-heading">
-            Homepage preview
+          <h2 className="font-heading text-xl font-semibold" id="homepage-preview-heading">
+            Homepage Canvas
           </h2>
           <p className="text-sm text-muted-foreground">
-            Persisted, server-confirmed content for {locale.toUpperCase()}.
+            <span className="mr-2 inline-block size-1.5 rounded-full bg-emerald-600 align-middle" aria-hidden="true" />
+            Server confirmed · {locale.toUpperCase()}
           </p>
         </div>
         <div aria-label="Preview viewport" className="flex flex-wrap gap-2" role="group">
@@ -86,38 +109,51 @@ export function HomepagePreviewFrame({
         {announcement}
       </p>
 
-      <div className="max-w-full overflow-auto rounded-lg border border-border bg-muted/40 p-4">
+      <div
+        className="max-w-full overflow-auto border border-border bg-[#ddd9d0] p-3 sm:p-5"
+        ref={previewViewportRef}
+      >
         <div
-          className="relative mx-auto shrink-0 overflow-hidden rounded-md border border-border bg-background shadow-sm transition-[width,height] motion-reduce:transition-none"
-          style={{ height: preset.height, width: preset.width }}
+          className="relative mx-auto shrink-0 transition-[width,height] motion-reduce:transition-none"
+          style={{ height: preset.height * fitScale, width: preset.width * fitScale }}
         >
-          {loadState === "loading" ? (
-            <div
-              aria-hidden="true"
-              className="absolute inset-0 z-10 grid place-items-center bg-background/90 text-sm text-muted-foreground"
-            >
-              Loading preview…
-            </div>
-          ) : null}
-          {loadState === "error" ? (
-            <div
-              className="absolute inset-0 z-10 grid place-items-center bg-background p-6 text-center text-sm text-destructive"
-              role="alert"
-            >
-              Homepage preview could not be loaded. Continue editing and try again after the next save.
-            </div>
-          ) : null}
-          <iframe
-            className="size-full border-0 bg-background"
-            onError={() => setFailedSrc(src)}
-            onLoad={() => {
-              setFailedSrc(null);
-              setLoadedSrc(src);
+          <div
+            className="absolute left-0 top-0 overflow-hidden border border-border bg-background shadow-sm"
+            style={{
+              height: preset.height,
+              transform: `scale(${fitScale})`,
+              transformOrigin: "top left",
+              width: preset.width,
             }}
-            sandbox="allow-same-origin allow-scripts"
-            src={src}
-            title="Homepage visual preview"
-          />
+          >
+            {loadState === "loading" ? (
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 z-10 grid place-items-center bg-background/90 text-sm text-muted-foreground"
+              >
+                Loading preview…
+              </div>
+            ) : null}
+            {loadState === "error" ? (
+              <div
+                className="absolute inset-0 z-10 grid place-items-center bg-background p-6 text-center text-sm text-destructive"
+                role="alert"
+              >
+                Homepage preview could not be loaded. Continue editing and try again after the next save.
+              </div>
+            ) : null}
+            <iframe
+              className="size-full border-0 bg-background"
+              onError={() => setFailedSrc(src)}
+              onLoad={() => {
+                setFailedSrc(null);
+                setLoadedSrc(src);
+              }}
+              sandbox="allow-same-origin allow-scripts"
+              src={src}
+              title="Homepage visual preview"
+            />
+          </div>
         </div>
       </div>
     </section>

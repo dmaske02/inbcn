@@ -7,6 +7,7 @@ import type {
   HomepageEditorViewport,
 } from "./homepage-editor.types.ts";
 import { draftFromSection } from "./homepage-editor.validation.ts";
+import { createMissingFixedHomepageDrafts, isFixedHomepageSelectionId } from "../homepage-fixed-template.model.ts";
 
 const INITIAL_SAVE_STATE: HomepageEditorSaveState = {
   status: "idle",
@@ -46,6 +47,11 @@ function initialState(
     draftsBySectionId[section.id] = draftFromSection(section);
     saveStateById[section.id] = INITIAL_SAVE_STATE;
     draftRevisionById[section.id] = 0;
+  }
+  for (const draft of createMissingFixedHomepageDrafts(Object.values(draftsBySectionId))) {
+    draftsBySectionId[draft.id] = draft;
+    saveStateById[draft.id] = INITIAL_SAVE_STATE;
+    draftRevisionById[draft.id] = 0;
   }
 
   const requestedSelection = selectedSectionId ?? baseSections[0]?.id ?? null;
@@ -92,7 +98,7 @@ export function homepageEditorReducer(
     case "locale-changed":
       return initialState(event.sections, event.selectedSectionId, state.viewport);
     case "select":
-      if (event.sectionId !== null && !state.draftsBySectionId[event.sectionId]) return state;
+      if (event.sectionId !== null && !state.draftsBySectionId[event.sectionId] && !isFixedHomepageSelectionId(event.sectionId)) return state;
       return { ...state, selectedSectionId: event.sectionId };
     case "new-section-started":
       return { ...state, newSectionDraft: event.draft };
@@ -185,6 +191,30 @@ export function homepageEditorReducer(
       if (!current || current.requestSequence !== event.requestSequence) return state;
       const currentDraftRevision = state.draftRevisionById[event.sectionId] ?? 0;
       const fullyAcknowledged = currentDraftRevision === event.savedDraftRevision;
+      if (isFixedHomepageSelectionId(event.sectionId) && fullyAcknowledged) {
+        const baseSections = ordered([...state.baseSections, event.section]);
+        return {
+          ...state,
+          baseSections,
+          draftsBySectionId: {
+            ...withoutKey(state.draftsBySectionId, event.sectionId),
+            [event.section.id]: draftFromSection(event.section),
+          },
+          selectedSectionId: state.selectedSectionId === event.sectionId ? event.section.id : state.selectedSectionId,
+          orderedIds: baseSections.map((section) => section.id),
+          dirtySectionIds: withoutValue(state.dirtySectionIds, event.sectionId),
+          validationById: withoutKey(state.validationById, event.sectionId),
+          saveStateById: {
+            ...withoutKey(state.saveStateById, event.sectionId),
+            [event.section.id]: { ...INITIAL_SAVE_STATE, status: "saved" },
+          },
+          draftRevisionById: {
+            ...withoutKey(state.draftRevisionById, event.sectionId),
+            [event.section.id]: 0,
+          },
+          previewRevision: state.previewRevision + 1,
+        };
+      }
       return {
         ...state,
         baseSections: replaceSection(state.baseSections, event.section),

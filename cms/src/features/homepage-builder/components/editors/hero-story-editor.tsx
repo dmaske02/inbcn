@@ -7,7 +7,7 @@ import { StoryPicker } from "../pickers/story-picker";
 import type { BlockEditorProps } from "./block-editor-registry";
 import { SharedSectionFields } from "./shared-section-fields";
 
-export function HeroStoryEditor({ locale, draft, fieldErrors, onChange }: BlockEditorProps<"hero-story">) {
+export function HeroStoryEditor({ locale, draft, fieldErrors, onChange, storyUsageById }: BlockEditorProps<"hero-story">) {
   const [selectedStory, setSelectedStory] = useState<StoryPickerOption | null>(null);
 
   return (
@@ -27,11 +27,14 @@ export function HeroStoryEditor({ locale, draft, fieldErrors, onChange }: BlockE
         ) : null}
         <StoryPicker
           locale={locale}
+          currentSlotLabel="Hero Story"
+          currentStoryId={draft.storyId}
           onSelect={(story) => {
             setSelectedStory(story);
             onChange({ ...draft, storyId: story.id });
           }}
           selected={selectedStory}
+          storyUsageById={storyUsageById}
         />
         {fieldErrors.storyId ? <p className="text-xs text-destructive" role="alert">{fieldErrors.storyId}</p> : null}
       </fieldset>

@@ -4,10 +4,7 @@ const uuid = z.uuid();
 const empty = z.object({}).strict();
 const list = z.object({ limit: z.number().int().min(1).max(100).default(12) }).strict();
 const heroSidebar = z.object({
-  storyIds: z.array(uuid).min(1).max(3).refine(
-    (items) => new Set(items).size === items.length,
-    "Hero Sidebar stories must be unique.",
-  ),
+  storyIds: z.array(uuid).min(1).max(3),
 }).strict();
 const heroSidebarDefaults: { storyIds: string[] } = { storyIds: [] };
 const definitions = [

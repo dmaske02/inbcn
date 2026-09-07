@@ -52,6 +52,62 @@ test("initialization creates server-confirmed drafts and selects the requested s
   assert.equal(state.viewport, "desktop");
 });
 
+test("fixed template slots are valid selections without entering persisted order", () => {
+  const hero = section();
+  const initial = createHomepageEditorState([hero]);
+  const selected = homepageEditorReducer(initial, {
+    type: "select",
+    sectionId: "fixed:public-header",
+  });
+
+  assert.equal(selected.selectedSectionId, "fixed:public-header");
+  assert.equal(selected.draftsBySectionId["fixed:public-header"], undefined);
+  assert.equal(selected.orderedIds[0], hero.id);
+});
+
+test("missing configurable template slots receive typed local drafts without changing persisted order", () => {
+  const hero = section();
+  const state = createHomepageEditorState([hero]);
+
+  assert.equal(state.draftsBySectionId["fixed:hero-sidebar"].blockType, "hero-sidebar");
+  assert.equal(state.draftsBySectionId["fixed:headlines"].blockType, "breaking-news");
+  assert.equal(state.draftsBySectionId["fixed:latest"].blockType, "latest-news");
+  assert.equal(state.draftsBySectionId["fixed:most-read"].blockType, "trending");
+  assert.equal(state.draftsBySectionId["fixed:editors-picks"].blockType, "opinion");
+  assert.equal(state.draftsBySectionId["fixed:leaderboard"].blockType, "advertisement-placeholder");
+  assert.equal(state.draftsBySectionId["fixed:mid-feed-ad"].blockType, "advertisement-placeholder");
+  assert.equal(state.draftsBySectionId["fixed:category-rails"].blockType, "category-section");
+  assert.equal(state.draftsBySectionId["fixed:public-header"], undefined);
+  assert.equal(state.draftsBySectionId["fixed:public-footer"], undefined);
+  assert.deepEqual(state.orderedIds, [hero.id]);
+});
+
+test("the first autosave replaces a local fixed draft with its persisted section identity", () => {
+  let state = createHomepageEditorState([section()]);
+  state = homepageEditorReducer(state, { type: "select", sectionId: "fixed:headlines" });
+  const draft = { ...state.draftsBySectionId["fixed:headlines"], title: "Newsroom headlines" };
+  state = homepageEditorReducer(state, { type: "edit-field", sectionId: draft.id, draft });
+  state = homepageEditorReducer(state, { type: "save-started", sectionId: draft.id, requestSequence: 1, draftRevision: 1 });
+  const created = section({ id: "created-headlines", blockId: "breaking-news-created", title: "Newsroom headlines", blockType: "breaking-news", renderer: "breaking-news", position: 1, configuration: { limit: 3 } });
+  state = homepageEditorReducer(state, { type: "save-succeeded", sectionId: draft.id, requestSequence: 1, savedDraftRevision: 1, section: created });
+
+  assert.equal(state.selectedSectionId, created.id);
+  assert.equal(state.draftsBySectionId["fixed:headlines"], undefined);
+  assert.equal(state.draftsBySectionId[created.id].blockType, "breaking-news");
+  assert.deepEqual(state.orderedIds, ["section-1", created.id]);
+  assert.equal(state.previewRevision, 1);
+});
+
+test("selection still rejects IDs outside the persisted and fixed template identities", () => {
+  const initial = createHomepageEditorState([section()]);
+  const selected = homepageEditorReducer(initial, {
+    type: "select",
+    sectionId: "fixed:not-a-homepage-slot",
+  });
+
+  assert.equal(selected.selectedSectionId, "section-1");
+});
+
 test("editing marks only the changed section dirty and save errors preserve its draft", () => {
   const original = section();
   let state = createHomepageEditorState([original]);

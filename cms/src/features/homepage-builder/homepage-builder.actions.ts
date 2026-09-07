@@ -36,10 +36,7 @@ const visualSectionSchema = z.discriminatedUnion("blockType", [
   z.object({
     ...commonVisualFields,
     blockType: z.literal("hero-sidebar"),
-    storyIds: z.array(idSchema).min(1).max(3).refine(
-      (items) => new Set(items).size === items.length,
-      "Hero Sidebar stories must be unique.",
-    ),
+    storyIds: z.array(idSchema).min(1).max(3),
   }).strict(),
   z.object({ ...listFields, blockType: z.literal("breaking-news") }).strict(),
   z.object({ ...commonVisualFields, blockType: z.literal("live-tv") }).strict(),

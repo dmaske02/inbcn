@@ -158,9 +158,8 @@ export function validateHomepageEditorDraft(
         draft.storyIds.length < 1
         || draft.storyIds.length > 3
         || draft.storyIds.some((storyId) => !UUID_PATTERN.test(storyId))
-        || new Set(draft.storyIds).size !== draft.storyIds.length
       ) {
-        errors.storyIds = "Select between 1 and 3 unique stories.";
+        errors.storyIds = "Select between 1 and 3 stories.";
       }
       break;
     case "category-section":

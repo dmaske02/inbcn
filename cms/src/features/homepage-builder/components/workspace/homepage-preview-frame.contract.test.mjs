@@ -13,9 +13,22 @@ test("preview frame provides fixed desktop, tablet, and mobile iframe viewports"
   assert.match(source, /viewport-changed/u);
 });
 
+test("preview frame proportionally fits each real device viewport without horizontal cropping", async () => {
+  const source = await readFile(`${directory}/homepage-preview-frame.tsx`, "utf8");
+  assert.match(source, /ResizeObserver/u);
+  assert.match(source, /availableWidth\s*\/\s*preset\.width/u);
+  assert.match(source, /Math\.min\(1,/u);
+  assert.match(source, /transform:\s*`scale\(\$\{fitScale\}\)`/u);
+  assert.match(source, /width:\s*preset\.width\s*\*\s*fitScale/u);
+  assert.match(source, /height:\s*preset\.height\s*\*\s*fitScale/u);
+  assert.match(source, /transformOrigin:\s*"top left"/u);
+  assert.match(source, /overflow-auto/u);
+});
+
 test("preview frame is isolated, revision-aware, and exposes loading and error states accessibly", async () => {
   const source = await readFile(`${directory}/homepage-preview-frame.tsx`, "utf8");
   assert.match(source, /homepage-builder-preview\/\$\{locale\}\?revision=\$\{revision\}/u);
+  assert.match(source, /selected=\$\{selectedSectionId/u);
   assert.match(source, /sandbox="allow-same-origin allow-scripts"/u);
   assert.match(source, /title="Homepage visual preview"/u);
   assert.match(source, /onLoad/u);
@@ -53,6 +66,7 @@ test("workspace refreshes only from confirmed preview revision state and preserv
   assert.match(source, /revision=\{state\.previewRevision\}/u);
   assert.match(source, /viewport=\{state\.viewport\}/u);
   assert.match(source, /dispatch=\{dispatch\}/u);
+  assert.match(source, /selectedSectionId=\{selectedId\}/u);
   const frame = source.match(/<HomepagePreviewFrame[\s\S]*?\/>/u)?.[0] ?? "";
   assert.doesNotMatch(frame, /draftsBySectionId/u);
 });
