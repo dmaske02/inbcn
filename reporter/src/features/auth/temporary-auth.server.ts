@@ -9,6 +9,7 @@ import { ensureApplicantProfile } from "./applicant-profile.server.ts";
 import {
   createTemporaryAuthService,
   isTemporaryDemoIdentityEligible,
+  isTemporaryPreviewIdentityOwned,
   TemporaryAuthError,
 } from "./temporary-auth.model.ts";
 import type { SignupProfile } from "./applicant-profile.model.ts";
@@ -16,7 +17,7 @@ import type { SignupProfile } from "./applicant-profile.model.ts";
 export async function signInWithTemporaryOtp(
   phone: unknown,
   code: unknown,
-  options?: Readonly<{ ensureProfile?: boolean; signupProfile?: SignupProfile }>,
+  options?: Readonly<{ allowAccountCreation?: boolean; ensureProfile?: boolean; signupProfile?: SignupProfile }>,
 ): Promise<string> {
   if (!env.server.demoMode) throw new TemporaryAuthError("disabled");
 
@@ -41,6 +42,11 @@ export async function signInWithTemporaryOtp(
           return {
             id: match.id,
             marked: match.app_metadata?.reporter_demo_identity === true,
+            legacyPreview: isTemporaryPreviewIdentityOwned({
+              phone: expectedPhone,
+              email: match.email,
+              marked: false,
+            }),
             eligible: isTemporaryDemoIdentityEligible({
               authRole,
               profile: profile ? { role: profile.role, isActive: profile.is_active } : null,

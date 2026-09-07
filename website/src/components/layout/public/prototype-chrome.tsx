@@ -8,7 +8,7 @@ import { useState } from "react";
 
 import type { PublicLocale } from "./types";
 import type { HomepagePinnedAlert, HomepageStory } from "@/features/news/server/services/homepage.service";
-import { localizePublicPath } from "@/i18n/routing";
+import { localizePublicPath, routing } from "@/i18n/routing";
 
 const categories = [
   { key: "top", path: "" },
@@ -66,10 +66,7 @@ export function PrototypeChrome({ locale, breaking, pinnedAlert, currentDate, la
           <div className="proto-strip-right">
             <span className="proto-utility-pill"><i />{labels.utility.weather}</span>
             <button className="proto-utility-pill">{labels.utility.notifications}</button>
-            {(["EN", "HI", "MR"] as const).map((item) => {
-              const nextLocale = item.toLowerCase() as PublicLocale;
-              return <button key={item} type="button" className={`proto-locale ${nextLocale === locale ? "active" : ""}`} onClick={() => router.push(localizePublicPath(pathname, nextLocale, window.location.search, window.location.hash))}>{item}</button>;
-            })}
+            {routing.locales.map((nextLocale) => <button key={nextLocale} type="button" className={`proto-locale ${nextLocale === locale ? "active" : ""}`} onClick={() => router.push(localizePublicPath(pathname, nextLocale, window.location.search, window.location.hash))}>{nextLocale.toUpperCase()}</button>)}
             <button className="proto-report"><i />{labels.utility.reportIncident}</button>
           </div>
         </div>

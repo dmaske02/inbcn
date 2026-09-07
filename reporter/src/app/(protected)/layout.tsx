@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/features/auth/actions";
 import { requireReporterSession } from "@/features/auth/server";
+import { authDestination } from "@/features/auth/signup-intent.model";
 import { ReporterMobileNavigation } from "@/features/navigation/reporter-mobile-navigation";
 import { ReporterNavigation } from "@/features/navigation/reporter-navigation";
 
@@ -13,11 +14,12 @@ function ReporterMark() {
 export default async function ProtectedLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const actor = await requireReporterSession();
   const reporterAccess = actor.state === "reporter";
+  const homeHref = authDestination("signin", actor.state);
   return (
     <div className="min-h-svh overflow-x-hidden lg:overflow-x-visible">
       <header className="border-b border-border bg-background">
         <div className="mx-auto flex min-h-16 w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-          <Link className="flex min-w-0 items-center gap-3 rounded-sm" href="/dashboard">
+          <Link className="flex min-w-0 items-center gap-3 rounded-sm" href={homeHref}>
             <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground"><ReporterMark /></span>
             <span className="min-w-0">
               <span className="block truncate text-sm font-semibold">INBCN Reporter</span>

@@ -4,19 +4,14 @@ import { redirect } from "next/navigation";
 
 import { env } from "@/config/env";
 import { createClient } from "@/lib/supabase/server";
-import { validateSignupProfile } from "./applicant-profile.model";
-import { ensureApplicantProfile } from "./applicant-profile.server";
-import { otpProviderErrorMessage, validateIndianPhone } from "./authorization.model";
+import { normalizeIndianLocalMobile, normalizeIndianSignInPhone, otpProviderErrorMessage, validateIndianPhone } from "./authorization.model";
 import { authorizeCurrentReporter } from "./server";
 import { authDestination, parseAuthMode } from "./signup-intent.model";
-import { validateTemporarySignupOtp } from "./temporary-auth.model";
 import { signInWithTemporaryOtp } from "./temporary-auth.server";
 
 export type OtpState = Readonly<{
-  status: "idle" | "error" | "verified";
+  status: "idle" | "error";
   message?: string;
-  verifiedPhone?: string;
-  verifiedToken?: string;
   fieldErrors?: Readonly<Record<string, string[]>>;
 }>;
 
@@ -37,7 +32,10 @@ export async function temporarySignInAction(
   _previousState: OtpState,
   formData: FormData,
 ): Promise<OtpState> {
-  const phone = phoneFrom(formData);
+  const mode = parseAuthMode(formData.get("mode"));
+  const phone = mode === "signin"
+    ? normalizeIndianSignInPhone(formData.get("phone"))
+    : normalizeIndianLocalMobile(formData.get("phone"));
   const token = formData.get("token");
 
   if (!phone || typeof token !== "string" || !token.trim()) {
@@ -45,7 +43,7 @@ export async function temporarySignInAction(
       status: "error",
       message: "Check the highlighted fields and try again.",
       fieldErrors: {
-        ...(phone ? {} : { phone: ["Enter an Indian mobile number in +91 format."] }),
+        ...(phone ? {} : { phone: ["Enter a valid 10-digit Indian mobile number."] }),
         ...(typeof token === "string" && token.trim()
           ? {}
           : { token: ["Enter the preview code."] }),
@@ -57,13 +55,13 @@ export async function temporarySignInAction(
     return { status: "error", message: "Demo sign-in is unavailable." };
   }
 
-  const mode = parseAuthMode(formData.get("mode"));
   if (mode === "create") {
-    const verified = validateTemporarySignupOtp(phone, token);
-    if (!verified.ok) {
-      return { status: "error", message: "The preview code is incorrect.", fieldErrors: { token: ["Enter the preview code 1234."] } };
+    try {
+      await signInWithTemporaryOtp(phone, token, { allowAccountCreation: true });
+    } catch {
+      return { status: "error", message: "We could not create your account. Please try again." };
     }
-    return { status: "verified", verifiedPhone: phone, verifiedToken: token };
+    return redirectAfterAuthentication("create");
   }
 
   try {
@@ -79,7 +77,10 @@ export async function requestOtpAction(
   _previousState: OtpState,
   formData: FormData,
 ): Promise<OtpState> {
-  const phone = phoneFrom(formData);
+  const mode = parseAuthMode(formData.get("mode"));
+  const phone = mode === "signin"
+    ? normalizeIndianSignInPhone(formData.get("phone"))
+    : normalizeIndianLocalMobile(formData.get("phone"));
   const captchaToken = formData.get("captchaToken");
 
   if (!phone || typeof captchaToken !== "string" || !captchaToken.trim()) {
@@ -87,7 +88,7 @@ export async function requestOtpAction(
       status: "error",
       message: "Check the highlighted fields and try again.",
       fieldErrors: {
-        ...(phone ? {} : { phone: ["Enter an Indian mobile number in +91 format."] }),
+        ...(phone ? {} : { phone: ["Enter a valid 10-digit Indian mobile number."] }),
         ...(typeof captchaToken === "string" && captchaToken.trim()
           ? {}
           : { captchaToken: ["Complete CAPTCHA verification before continuing."] }),
@@ -143,44 +144,7 @@ export async function verifyOtpAction(
     return { status: "error", message: otpProviderErrorMessage(error) };
   }
 
-  redirect("/dashboard");
-}
-
-export async function completeTemporarySignupAction(
-  _previousState: OtpState,
-  formData: FormData,
-): Promise<OtpState> {
-  if (!env.server.demoMode) {
-    return { status: "error", message: "Demo account creation is unavailable." };
-  }
-
-  const profile = validateSignupProfile({
-    fullName: formData.get("fullName"),
-    email: formData.get("email"),
-    cityLocality: formData.get("cityLocality"),
-    state: formData.get("state"),
-    preferredLanguageId: formData.get("preferredLanguageId"),
-    experience: formData.get("experience"),
-    introduction: formData.get("introduction"),
-  });
-  if (!profile.ok) {
-    return { status: "error", message: "Check the highlighted fields and try again.", fieldErrors: profile.fieldErrors };
-  }
-
-  const phone = phoneFrom(formData);
-  const token = formData.get("token");
-  if (!validateTemporarySignupOtp(phone, token).ok) {
-    return { status: "error", message: "Verify your mobile number again." };
-  }
-
-  try {
-    const userId = await signInWithTemporaryOtp(phone, token, { ensureProfile: false, signupProfile: profile.data });
-    await ensureApplicantProfile(userId, profile.data);
-  } catch {
-    return { status: "error", message: "We could not create your account. Please try again." };
-  }
-
-  return redirectAfterAuthentication("create");
+  return redirectAfterAuthentication("signin");
 }
 
 export async function logoutAction(): Promise<void> {

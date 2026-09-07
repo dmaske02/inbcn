@@ -7,7 +7,7 @@ import { Bell, Menu, Radio, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import type { HomepagePinnedAlert, HomepageStory } from "@/features/news/server/services/homepage.service";
-import { localizePublicPath } from "@/i18n/routing";
+import { localizePublicPath, routing } from "@/i18n/routing";
 import { SearchDialog, type SearchDialogLabels } from "./search-dialog";
 import type { PublicLocale } from "./types";
 
@@ -177,19 +177,16 @@ export function EditorialShell({
                 {labels.utility.notifications}
               </button>
               <div className="editorial-locales" aria-label="Language">
-                {(["EN", "HI", "MR"] as const).map((item) => {
-                  const nextLocale = item.toLowerCase() as PublicLocale;
-                  return (
-                    <button
-                      key={item}
-                      type="button"
-                      aria-pressed={nextLocale === locale}
-                      onClick={() => switchLocale(nextLocale)}
-                    >
-                      {item}
-                    </button>
-                  );
-                })}
+                {routing.locales.map((nextLocale) => (
+                  <button
+                    key={nextLocale}
+                    type="button"
+                    aria-pressed={nextLocale === locale}
+                    onClick={() => switchLocale(nextLocale)}
+                  >
+                    {nextLocale.toUpperCase()}
+                  </button>
+                ))}
               </div>
               <button type="button" className="editorial-report-action">
                 <span aria-hidden="true" />

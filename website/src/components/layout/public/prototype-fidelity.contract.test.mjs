@@ -19,6 +19,18 @@ test("public chrome exposes every approved editorial control and surface", async
   assert.doesNotMatch(source, /labels\.actions\.login|editorial-shell-sign-in|editorial-drawer-sign-in/u);
 });
 
+test("public chrome presents the canonical locale order with matching destinations", async () => {
+  const source = await readFile(new URL("./editorial-shell.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /routing\.locales\.map\(\(nextLocale\) =>/u);
+  assert.match(source, /nextLocale\.toUpperCase\(\)/u);
+  assert.match(
+    source,
+    /router\.push\(\s*localizePublicPath\(pathname, nextLocale, window\.location\.search, window\.location\.hash\),?\s*\)/su,
+  );
+  assert.doesNotMatch(source, /\["EN", "HI", "MR"\]/u);
+});
+
 test("homepage contains the complete editorial sequence", async () => {
   const homepage = await readFile(
     new URL("../../../features/news/components/homepage.tsx", import.meta.url),

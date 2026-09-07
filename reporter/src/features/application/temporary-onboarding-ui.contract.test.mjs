@@ -13,7 +13,7 @@ test("temporary onboarding actions are gated and ownership checked", async () =>
   assert.match(actions, /getCurrentApplication\(actor\.userId\)/u);
   assert.match(actions, /application\.id !== applicationId/u);
   assert.match(actions, /revalidatePath\("\/application"\)/u);
-  assert.match(actions, /redirect\("\/dashboard"\)/u);
+  assert.match(actions, /redirect\("\/stories"\)/u);
 });
 
 test("temporary controls expose only explicit pending preview steps", async () => {

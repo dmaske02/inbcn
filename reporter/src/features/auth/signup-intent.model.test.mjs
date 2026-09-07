@@ -11,9 +11,9 @@ test("only the explicit create mode is accepted", () => {
   assert.equal(parseAuthMode(["create"]), "signin");
 });
 
-test("only applicants in create mode continue to the application", () => {
+test("authenticated users land in the workspace for their role", () => {
   assert.equal(authDestination("create", "applicant"), "/application");
-  assert.equal(authDestination("create", "reporter"), "/dashboard");
-  assert.equal(authDestination("signin", "applicant"), "/dashboard");
-  assert.equal(authDestination("signin", "reporter"), "/dashboard");
+  assert.equal(authDestination("create", "reporter"), "/stories");
+  assert.equal(authDestination("signin", "applicant"), "/application");
+  assert.equal(authDestination("signin", "reporter"), "/stories");
 });

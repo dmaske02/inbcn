@@ -8,7 +8,7 @@ export default async function HomepageBuilderPage({ searchParams }: Readonly<{
   const admin = await requireAdminUser();
   const params = await searchParams;
   const locale = Array.isArray(params.locale) ? params.locale[0] : params.locale;
-  const view = await getHomepageEditorWorkspaceView(admin, locale ?? "en");
+  const view = await getHomepageEditorWorkspaceView(admin, locale ?? "hi");
 
   return (
     <div className="grid gap-8">

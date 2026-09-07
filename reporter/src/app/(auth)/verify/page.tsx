@@ -4,7 +4,7 @@ import { env } from "@/config/env";
 import { validateIndianPhone } from "@/features/auth/authorization.model";
 import { OtpForm } from "@/features/auth/otp-form";
 import { authorizeCurrentReporter } from "@/features/auth/server";
-import { parseAuthMode } from "@/features/auth/signup-intent.model";
+import { authDestination, parseAuthMode } from "@/features/auth/signup-intent.model";
 
 export default async function VerifyPage({
   searchParams,
@@ -20,7 +20,7 @@ export default async function VerifyPage({
 
   const authorization = await authorizeCurrentReporter();
   if (authorization.ok) {
-    redirect("/dashboard");
+    redirect(authDestination("signin", authorization.state));
   }
 
   return (

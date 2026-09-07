@@ -4,12 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 type ReporterNavigationProps = Readonly<{ className?: string; onNavigate?: () => void; reporterAccess: boolean }>;
-const baseItems = [{ href: "/dashboard", label: "Dashboard" }, { href: "/application", label: "Application" }] as const;
-const reporterItems = [{ href: "/stories", label: "Stories" }, { href: "/live", label: "Live" }, { href: "/membership", label: "Membership" }] as const;
+const applicantItems = [{ href: "/application", label: "Application" }] as const;
+const reporterItems = [{ href: "/stories", label: "Stories" }, { href: "/live", label: "Live" }, { href: "/application", label: "Application" }, { href: "/membership", label: "Membership" }] as const;
 
 export function ReporterNavigation({ className, onNavigate, reporterAccess }: ReporterNavigationProps) {
   const pathname = usePathname();
-  const items = reporterAccess ? [...baseItems, ...reporterItems] : baseItems;
+  const items = reporterAccess ? reporterItems : applicantItems;
   return (
     <nav aria-label="Reporter navigation" className={className}>
       {items.map((item) => {

@@ -33,7 +33,9 @@ test("edition strip uses server data and the mobile drawer prioritizes Live TV",
   assert.match(shell, /\{currentDate\}/u);
   assert.match(shell, /labels\.utility\.descriptor/u);
   assert.match(shell, /labels\.utility\.weather/u);
-  for (const locale of ["EN", "HI", "MR"]) assert.match(shell, new RegExp(`"${locale}"`, "u"));
+  assert.match(shell, /import \{ localizePublicPath, routing \} from "@\/i18n\/routing"/u);
+  assert.match(shell, /routing\.locales\.map\(\(nextLocale\) =>/u);
+  assert.match(shell, /nextLocale\.toUpperCase\(\)/u);
 
   const drawer = shell.indexOf('className="editorial-drawer-links"');
   const live = shell.indexOf('className="editorial-drawer-live"', drawer);

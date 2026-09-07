@@ -7,6 +7,7 @@ import {
   isTemporaryDemoIdentityEligible,
   validateTemporaryDemoOtp,
 } from "./temporary-auth.model.ts";
+import * as temporaryAuthModel from "./temporary-auth.model.ts";
 
 test("demo OTP validation accepts only the canonical phone with 1234", () => {
   assert.deepEqual(validateTemporaryDemoOtp("+919000000829", "1234"), { ok: true, phone: "+919000000829" });
@@ -110,15 +111,6 @@ test("fresh demo signup metadata is attached only while creating the temporary A
 
 test("a new reporter can sign up with any valid Indian mobile number", async () => {
   const events = [];
-  const signupProfile = {
-    fullName: "New Reporter",
-    email: "new.reporter@example.com",
-    cityLocality: "Pune",
-    state: "Maharashtra",
-    preferredLanguageId: "5ac922dd-5db8-4d18-907f-762d44f12be1",
-    experience: "",
-    introduction: "I want to report verified local stories.",
-  };
   const service = createTemporaryAuthService({
     findUser: async (phone) => { events.push(["lookup", phone]); return null; },
     createUser: async (input) => { events.push(["create", input.phone]); return "user-2"; },
@@ -130,12 +122,35 @@ test("a new reporter can sign up with any valid Indian mobile number", async () 
 
   await service.signIn(
     { phone: "+919876543210", code: "1234" },
-    { ensureProfile: false, signupProfile },
+    { allowAccountCreation: true },
   );
 
   assert.deepEqual(events, [
     ["lookup", "+919876543210"],
     ["create", "+919876543210"],
+  ]);
+});
+
+test("create mode bootstraps and signs in a new reporter without signup details", async () => {
+  const events = [];
+  const service = createTemporaryAuthService({
+    findUser: async () => null,
+    createUser: async (input) => { events.push(["create", input.phone]); return "user-2"; },
+    rotateCredentials: async () => {},
+    ensureProfile: async (userId) => { events.push(["profile", userId]); },
+    signIn: async () => { events.push(["sign-in"]); },
+    randomPassword: () => "generated-private-password",
+  });
+
+  await service.signIn(
+    { phone: "+919876543210", code: "1234" },
+    { allowAccountCreation: true },
+  );
+
+  assert.deepEqual(events, [
+    ["create", "+919876543210"],
+    ["profile", "user-2"],
+    ["sign-in"],
   ]);
 });
 
@@ -178,6 +193,40 @@ test("a marked eligible demo identity is safely reused", async () => {
   const events = [];
   const service = createTemporaryAuthService({
     findUser: async () => ({ id: "user-1", marked: true, eligible: true }),
+    createUser: async () => { throw new Error("must not create duplicate"); },
+    rotateCredentials: async () => { events.push("rotate"); },
+    ensureProfile: async () => { events.push("profile"); },
+    signIn: async () => { events.push("sign-in"); },
+    randomPassword: () => "generated-private-password",
+  });
+
+  await service.signIn({ phone: "+919876543210", code: "1234" });
+
+  assert.deepEqual(events, ["rotate", "profile", "sign-in"]);
+});
+
+test("legacy preview ownership requires the exact deterministic phone email", () => {
+  assert.equal(temporaryAuthModel.isTemporaryPreviewIdentityOwned?.({
+    phone: "+919876543210",
+    email: "reporter.919876543210@preview.inbcn.invalid",
+    marked: false,
+  }), true);
+  assert.equal(temporaryAuthModel.isTemporaryPreviewIdentityOwned?.({
+    phone: "+919876543210",
+    email: "someone-else@example.com",
+    marked: false,
+  }), false);
+  assert.equal(temporaryAuthModel.isTemporaryPreviewIdentityOwned?.({
+    phone: "+919876543210",
+    email: "someone-else@example.com",
+    marked: true,
+  }), true);
+});
+
+test("an eligible legacy preview identity is safely reused without the newer marker", async () => {
+  const events = [];
+  const service = createTemporaryAuthService({
+    findUser: async () => ({ id: "user-legacy", marked: false, legacyPreview: true, eligible: true }),
     createUser: async () => { throw new Error("must not create duplicate"); },
     rotateCredentials: async () => { events.push("rotate"); },
     ensureProfile: async () => { events.push("profile"); },

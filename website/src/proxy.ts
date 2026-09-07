@@ -1,6 +1,6 @@
 import createMiddleware from "next-intl/middleware";
-import type { NextRequest } from "next/server";
-import { routing } from "@/i18n/routing";
+import { NextRequest } from "next/server";
+import { localeRoutingHeaders, routing } from "@/i18n/routing";
 
 const handleI18nRouting = createMiddleware(routing);
 const localeLikeSegment = /^[a-z]{2}$/i;
@@ -15,7 +15,9 @@ export default function proxy(request: NextRequest) {
     return new Response("Not Found", { status: 404 });
   }
 
-  return handleI18nRouting(request);
+  return handleI18nRouting(
+    new NextRequest(request, { headers: localeRoutingHeaders(request.headers) }),
+  );
 }
 
 export const config = {

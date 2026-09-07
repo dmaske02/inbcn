@@ -1,10 +1,16 @@
 import { defineRouting } from "next-intl/routing";
 
 export const routing = defineRouting({
-  locales: ["en", "hi", "mr"],
-  defaultLocale: "en",
+  locales: ["hi", "en", "mr"],
+  defaultLocale: "hi",
   localePrefix: "always",
 });
+
+export function localeRoutingHeaders(headers: Headers): Headers {
+  const localeHeaders = new Headers(headers);
+  localeHeaders.delete("accept-language");
+  return localeHeaders;
+}
 
 export function localizePublicPath(
   pathname: string,

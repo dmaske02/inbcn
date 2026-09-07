@@ -96,5 +96,5 @@ export async function completeTemporaryKycAction(
   } catch {
     return unavailable();
   }
-  redirect("/dashboard");
+  redirect("/stories");
 }

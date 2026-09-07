@@ -22,10 +22,25 @@ test("protected shell uses the CMS container and Reporter-only navigation", () =
   assert.match(layout, /py-8[^"\n]*lg:py-10/u);
   assert.match(layout, /INBCN Reporter/u);
   assert.doesNotMatch(layout, /Review queue|Approve|Reject|Publish|Schedule/u);
-  for (const label of ["Dashboard", "Application", "Stories", "Live", "Membership"]) {
+  for (const label of ["Stories", "Application", "Live", "Membership"]) {
     assert.match(navigation, new RegExp(label, "u"));
   }
+  assert.doesNotMatch(navigation, /Dashboard|\/dashboard/u);
   assert.doesNotMatch(navigation, /Review queue|Approve|Reject|Publish|Schedule/u);
+});
+
+test("Reporter and applicant navigation expose the approved destinations in order", () => {
+  const stories = navigation.indexOf('href: "/stories"');
+  const live = navigation.indexOf('href: "/live"', stories);
+  const application = navigation.indexOf('href: "/application"', live);
+  const membership = navigation.indexOf('href: "/membership"', application);
+
+  assert.ok(stories >= 0, "Stories is present");
+  assert.ok(live > stories, "Live follows Stories");
+  assert.ok(application > live, "Application follows Live");
+  assert.ok(membership > application, "Membership follows Application");
+  assert.match(navigation, /const applicantItems = \[\{ href: "\/application", label: "Application" \}\]/u);
+  assert.match(navigation, /reporterAccess \? reporterItems : applicantItems/u);
 });
 
 test("navigation marks exact and nested Reporter routes active", () => {

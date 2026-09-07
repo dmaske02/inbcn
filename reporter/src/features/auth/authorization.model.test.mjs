@@ -3,6 +3,8 @@ import test from "node:test";
 
 import {
   authorizeReporterIdentity,
+  normalizeIndianLocalMobile,
+  normalizeIndianSignInPhone,
   otpProviderErrorMessage,
   validateIndianPhone,
 } from "./authorization.model.ts";
@@ -70,6 +72,27 @@ test("accepts only Indian E.164 mobile numbers", () => {
   assert.equal(validateIndianPhone("+919876543210"), true);
   assert.equal(validateIndianPhone("9876543210"), false);
   assert.equal(validateIndianPhone("+915876543210"), false);
+});
+
+test("normalizes exactly ten local Indian mobile digits once", () => {
+  assert.equal(normalizeIndianLocalMobile("9876543210"), "+919876543210");
+  for (const value of [
+    "+919876543210",
+    "919876543210",
+    "+91 9876543210",
+    "+91+919876543210",
+    "987654321",
+    "98765432100",
+    "5876543210",
+    "98765abc10",
+  ]) {
+    assert.equal(normalizeIndianLocalMobile(value), null, value);
+  }
+});
+
+test("preserves the released sign-in normalization boundary", () => {
+  assert.equal(normalizeIndianSignInPhone("9876543210"), "+919876543210");
+  assert.equal(normalizeIndianSignInPhone("+919876543210"), null);
 });
 
 test("redacts OTP provider errors", () => {
