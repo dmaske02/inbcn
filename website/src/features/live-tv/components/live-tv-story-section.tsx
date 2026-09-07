@@ -1,5 +1,21 @@
-import { StoryCard } from "@/components/common/story-card";
+import {
+  EditorialSectionHeader,
+  LedgerStoryRow,
+  type LedgerStory,
+} from "@/components/editorial";
 import type { HomepageStory } from "@/features/news/server/services/homepage.model";
+
+function toLiveTvLedgerStory(story: HomepageStory): LedgerStory {
+  return {
+    id: story.id,
+    href: story.href,
+    title: story.title,
+    summary: story.summary,
+    category: story.categoryName ?? "News",
+    publishedAt: story.publishedAt,
+    image: story.image,
+  };
+}
 
 export function LiveTvStorySection({
   id,
@@ -16,32 +32,18 @@ export function LiveTvStorySection({
 }>) {
   if (stories.length === 0) return null;
   return (
-    <section aria-labelledby={id} className="border-t border-[#14110f] pt-4">
-      <div className="mb-5 flex items-center gap-3">
-        {emphasis ? <span aria-hidden="true" className="size-2 bg-[#b3261e]" /> : null}
-        <h2 id={id} className="text-xl font-bold tracking-[-0.01em] sm:text-2xl">
-          {title}
-        </h2>
-        <span aria-hidden="true" className="h-px flex-1 bg-[#d8d0c5]" />
-      </div>
-      <div className="grid gap-7 md:grid-cols-2 xl:grid-cols-3">
+    <section
+      aria-labelledby={id}
+      className="editorial-live-story-section"
+      data-emphasis={emphasis ? "true" : undefined}
+    >
+      <EditorialSectionHeader id={id} title={title} />
+      <div>
         {stories.map((story) => (
-          <StoryCard
+          <LedgerStoryRow
             key={story.id}
-            title={story.title}
-            href={story.href}
-            summary={story.summary}
-            category={story.categoryName ?? undefined}
-            publishedAt={story.publishedAt}
-            image={{
-              src: story.image.src,
-              alt: story.image.alt,
-              unoptimized: story.image.unoptimized,
-              width: story.image.width ?? undefined,
-              height: story.image.height ?? undefined,
-            }}
+            story={toLiveTvLedgerStory(story)}
             locale={locale}
-            variant="standard"
           />
         ))}
       </div>

@@ -43,13 +43,21 @@ test("HomepageBuilderLayout owns all Hero adjacency composition",async()=>{
   const sidebar=await readFile("src/features/homepage-renderer/components/hero-sidebar-renderer.tsx","utf8");
   const blocks=await readFile("src/features/homepage-renderer/components/homepage-block-renderers.tsx","utf8");
   assert.match(layout,/composeHomepageLayout/u);
-  assert.match(layout,/proto-hero-composition/u);
+  assert.match(layout,/editorial-builder-hero-composition/u);
+  assert.match(layout,/data-homepage-section-id=\{item\.hero\.id\}/u);
+  assert.match(layout,/data-homepage-sidebar-id=\{item\.sidebar\.id\}/u);
   assert.doesNotMatch(sidebar+blocks,/composeHomepageLayout|hero-composition/u);
 });
 
-test("responsive CSS defines desktop 70\/30 composition and stacked smaller layouts",async()=>{
+test("builder shell adopts the editorial canvas without changing section width contracts",async()=>{
+  const layout=await readFile("src/features/homepage-renderer/components/homepage-builder-layout.tsx","utf8");
   const css=await readFile("src/app/globals.css","utf8");
-  assert.match(css,/\.proto-hero-composition\{[^}]*grid-template-columns:minmax\(0,7fr\) minmax\(280px,3fr\)/u);
-  assert.match(css,/@media\(max-width:1040px\)\{[^}]*\.proto-hero-composition\{[^}]*grid-template-columns:1fr/u);
-  assert.match(css,/\.proto-hero-sidebar-card/u);
+  assert.match(layout,/className="editorial-page editorial-homepage"/u);
+  assert.match(layout,/className="editorial-container editorial-homepage-inner"/u);
+  assert.match(layout,/<div className="editorial-page editorial-homepage">/u);
+  assert.doesNotMatch(layout,/<main className="editorial-page editorial-homepage">/u);
+  assert.match(layout,/widthClasses/u);
+  assert.doesNotMatch(layout,/proto-/u);
+  assert.match(css,/\.editorial-builder-hero-composition\s*\{/u);
+  assert.match(css,/\.editorial-builder-hero-sidebar\s*\{/u);
 });

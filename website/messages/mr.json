@@ -107,6 +107,7 @@
   "publicChrome": {
     "navigation": { "top": "प्रमुख", "india": "भारत", "world": "जागतिक", "politics": "राजकारण", "business": "व्यवसाय", "technology": "तंत्रज्ञान", "ai": "एआय", "sports": "क्रीडा", "entertainment": "मनोरंजन", "health": "आरोग्य", "lifestyle": "जीवनशैली", "education": "शिक्षण", "jobs": "नोकऱ्या", "opinion": "मत", "factCheck": "तथ्य पडताळणी" },
     "actions": { "liveTv": "थेट टीव्ही", "login": "लॉग इन", "signup": "साइन अप", "searchPlaceholder": "बातम्या, स्रोत, शहरे शोधा", "openMenu": "मेनू उघडा", "closeMenu": "मेनू बंद करा", "enableAlerts": "सूचना सुरू करा", "latestUpdate": "नवीनतम अपडेट", "dismiss": "बंद करा" },
+    "searchDialog": { "open": "शोध उघडा", "close": "शोध बंद करा", "title": "INBCN शोधा", "description": "विषय, मथळा, स्रोत किंवा शहरानुसार बातम्या शोधा.", "placeholder": "बातम्या, स्रोत, शहरे शोधा", "submit": "शोधा" },
     "utility": { "tagline": "इंग्रजी, हिंदी आणि मराठीमधील भारत-केंद्रित बातम्या", "weather": "मुंबई 29°C · हलका पाऊस", "notifications": "सूचना {count}", "reportIncident": "घटना नोंदवा", "descriptor": "बहुभाषिक जनहित बातमी मंच" },
     "accessibility": { "home": "INBCN बातम्या मुख्यपृष्ठ", "sections": "बातमी विभाग", "mobileNavigation": "मोबाइल नेव्हिगेशन", "breakingNews": "ब्रेकिंग बातम्या", "skipToContent": "मुख्य मजकुराकडे जा" },
     "breaking": "ब्रेकिंग",

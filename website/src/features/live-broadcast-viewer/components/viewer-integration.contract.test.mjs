@@ -22,7 +22,7 @@ test("internal broadcast changes only the player region and retains existing pag
   assert.match(experience, /internalBroadcast/u);
   assert.match(experience, /<LiveViewer/u);
   assert.match(experience, /offlineFallback/u);
-  assert.match(experience, /AdvertisementPlaceholder/u);
+  assert.match(experience, /EditorialSponsorRow/u);
   assert.match(experience, /data\.schedule/u);
   assert.match(experience, /data\.breaking/u);
   assert.match(experience, /data\.related/u);

@@ -107,6 +107,7 @@
   "publicChrome": {
     "navigation": { "top": "Top", "india": "India", "world": "World", "politics": "Politics", "business": "Business", "technology": "Technology", "ai": "AI", "sports": "Sports", "entertainment": "Entertainment", "health": "Health", "lifestyle": "Lifestyle", "education": "Education", "jobs": "Jobs", "opinion": "Opinion", "factCheck": "Fact Check" },
     "actions": { "liveTv": "Live TV", "login": "Log in", "signup": "Sign up", "searchPlaceholder": "Search stories, sources, cities", "openMenu": "Open menu", "closeMenu": "Close menu", "enableAlerts": "Enable alerts", "latestUpdate": "Latest update", "dismiss": "Dismiss" },
+    "searchDialog": { "open": "Open search", "close": "Close search", "title": "Search INBCN", "description": "Find reporting by topic, headline, source, or city.", "placeholder": "Search stories, sources, cities", "submit": "Search" },
     "utility": { "tagline": "India-first news in English, Hindi and Marathi", "weather": "Mumbai 29°C · Light rain", "notifications": "Notifications {count}", "reportIncident": "Report incident", "descriptor": "Multilingual public-interest news platform" },
     "accessibility": { "home": "INBCN News home", "sections": "Sections", "mobileNavigation": "Mobile navigation", "breakingNews": "Breaking news", "skipToContent": "Skip to content" },
     "breaking": "Breaking",

@@ -9,7 +9,6 @@ import { getHeroImagePresentation } from "@/features/news/server/services/story-
 import { AdvertisementPlaceholder } from "@/components/common/advertisement-placeholder";
 import { Badge } from "@/components/ui/badge";
 import { ReadingProgress } from "@/features/news/components/reading-progress";
-import { StoryShareActions } from "@/features/news/components/story-share-actions";
 import { getStoryReaderData, type StoryReaderViewModel } from "@/features/news/server/services/story-reader.service";
 import { ReporterBylineCard } from "@/features/reporters/reporter-byline-card";
 import { buildPublicReporterUrl } from "@/features/reporters/public-reporter.model";
@@ -23,10 +22,10 @@ function SecondaryStoryImage({ story, sizes }: Readonly<{ story: ReaderCard; siz
 
 function InlineRelatedCard({ story }: Readonly<{ story: ReaderCard }>) {
   return (
-    <aside className="my-8 border-y border-[#d8d0c5] py-5" aria-label="Related story">
+    <aside className="article-inline-related" aria-label="Related story">
       <Link href={story.href} className="group grid grid-cols-[112px_1fr] gap-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#b3261e] sm:grid-cols-[160px_1fr]">
         <span className="relative aspect-[3/2] overflow-hidden bg-[#e7e0d4]"><SecondaryStoryImage story={story} sizes="160px" /></span>
-        <span className="self-center"><span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#b3261e]">Related</span><strong className="mt-1 block font-heading text-[17px] leading-[1.28] group-hover:text-[#b3261e]">{story.title}</strong></span>
+        <span className="self-center"><span className="article-inline-related-label">Related story</span><strong className="mt-1 block font-heading text-[17px] leading-[1.28] group-hover:text-[#b3261e]">{story.title}</strong></span>
       </Link>
     </aside>
   );
@@ -72,7 +71,6 @@ export default async function StoryPage({ params }: StoryPageProps) {
   const inlineByParagraph = new Map(view.inlineRelated.map((placement) => [placement.afterParagraph, placement.story]));
   const showUpdated = view.story.updatedAt !== view.story.publishedAt;
   const heroImagePresentation = getHeroImagePresentation(view.story.image);
-  const shareLabels = { whatsapp: "WhatsApp", copy: t("share.copy"), copied: t("share.copied"), x: t("share.x"), facebook: t("share.facebook"), linkedin: t("share.linkedin"), telegram: t("share.telegram"), email: t("share.email") };
   const reporterHref = view.story.reporter
     ? buildPublicReporterUrl(locale, view.story.reporter.slug)
     : null;
@@ -81,12 +79,10 @@ export default async function StoryPage({ params }: StoryPageProps) {
     <div className="bg-[#f6f3ed] pb-24 text-[#14110f] lg:pb-12">
       <ReadingProgress articleId="story-article" />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
-      <div className="mx-auto w-full max-w-[1288px] px-4 py-7 sm:px-6 sm:py-10">
+      <div className="mx-auto w-full max-w-[1180px] px-4 py-7 sm:px-6 sm:py-10">
         <Link href={`/${locale}`} className="text-[12px] font-semibold text-[#6e655c] hover:text-[#b3261e] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#b3261e]">← {t("breadcrumb.home")}</Link>
 
-        <div className="mt-6 grid items-start gap-8 lg:grid-cols-[48px_minmax(0,760px)_320px] lg:gap-10">
-          <div className="hidden lg:block"><StoryShareActions placement="desktop" title={view.story.title} url={view.metadata.canonical} labels={shareLabels} /></div>
-
+        <div className="mt-6 grid items-start gap-8 lg:grid-cols-[minmax(0,760px)_320px] lg:gap-10">
           <article id="story-article" className="min-w-0">
             <header>
               <Badge variant="outline" className="rounded-[2px] border-0 p-0 text-[10.5px] font-bold uppercase tracking-[0.16em] text-[#b3261e]">{view.story.category.name}</Badge>
@@ -166,8 +162,6 @@ export default async function StoryPage({ params }: StoryPageProps) {
 
         {view.related.length ? <section className="mt-12 border-t-2 border-[#14110f] pt-5" aria-labelledby="related-stories"><h2 id="related-stories" className="font-heading text-[22px] font-bold">{t("sections.related")}</h2><div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{view.related.slice(0, 3).map((story) => <article key={story.id}><Link href={story.href} className="group"><div className="relative aspect-[3/2] overflow-hidden border border-[#ded7cb] bg-[#e7e0d4]"><SecondaryStoryImage story={story} sizes="(min-width: 1024px) 33vw, 50vw" /></div><h3 className="mt-3 font-heading text-[17px] font-semibold leading-[1.3] group-hover:text-[#b3261e]">{story.title}</h3></Link><p className="mt-2 text-[12px] text-[#6e655c]">{story.author}</p></article>)}</div></section> : null}
       </div>
-
-      <StoryShareActions placement="mobile" title={view.story.title} url={view.metadata.canonical} labels={shareLabels} />
     </div>
   );
 }
