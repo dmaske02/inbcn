@@ -144,7 +144,7 @@ export async function verifyOtpAction(
     return { status: "error", message: otpProviderErrorMessage(error) };
   }
 
-  redirect("/dashboard");
+  return redirectAfterAuthentication("signin");
 }
 
 export async function logoutAction(): Promise<void> {

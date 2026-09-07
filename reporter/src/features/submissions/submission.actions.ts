@@ -83,7 +83,6 @@ function revalidateStories(id: string) {
   revalidatePath("/stories");
   revalidatePath("/stories/new");
   revalidatePath(`/stories/${id}`);
-  revalidatePath("/dashboard");
 }
 
 export async function saveReporterDraftAction(

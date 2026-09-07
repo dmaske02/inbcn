@@ -4,14 +4,14 @@ import { redirect } from "next/navigation";
 import { env } from "@/config/env";
 import { OtpForm } from "@/features/auth/otp-form";
 import { authorizeCurrentReporter } from "@/features/auth/server";
-import { parseAuthMode } from "@/features/auth/signup-intent.model";
+import { authDestination, parseAuthMode } from "@/features/auth/signup-intent.model";
 
 export default async function LoginPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ mode?: string | string[] }> }>) {
   const authorization = await authorizeCurrentReporter();
   if (authorization.ok) {
-    redirect("/dashboard");
+    redirect(authDestination("signin", authorization.state));
   }
   const requestedMode = parseAuthMode((await searchParams).mode);
   const creating = env.server.demoMode && requestedMode === "create";

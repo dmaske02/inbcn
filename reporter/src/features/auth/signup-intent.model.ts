@@ -5,8 +5,8 @@ export function parseAuthMode(value: unknown): AuthMode {
 }
 
 export function authDestination(
-  mode: AuthMode,
+  _mode: AuthMode,
   state: "applicant" | "reporter",
-): "/application" | "/dashboard" {
-  return mode === "create" && state === "applicant" ? "/application" : "/dashboard";
+): "/application" | "/stories" {
+  return state === "applicant" ? "/application" : "/stories";
 }
