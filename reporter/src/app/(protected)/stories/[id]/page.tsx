@@ -34,6 +34,7 @@ export default async function ReporterStoryPage({ params }: Readonly<{ params: P
         canDirectPublish={editor.membership.canDirectPublish}
         canSubmit={editor.membership.canSubmit}
         directAction={directPublishReporterStoryAction.bind(null, id)}
+        initialLocality={editor.location?.locality ?? ""}
         initialLocation={editor.location ? {
           latitude: editor.location.latitude,
           longitude: editor.location.longitude,
@@ -45,11 +46,12 @@ export default async function ReporterStoryPage({ params }: Readonly<{ params: P
         saveAction={saveReporterDraftAction.bind(null, { storyId: id, redirectToEditor: false })}
         story={editor.story}
         storyId={id}
+        withdrawAction={withdrawable ? withdrawReporterStoryAction.bind(null, id) : undefined}
         submitAction={submitReporterStoryAction.bind(null, id)}
         userId={actor.userId}
       /> : <section className="rounded-lg border border-border bg-background p-5 text-sm shadow-sm"><p>{editor.story.summary}</p><div className="mt-4 whitespace-pre-wrap">{editor.story.body}</div></section>}
       {editor.location ? <p className="text-sm text-muted-foreground">Latest private capture: {editor.location.locality}, accuracy {editor.location.accuracy} m.</p> : null}
-      {withdrawable ? <SubmissionForm action={withdrawReporterStoryAction.bind(null, id)}><SubmissionButton className="min-h-11 text-sm font-medium text-destructive underline underline-offset-4 disabled:opacity-60">Withdraw story</SubmissionButton></SubmissionForm> : null}
+      {withdrawable && !editable ? <SubmissionForm action={withdrawReporterStoryAction.bind(null, id)}><SubmissionButton className="min-h-11 text-sm font-medium text-destructive underline underline-offset-4 disabled:opacity-60">Withdraw story</SubmissionButton></SubmissionForm> : null}
     </div>
   );
 }

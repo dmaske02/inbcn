@@ -22,6 +22,7 @@ export type SubmissionActionState = Readonly<{
   message?: string;
   storyId?: string;
   updatedAt?: string;
+  eventOccurredAt?: string;
   redirectToEditor?: boolean;
   fieldErrors?: Readonly<Record<string, string[]>>;
 }>;
@@ -115,6 +116,7 @@ export async function saveReporterDraftAction(
   return {
     status: "success",
     message: "Draft saved.",
+    eventOccurredAt: parsed.data.eventOccurredAt,
     storyId: target.storyId,
     ...(saved.updatedAt ? { updatedAt: saved.updatedAt } : {}),
     redirectToEditor: target.redirectToEditor,

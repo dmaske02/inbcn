@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import * as draftModule from "./local-draft.ts";
 
 import {
   clearRecoveryBeforeRefresh,
@@ -16,6 +17,17 @@ import {
 } from "./local-draft.ts";
 
 const userId = "11111111-1111-4111-8111-111111111111";
+test("locality recovery is scoped to its reporter/story and contains no coordinates", () => {
+  assert.equal(typeof draftModule.saveDraftLocality, "function");
+  const storage = memoryStorage();
+  assert.equal(draftModule.saveDraftLocality(storage, userId, storyId, "Dadar West"), true);
+  assert.equal(draftModule.loadDraftLocality(storage, userId, storyId), "Dadar West");
+  assert.equal(draftModule.loadDraftLocality(storage, userId, "another-story"), null);
+  assert.equal(draftModule.saveDraftLocality(storage, userId, storyId, "x".repeat(201)), false);
+  assert.equal(draftModule.saveDraftLocality(storage, userId, storyId, ""), true);
+  assert.equal(draftModule.loadDraftLocality(storage, userId, storyId), null);
+  assert.equal(JSON.stringify([...storage.values]).includes("latitude"), false);
+});
 const storyId = "22222222-2222-4222-8222-222222222222";
 const local = {
   version: 1,

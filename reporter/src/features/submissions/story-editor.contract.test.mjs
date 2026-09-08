@@ -20,7 +20,7 @@ test("mobile editor keeps local recovery and browser capture in one client islan
 test("mobile editor filters categories and preserves ordered uploaded media invariants", () => {
   assert.match(source, /filter\(\(category\) => category\.languageId === fields\.languageId\)/u);
   assert.match(source, /<MediaUploader/u);
-  assert.match(source, /isPersisted && editable/u);
+  assert.match(source, /ready=\{saveStatus\.persisted\}/u);
   assert.match(source, /type === "image"/u);
   assert.match(source, /Move media up/u);
   assert.match(source, /Move media down/u);
@@ -44,43 +44,32 @@ test("an incomplete selected upload blocks review submission until canonical com
   assert.match(uploader, /const hasIncompleteUploads = uploads\.some\(\(upload\) => upload\.phase !== "complete"\)/u);
   assert.match(uploader, /onPendingChange\?\.\(hasIncompleteUploads\)/u);
   assert.match(source, /mediaUploadPending/u);
-  assert.match(source, /onPendingChange=\{setMediaUploadPending\}/u);
+  assert.match(source, /onPendingChange=\{setUploadPending\}/u);
   assert.match(source, /canTransitionReporterStory/u);
 });
 
-test("an incomplete selected upload blocks draft saving until completion or removal", () => {
-  assert.match(source, /canSaveReporterDraft/u);
-  assert.match(source, /event\.preventDefault\(\)/u);
-  assert.match(source, /disabled=\{!canSaveDraft\}/u);
-  assert.match(source, /Upload or remove all selected files before saving\./u);
+test("draft autosave and uploads share a lock while incomplete media blocks submission", () => {
+  assert.match(source, /withDraft=\{autosave\.withDraft\}/u);
+  assert.match(source, /autosave\.getSnapshot\(\)/u);
+  assert.match(source, /mediaPendingRef\.current/u);
   assert.match(uploader, /Remove file/u);
   assert.match(uploader, /current\.filter\(\(upload\) => upload\.id !== uploadId\)/u);
 });
 
-test("editor tracks save attempts against edit generations and uses the new-draft recovery alias", () => {
+test("editor tracks generations and scopes recovery to its stable story ID", () => {
   assert.match(source, /createDraftSaveTracker/u);
   assert.match(source, /storageStoryId/u);
-  assert.match(source, /onSubmit=\{prepareSave\}/u);
+  assert.match(source, /autosave\.edit\(next\)/u);
 });
 
-test("new-story save migrates a stale local snapshot, clears its alias, and always routes to the returned editor", () => {
-  assert.match(source, /migrateLocalDraft/u);
-  assert.match(source, /acknowledgement\.stale/u);
-  assert.match(source, /if \(!migrated\)/u);
-  assert.match(source, /reportStorageFailure/u);
-  assert.match(source, /if \(!acknowledgement\.clear && !acknowledgement\.stale\) return;/u);
-  assert.match(source, /router\.replace\(`\/stories\/\$\{saveState\.storyId\}`\)/u);
-  assert.match(newPage, /resolveNewReporterDraftTarget\(\(await searchParams\)\.draft, randomUUID\)/u);
-  assert.match(newPage, /createNewReporterDraftTarget\(\(\) => resolved\.storyId\)/u);
-  assert.match(newPage, /resolved\.needsCanonicalRedirect/u);
+test("new-story autosave retains its mounted editor and reloads the same canonical draft", () => {
+  assert.match(source, /window\.history\.replaceState/u);
+  assert.doesNotMatch(source, /router\.replace/u);
   assert.match(newPage, /resolveNewReporterDraftTarget/u);
-  assert.match(newPage, /redirect\(`\/stories\/new\?draft=\$\{draftTarget\.storyId\}`\)/u);
-  assert.match(newPage, /searchParams: Promise/u);
-  assert.match(newPage, /storageStoryId="new"/u);
+  assert.match(newPage, /resolved\.needsCanonicalRedirect/u);
+  assert.match(newPage, /getReporterStoryEditor\(actor\.userId, draftTarget\.storyId\)/u);
+  assert.match(newPage, /story=\{existing\?\.story/u);
   assert.match(actions, /revalidateStories\(target\.storyId\)/u);
-  assert.match(actions, /revalidatePath\("\/stories\/new"\)/u);
-  assert.match(actions, /revalidatePath\(`\/stories\/\$\{id\}`\)/u);
-  assert.match(actions, /updatedAt: saved\.updatedAt/u);
   assert.match(actions, /saved\.id !== target\.storyId/u);
 });
 
@@ -92,7 +81,7 @@ test("mobile editor preserves the server language value contract without display
 });
 
 test("mobile editor requires captured private evidence for review or direct publication", () => {
-  assert.match(source, /const canTransition = canTransitionReporterStory\(\{ dirty, mediaUploadPending, location, locality, now: new Date\(\) \}\)/u);
+  assert.match(source, /canTransitionReporterStory\(\{ dirty, mediaUploadPending, location, locality, now: new Date\(\) \}\)/u);
   assert.match(source, /submitAction/u);
   assert.match(source, /directAction/u);
   assert.match(source, /canDirectPublish/u);

@@ -37,6 +37,24 @@ export function draftStorageKey(userId: string, storyId: string): string {
   return `inbcn:reporter-draft:${userId}:${storyId}`;
 }
 
+// Locality becomes private server evidence only on explicit submission.
+export function loadDraftLocality(storage: SafeStorage, userId: string, storyId: string): string | null {
+  try {
+    const value = storage.getItem(`${draftStorageKey(userId, storyId)}:locality`);
+    return value && value.length <= 200 ? value : null;
+  } catch { return null; }
+}
+
+export function saveDraftLocality(storage: SafeStorage, userId: string, storyId: string, value: string): boolean {
+  if (value.length > 200) return false;
+  const key = `${draftStorageKey(userId, storyId)}:locality`;
+  try {
+    if (value) storage.setItem(key, value);
+    else storage.removeItem(key);
+    return storage.getItem(key) === (value || null);
+  } catch { return false; }
+}
+
 function text(value: unknown, maximum: number): string | null {
   return typeof value === "string" && value.length <= maximum ? value : null;
 }

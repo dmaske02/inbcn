@@ -889,7 +889,7 @@ test("media uploader queues multiple selections and uploads each file independen
   assert.match(component, /Array\.from\(event\.target\.files/u);
   assert.match(component, /QueuedUpload/u);
   assert.match(component, /pendingUploads[\s\S]*for \(const uploadId of pendingUploads/u);
-  assert.match(component, /onUploaded\?\.\(\{ id: mediaId, title: metadata\.data\.title, type: upload\.mediaType \}\)/u);
+  assert.match(component, /onUploaded\?\.\(\{ id: mediaId, title: metadata\.data\.title, type: mediaType \}\)/u);
 });
 
 test("media uploader derives hidden per-file metadata and retries only the requested failed item", async () => {
@@ -912,7 +912,8 @@ test("media uploader presents a compact beginner-friendly selected file list", a
   assert.match(component, /Select one or more photos or videos from your device\./u);
   assert.match(component, /uploads\.length === 1 \? "file" : "files"/u);
   assert.match(component, /\{upload\.file\.name\}/u);
-  assert.match(component, /Upload Photos &amp; Videos/u);
+  assert.doesNotMatch(component, />Upload Photos &amp; Videos</u);
+  assert.match(component, /startAutomaticUploads/u);
   assert.doesNotMatch(component, /URL\.createObjectURL|<img|<video/u);
 });
 
@@ -942,5 +943,5 @@ test("busy uploader state disables every mutable control", async () => {
   const component = await readFile(new URL("../submissions/media-uploader.tsx", import.meta.url), "utf8").catch(() => "");
   assert.match(component, /const busy = uploads\.some\(\(upload\) => isUploadBusy\(upload\.phase\)\)/u);
   assert.match(component, /id="story-media-file"[\s\S]*?disabled=\{busy\}[\s\S]*?\/>/u);
-  assert.match(component, /disabled=\{busy \|\| !uploads\.some\(\(upload\) => upload\.phase === "idle"\)\}/u);
+  assert.match(component, /if \(!ready \|\| scheduledUploads\.current\.has\(uploadId\)\) return/u);
 });
