@@ -15,7 +15,7 @@ const admin = {
 test("a complete persisted configuration returns prepared renderer sections without a legacy branch", async () => {
   const sections = [{ id: "section-1", node: "rendered" }];
   const service = createHomepageEditorPreviewService({
-    prepare: async () => sections,
+    render: async (locale) => ({ kind: "builder", locale, legacy: {}, sections }),
     log: () => assert.fail("successful previews must not log a failure"),
   });
 
@@ -28,7 +28,7 @@ test("a complete persisted configuration returns prepared renderer sections with
 test("each preview request resolves persisted homepage content again", async () => {
   let request = 0;
   const service = createHomepageEditorPreviewService({
-    prepare: async () => [{ id: `section-${++request}`, node: `rendered-${request}` }],
+    render: async (locale) => ({ kind: "builder", locale, legacy: {}, sections: [{ id: `section-${++request}`, node: `rendered-${request}` }] }),
     log: () => assert.fail("successful previews must not log a failure"),
   });
 
@@ -44,7 +44,7 @@ test("each preview request resolves persisted homepage content again", async () 
 test("known renderer failures return an editor-safe error and log only sanitized diagnostics", async () => {
   const logs = [];
   const service = createHomepageEditorPreviewService({
-    prepare: async () => {
+    render: async () => {
       throw new HomepageRendererError(
         "REFERENCE_FAILED",
         "Reference failed\nsecret=never-show-this",
@@ -79,7 +79,7 @@ test("known renderer failures return an editor-safe error and log only sanitized
 test("unexpected failures remain private and never fall back to the public legacy homepage", async () => {
   const logs = [];
   const service = createHomepageEditorPreviewService({
-    prepare: async () => {
+    render: async () => {
       throw new Error("database password=private");
     },
     log: (diagnostic) => logs.push(diagnostic),

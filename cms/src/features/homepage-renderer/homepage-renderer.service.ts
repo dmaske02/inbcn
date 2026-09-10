@@ -41,6 +41,10 @@ const dependencies: HomepageRendererDependencies = {
 
 const service = createHomepageRendererService(dependencies);
 
+// Preview saved sections even when the public rollout flag is off, using the
+// public renderer's localized fallback when those sections cannot be rendered.
+export const getEditorRenderedHomepage = cache((locale: HomepageLocale) => service(locale, true));
+
 export const preparePersistedHomepageBuilder = cache(async (locale: HomepageLocale) => {
   const legacy = await getHomepageData(locale);
   return prepareHomepageBuilder(locale, legacy, dependencies);

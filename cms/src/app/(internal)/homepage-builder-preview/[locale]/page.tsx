@@ -10,6 +10,8 @@ import {
   type HomepageLocale,
 } from "@/features/homepage-builder/homepage-builder.types";
 import { isFixedHomepageSelectionId } from "@/features/homepage-builder/homepage-fixed-template.model";
+import { Homepage } from "../../../../../../website/src/features/news/components/homepage";
+import { getSection } from "@/features/homepage-builder/homepage-builder.repository";
 
 export const metadata: Metadata = {
   title: { absolute: "Homepage Builder Preview" },
@@ -81,17 +83,29 @@ export default async function HomepageBuilderPreviewPage({
     );
   }
 
-  const homepageData = await getHomepageData(locale);
+  const homepageData = result.kind === "legacy" ? result.legacy : await getHomepageData(locale);
   const fixedSelection = selectedSectionId?.startsWith("fixed:")
     ? selectedSectionId.slice("fixed:".length)
     : null;
+  const fallbackSelection = result.kind === "legacy" && selectedSectionId && !fixedSelection
+    ? (await getSection(selectedSectionId))?.blockType
+    : fixedSelection;
   return (
     <PublicLayout
-      className={fixedSelection ? `homepage-preview-selection-${fixedSelection}` : undefined}
+      className={fixedSelection && (result.kind !== "legacy" || ["public-header", "public-footer"].includes(fixedSelection)) ? `homepage-preview-selection-${fixedSelection}` : undefined}
       homepageData={homepageData}
       locale={locale}
     >
-      <HomepageBuilderLayout sections={result.sections} selectedSectionId={selectedSectionId} />
+      {result.kind === "legacy" ? (
+        <div data-homepage-fallback-selection={fallbackSelection}>
+          <p className="px-6 py-2 text-sm text-muted-foreground" role="status">
+            Showing the public homepage default for {locale.toUpperCase()}.
+          </p>
+          <Homepage locale={locale} data={homepageData} />
+        </div>
+      ) : (
+        <HomepageBuilderLayout sections={result.sections} selectedSectionId={selectedSectionId} />
+      )}
     </PublicLayout>
   );
 }

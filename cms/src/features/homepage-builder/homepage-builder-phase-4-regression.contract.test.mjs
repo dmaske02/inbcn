@@ -13,7 +13,7 @@ test("Hero Sidebar uses the existing autosave, ordering, mutation, preview, and 
   assert.match(ordering,/deleteHomepageSection/u);
   assert.match(actions,/requireAdminUser/u);
   assert.match(actions,/hero-sidebar/u);
-  assert.match(preview,/preparePersistedHomepageBuilder/u);
+  assert.match(preview,/getEditorRenderedHomepage/u);
 });
 
 test("Hero Sidebar leaves Hero Story and the legacy homepage data model unchanged",async()=>{

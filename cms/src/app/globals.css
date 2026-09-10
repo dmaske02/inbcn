@@ -178,6 +178,25 @@
   outline-offset: 8px;
 }
 
+[data-homepage-fallback-selection="leaderboard"] [data-ad-slot="homepage-leaderboard"],
+[data-homepage-fallback-selection="advertisement-placeholder"] [data-ad-slot="homepage-leaderboard"],
+[data-homepage-fallback-selection="mid-feed-ad"] [data-ad-slot="homepage-mid-feed"],
+[data-homepage-fallback-selection="hero"] .editorial-home-hero,
+[data-homepage-fallback-selection="hero-story"] .editorial-home-hero,
+[data-homepage-fallback-selection="headlines"] .editorial-home-section:has(#ranked-top-headlines),
+[data-homepage-fallback-selection="breaking-news"] .editorial-home-section:has(#ranked-top-headlines),
+[data-homepage-fallback-selection="latest"] .editorial-home-section:has(.editorial-home-feed),
+[data-homepage-fallback-selection="latest-news"] .editorial-home-section:has(.editorial-home-feed),
+[data-homepage-fallback-selection="most-read"] .editorial-ranked:has(#ranked-most-read),
+[data-homepage-fallback-selection="trending"] .editorial-ranked:has(#ranked-most-read),
+[data-homepage-fallback-selection="editors-picks"] .editorial-home-editors,
+[data-homepage-fallback-selection="opinion"] .editorial-home-editors,
+[data-homepage-fallback-selection="category-rails"] .editorial-home-categories,
+[data-homepage-fallback-selection="category-section"] .editorial-home-categories {
+  outline: 3px solid #b3261e;
+  outline-offset: -3px;
+}
+
 .homepage-preview-selection-public-header .proto-masthead,
 .homepage-preview-selection-public-footer .proto-footer,
 .homepage-preview-selection-leaderboard #main-content,

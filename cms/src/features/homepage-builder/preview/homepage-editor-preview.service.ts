@@ -9,10 +9,12 @@ import type {
   HomepageRendererDiagnostic,
   HomepageRendererFailureCode,
   PreparedHomepageSection,
+  HomepageRenderResult,
 } from "../../homepage-renderer/homepage-renderer.types.ts";
 import type { HomepageLocale } from "../homepage-builder.types.ts";
 
 export type HomepageEditorPreviewResult =
+  | Extract<HomepageRenderResult, { kind: "legacy" }>
   | Readonly<{
       kind: "ready";
       locale: HomepageLocale;
@@ -29,7 +31,7 @@ export type HomepageEditorPreviewResult =
     }>;
 
 type Dependencies = Readonly<{
-  prepare(locale: HomepageLocale): Promise<readonly PreparedHomepageSection[]>;
+  render(locale: HomepageLocale): Promise<HomepageRenderResult>;
   log(diagnostic: HomepageRendererDiagnostic): void;
 }>;
 
@@ -61,8 +63,9 @@ export function createHomepageEditorPreviewService(dependencies: Dependencies) {
   ): Promise<HomepageEditorPreviewResult> {
     void admin;
     try {
-      const sections = await dependencies.prepare(locale);
-      return { kind: "ready", locale, sections };
+      const result = await dependencies.render(locale);
+      if (result.kind === "legacy") return result;
+      return { kind: "ready", locale, sections: result.sections };
     } catch (error) {
       const diagnostic = diagnosticFromError(locale, error);
       dependencies.log(diagnostic);
@@ -80,11 +83,11 @@ export function createHomepageEditorPreviewService(dependencies: Dependencies) {
 }
 
 const productionService = createHomepageEditorPreviewService({
-  async prepare(locale) {
-    const { preparePersistedHomepageBuilder } = await import(
+  async render(locale) {
+    const { getEditorRenderedHomepage } = await import(
       "../../homepage-renderer/homepage-renderer.service"
     );
-    return preparePersistedHomepageBuilder(locale);
+    return getEditorRenderedHomepage(locale);
   },
   log(diagnostic) {
     console.warn("[homepage-builder-preview]", JSON.stringify(diagnostic));

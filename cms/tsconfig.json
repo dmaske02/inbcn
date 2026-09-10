@@ -20,6 +20,7 @@
       }
     ],
     "paths": {
+      "@/components/editorial": ["../website/src/components/editorial/index.ts"],
       "@/*": ["./src/*"]
     }
   },

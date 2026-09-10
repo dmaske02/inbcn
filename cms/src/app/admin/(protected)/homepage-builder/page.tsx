@@ -13,6 +13,7 @@ export default async function HomepageBuilderPage({ searchParams }: Readonly<{
   return (
     <div>
       <HomepageBuilderWorkspace
+        key={view.locale}
         canManage={view.canManage}
         locale={view.locale}
         sections={view.sections}
