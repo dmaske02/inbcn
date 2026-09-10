@@ -444,6 +444,20 @@ export async function searchPublishedStories(
   };
 }
 
+/** Resolve through the same canonical public projection used by the story reader. */
+export async function getPublishedStoryById(locale: string, id: string): Promise<StorySummaryDto | null> {
+  const language = await getLanguage(locale);
+  if (!language) return null;
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("public_stories")
+    .select(STORY_SUMMARY_COLUMNS)
+    .eq("id", id).eq("language_id", language.id).eq("status", "published")
+    .not("published_at", "is", null).lte("published_at", new Date().toISOString())
+    .maybeSingle();
+  assertRepositoryQuerySucceeded(error, "load the configured published story");
+  return data ? (await attachFeaturedMedia([data]))[0] ?? null : null;
+}
+
 export async function getStoriesByLanguage(
   locale: string,
 ): Promise<StorySummaryDto[]> {

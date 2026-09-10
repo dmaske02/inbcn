@@ -1,3 +1,4 @@
+import { resolveHomepageHero } from "../../../../packages/domain/src/homepage-hero.ts";
 import type { ReactNode } from "react";
 import type {
   HomepageLocale,
@@ -179,8 +180,8 @@ export function createHomepageRendererService(dependencies: HomepageRendererDepe
         // Preserve the explicit choice even if another section forces fallback.
         // An unavailable choice must not silently turn into a different hero.
         legacy = { ...legacy, featured: null };
-        const hero = legacy.all.find((story) => story.id === storyId)
-          ?? await dependencies.loadStory(locale, storyId);
+        const hero = await resolveHomepageHero(locale, storyId, async (_locale, id) =>
+          legacy.all.find((story) => story.id === id) ?? dependencies.loadStory(locale, id));
         if (!hero || hero.id !== storyId || !hero.href.startsWith(`/${locale}/`)) {
           throw new HomepageRendererError("REFERENCE_FAILED", "The configured Hero Story is unavailable.", { blockId: heroSection?.blockId, blockType: "hero-story" });
         }

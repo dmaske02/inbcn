@@ -1,3 +1,4 @@
+import { resolveHomepageHero } from "../../../../packages/domain/src/homepage-hero.ts";
 import type { ReactNode } from "react";
 import type {
   HomepageLocale,
@@ -20,6 +21,8 @@ type PublicConfiguration = Readonly<{
 }>;
 
 export type HomepageRendererDependencies = Readonly<{
+  loadHero(locale: HomepageLocale): Promise<string | null>;
+  loadStory(locale: string, id: string): Promise<HomepageViewModel["featured"]>;
   loadLegacy(locale: HomepageLocale): Promise<HomepageViewModel>;
   loadConfiguration(locale: HomepageLocale): Promise<PublicConfiguration | null>;
   composePreview(
@@ -152,7 +155,20 @@ export function createHomepageRendererService(dependencies: HomepageRendererDepe
     locale: HomepageLocale,
     enabled: boolean,
   ): Promise<HomepageRenderResult> {
-    const legacy = await dependencies.loadLegacy(locale);
+    let legacy = await dependencies.loadLegacy(locale);
+    // An editorial Hero choice is independent of the full-layout rollout flag.
+    // Read only the public projection; never require editorial table access here.
+    try {
+      const storyId = await dependencies.loadHero(locale);
+      const hero = await resolveHomepageHero(locale, storyId, dependencies.loadStory);
+      if (hero) legacy = {
+        ...legacy,
+        featured: hero,
+        all: [...legacy.all.filter((story) => story.id !== hero.id), hero],
+      };
+    } catch {
+      dependencies.log({ locale, code: "REFERENCE_FAILED", message: "The public Hero selection is unavailable." });
+    }
     if (!enabled) return { kind: "legacy", locale, legacy };
 
     try {

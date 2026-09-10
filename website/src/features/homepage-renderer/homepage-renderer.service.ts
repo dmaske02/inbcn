@@ -3,10 +3,10 @@ import "server-only";
 import { cache } from "react";
 import { env } from "@/config/env";
 import { buildHomepagePreview } from "@/features/homepage-builder/homepage-builder.preview";
-import { getPublicHomepageConfiguration } from "@/features/homepage-builder/homepage-builder.repository";
+import { getPublicHomepageConfiguration, getPublicHomepageHero } from "@/features/homepage-builder/homepage-builder.repository";
 import type { HomepageLocale, HomepageReferenceData } from "@/features/homepage-builder/homepage-builder.types";
 import { getLiveTvPageData } from "@/features/live-tv/server/live-tv-page.service";
-import { getHomepageData } from "@/features/news/server/services/homepage.service";
+import { getHomepageData, getConfiguredHomepageStory } from "@/features/news/server/services/homepage.service";
 import { parseHomepageRendererPayload } from "./homepage-renderer.contract";
 import { getHomepageRenderer } from "./homepage-renderer.registry";
 import { resolveHomepageRendererPayload } from "./homepage-renderer.references";
@@ -19,6 +19,8 @@ import {
 
 const dependencies: HomepageRendererDependencies = {
   loadLegacy:getHomepageData,
+  loadHero:getPublicHomepageHero,
+  loadStory:getConfiguredHomepageStory,
   loadConfiguration:getPublicHomepageConfiguration,
   composePreview(configuration,legacy) {
     const references:HomepageReferenceData={

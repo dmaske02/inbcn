@@ -132,6 +132,14 @@ export async function deleteSectionIfCurrent(
 
 export type HomepageConfigurationRow = TableRow<"homepage_configurations">;
 
+/** Anonymous callers can read only the active published Hero ID, never CMS rows. */
+export async function getPublicHomepageHero(locale: HomepageLocale): Promise<string | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_public_homepage_hero", { requested_locale: locale });
+  fail(error, "load the public homepage Hero");
+  return data;
+}
+
 export async function getPublicHomepageConfiguration(locale: HomepageLocale) {
   const supabase = await createClient();
   const { data: language, error: languageError } = await supabase.from("languages").select("id").eq("code", locale).eq("is_active", true).maybeSingle();

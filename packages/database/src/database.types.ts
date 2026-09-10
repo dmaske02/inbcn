@@ -1776,6 +1776,7 @@ export type Database = {
       }
     }
     Functions: {
+      get_public_homepage_hero: { Args: { requested_locale: string }; Returns: string | null }
       waive_demo_reporter_application_payment: { Args: { p_profile_id: string; p_application_id: string }; Returns: Json }
       apply_reporter_payment: {
         Args: { p_razorpay_order_id: string; p_razorpay_payment_id: string; p_amount_paise: number; p_currency: string; p_captured_at: string }
