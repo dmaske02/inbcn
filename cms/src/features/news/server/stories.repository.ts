@@ -462,6 +462,22 @@ export async function getStoriesByLanguage(
   return getPublishedStories({ languageId: language.id });
 }
 
+export async function getPublishedStoryById(locale: string, id: string): Promise<StorySummaryDto | null> {
+  const language = await getLanguage(locale);
+  if (!language) return null;
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("stories")
+    .select(STORY_SUMMARY_COLUMNS)
+    .eq("id", id)
+    .eq("language_id", language.id)
+    .eq("status", "published")
+    .not("published_at", "is", null)
+    .lte("published_at", new Date().toISOString())
+    .maybeSingle();
+  assertRepositoryQuerySucceeded(error, "load the configured published story");
+  return data ? (await attachFeaturedMedia([data]))[0] ?? null : null;
+}
+
 export async function getCmsStories(query: CmsStoryListQuery): Promise<CmsStoryListResultDto> {
   const supabase = await createClient();
   const from = (query.page - 1) * query.pageSize;

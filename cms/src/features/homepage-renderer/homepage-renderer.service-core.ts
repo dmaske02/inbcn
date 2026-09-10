@@ -5,6 +5,8 @@ import type {
   HomepageSectionDto,
 } from "@/features/homepage-builder/homepage-builder.types";
 import type { HomepageViewModel } from "@/features/news/server/services/homepage.service";
+import { isSectionActive } from "../homepage-builder/homepage-builder.model.ts";
+import { getHomepageBlockDefinition } from "../homepage-builder/homepage-builder.registry.ts";
 import { diagnosticFromError, HomepageRendererError } from "./homepage-renderer.model.ts";
 import type {
   HomepageRenderResult,
@@ -22,6 +24,7 @@ type PublicConfiguration = Readonly<{
 export type HomepageRendererDependencies = Readonly<{
   loadLegacy(locale: HomepageLocale): Promise<HomepageViewModel>;
   loadConfiguration(locale: HomepageLocale): Promise<PublicConfiguration | null>;
+  loadStory(locale: HomepageLocale, id: string): Promise<HomepageViewModel["featured"]>;
   composePreview(
     configuration: PublicConfiguration,
     legacy: HomepageViewModel,
@@ -152,11 +155,45 @@ export function createHomepageRendererService(dependencies: HomepageRendererDepe
     locale: HomepageLocale,
     enabled: boolean,
   ): Promise<HomepageRenderResult> {
-    const legacy = await dependencies.loadLegacy(locale);
+    let legacy = await dependencies.loadLegacy(locale);
     if (!enabled) return { kind: "legacy", locale, legacy };
 
     try {
-      const sections = await prepareHomepageBuilder(locale, legacy, dependencies);
+      let configuration: PublicConfiguration | null;
+      try {
+        configuration = await dependencies.loadConfiguration(locale);
+      } catch {
+        throw new HomepageRendererError("REPOSITORY_FAILED", "Homepage Builder persistence is unavailable.");
+      }
+      if (configuration && configuration.configuration.locale !== locale) {
+        throw new HomepageRendererError("REFERENCE_FAILED", "The configuration belongs to another locale.");
+      }
+      const heroSection = configuration?.sections
+        .filter((section) => section.blockType === "hero-story" && isSectionActive(section))
+        .toSorted((left, right) => left.position - right.position)[0];
+      const heroConfiguration = heroSection
+        ? getHomepageBlockDefinition("hero-story")?.validate(heroSection.configuration)
+        : null;
+      if (heroConfiguration?.success) {
+        const { storyId } = heroConfiguration.data as { storyId: string };
+        // Preserve the explicit choice even if another section forces fallback.
+        // An unavailable choice must not silently turn into a different hero.
+        legacy = { ...legacy, featured: null };
+        const hero = legacy.all.find((story) => story.id === storyId)
+          ?? await dependencies.loadStory(locale, storyId);
+        if (!hero || hero.id !== storyId || !hero.href.startsWith(`/${locale}/`)) {
+          throw new HomepageRendererError("REFERENCE_FAILED", "The configured Hero Story is unavailable.", { blockId: heroSection?.blockId, blockType: "hero-story" });
+        }
+        legacy = {
+          ...legacy,
+          featured: hero,
+          all: legacy.all.some((story) => story.id === storyId) ? legacy.all : [...legacy.all, hero],
+        };
+      }
+      const sections = await prepareHomepageBuilder(locale, legacy, {
+        ...dependencies,
+        loadConfiguration: async () => configuration,
+      });
       return { kind: "builder", locale, legacy, sections };
     } catch (error) {
       dependencies.log(diagnosticFromError(locale, error));
