@@ -7,6 +7,7 @@ export type HomepageStory = Readonly<{
   id: string; slug: string; href: string; title: string; summary: string;
   publishedAt: string; categoryId: string; categoryName: string | null;
   categorySlug: string | null; isBreaking: boolean; isFeatured: boolean;
+  editorialPlacementExplicit?: boolean;
   image: Readonly<{ src: string; alt: string; unoptimized: boolean; width: number | null; height: number | null; aspectRatio: number | null }>;
 }>;
 
@@ -29,6 +30,7 @@ export type HomepageViewModel = Readonly<{
   trending: readonly HomepageStory[];
   categoryRails: readonly HomepageCategorySection[];
   editorPicks: readonly HomepageStory[];
+  heroSupporting?: readonly HomepageStory[];
 }>;
 
 type HomepageAlertInput = Readonly<{
@@ -54,6 +56,7 @@ export function composeHomepageData(
         categoryId: story.categoryId, categoryName: category?.name ?? null,
         categorySlug: category?.slug ?? null, isBreaking: story.isBreaking,
         isFeatured: story.isFeatured,
+        editorialPlacementExplicit: story.editorialPlacementExplicit ?? false,
         image: resolvePublicStoryImage(
           story.featuredMedia,
           story.externalImageUrl,
@@ -79,10 +82,12 @@ export function composeHomepageData(
   };
 
   const featured =
-    allocate((story) => story.isFeatured, 1)[0] ??
-    allocate(() => true, 1)[0] ??
+    allocate((story) => !story.editorialPlacementExplicit && story.isFeatured, 1)[0] ??
+    allocate((story) => !story.editorialPlacementExplicit, 1)[0] ??
     null;
-  const heroSideStories = allocate(() => true, 2);
+  const heroSideStories = allocate((story) => !story.editorialPlacementExplicit, 2);
+  // Explicit picks never become implicit Hero/supporting stories.
+  const explicitPicks = stories.filter((story) => story.editorialPlacementExplicit && story.isFeatured);
   const breaking = stories.filter((story) => story.isBreaking);
   const topHeadlines = allocate(() => true, 3);
   const trending = allocate(() => true, 3);
@@ -104,6 +109,7 @@ export function composeHomepageData(
     latest,
     trending,
     categoryRails,
-    editorPicks: heroSideStories,
+    editorPicks: [...explicitPicks, ...heroSideStories],
+    heroSupporting: heroSideStories,
   };
 }

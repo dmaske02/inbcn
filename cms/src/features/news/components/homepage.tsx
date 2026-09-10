@@ -2,7 +2,7 @@ import type { HomepageViewModel } from "@/features/news/server/services/homepage
 import { HomepageCategoryRails, HomepageEditorsSection, HomepageFeedSection, HomepageHeadlineSection, HomepageHeroSection, HomepageRankedSection } from "./homepage-sections";
 
 type HomepageProps={locale:string;data:HomepageViewModel};
-export async function Homepage({locale,data}:HomepageProps) { const heroDeck=data.editorPicks.slice(0,3); const lowerEditorPicks=data.editorPicks.slice(3); return <main className="proto-page"><div className="proto-wrap">
+export async function Homepage({locale,data}:HomepageProps) { const heroDeck=(data.heroSupporting ?? data.editorPicks).slice(0,3); const lowerEditorPicks=data.editorPicks.filter(story=>!heroDeck.some(support=>support.id===story.id)); return <main className="proto-page"><div className="proto-wrap">
   <div className="proto-ad-slot"><span>Advertisement</span><small>728 × 90 reserved</small></div>
   {data.featured?<HomepageHeroSection locale={locale} story={data.featured} deck={heroDeck}/>:null}
   {data.topHeadlines.length?<HomepageHeadlineSection stories={data.topHeadlines}/>:null}

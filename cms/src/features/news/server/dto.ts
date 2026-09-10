@@ -56,6 +56,7 @@ export type StorySummaryDto = Readonly<{
   featuredMediaId: string | null;
   featuredMedia: FeaturedMediaDto | null;
   isFeatured: boolean;
+  editorialPlacementExplicit?: boolean;
   isBreaking: boolean;
   isSponsored: boolean;
   publishedAt: string;
@@ -114,6 +115,7 @@ export type CmsStoryDto = Readonly<{
   seoKeywords: readonly string[];
   canonicalUrl: string | null;
   isFeatured: boolean;
+  editorialPlacementExplicit?: boolean;
   isBreaking: boolean;
   submittedAt: string | null;
   approvedAt: string | null;

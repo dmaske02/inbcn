@@ -28,12 +28,12 @@ import {
 const DEFAULT_STORY_LIMIT = 20;
 const IMPORTED_IDENTITY_PAGE_SIZE = 500;
 const STORY_SUMMARY_COLUMNS =
-  "id, translation_group_id, language_id, category_id, source_id, external_author, story_type, slug, title, summary, external_image_url, external_image_width, external_image_height, featured_media_id, is_featured, is_breaking, is_sponsored, published_at" as const;
+  "id, translation_group_id, language_id, category_id, source_id, external_author, story_type, slug, title, summary, external_image_url, external_image_width, external_image_height, featured_media_id, is_featured, editorial_placement_explicit, is_breaking, is_sponsored, published_at" as const;
 const STORY_DETAIL_COLUMNS =
   `${STORY_SUMMARY_COLUMNS}, content, updated_at, external_url, seo_title, seo_description, seo_keywords, canonical_url, status, is_reporter_story, public_reporter` as const;
 const CATEGORY_STORY_COLUMNS = `${STORY_SUMMARY_COLUMNS}, content` as const;
 const CMS_STORY_COLUMNS =
-  "id, language_id, category_id, source_id, created_by, approved_by, story_type, status, slug, title, summary, content, external_id, external_url, external_author, external_published_at, external_image_url, external_image_width, external_image_height, featured_media_id, seo_title, seo_description, seo_keywords, canonical_url, is_featured, is_breaking, submitted_at, approved_at, scheduled_at, published_at, created_at, updated_at" as const;
+  "id, language_id, category_id, source_id, created_by, approved_by, story_type, status, slug, title, summary, content, external_id, external_url, external_author, external_published_at, external_image_url, external_image_width, external_image_height, featured_media_id, seo_title, seo_description, seo_keywords, canonical_url, is_featured, editorial_placement_explicit, is_breaking, submitted_at, approved_at, scheduled_at, published_at, created_at, updated_at" as const;
 
 export type CmsStoryListQuery = Readonly<{
   page: number;
@@ -64,7 +64,7 @@ type StorySummaryRow = Pick<
   | "external_image_width"
   | "external_image_height"
   | "featured_media_id"
-  | "is_featured"
+  | "editorial_placement_explicit" | "is_featured"
   | "is_breaking"
   | "is_sponsored"
   | "published_at"
@@ -92,7 +92,7 @@ type CmsStoryRow = Pick<TableRow<"stories">, keyof CmsStoryDto extends never ? n
   | "story_type" | "status" | "slug" | "title" | "summary" | "content"
   | "external_id" | "external_url" | "external_author" | "external_published_at" | "external_image_url" | "external_image_width" | "external_image_height"
   | "featured_media_id" | "seo_title" | "seo_description" | "seo_keywords"
-  | "canonical_url" | "is_featured" | "is_breaking" | "submitted_at" | "approved_at"
+  | "canonical_url" | "editorial_placement_explicit" | "is_featured" | "is_breaking" | "submitted_at" | "approved_at"
   | "scheduled_at" | "published_at" | "created_at" | "updated_at">;
 
 function toCmsStoryDto(row: CmsStoryRow): CmsStoryDto {
@@ -110,7 +110,7 @@ function toCmsStoryDto(row: CmsStoryRow): CmsStoryDto {
     featuredMediaId: row.featured_media_id,
     seoTitle: row.seo_title, seoDescription: row.seo_description,
     seoKeywords: row.seo_keywords, canonicalUrl: row.canonical_url,
-    isFeatured: row.is_featured, isBreaking: row.is_breaking,
+    isFeatured: row.is_featured, editorialPlacementExplicit: row.editorial_placement_explicit, isBreaking: row.is_breaking,
     submittedAt: row.submitted_at, approvedAt: row.approved_at,
     scheduledAt: row.scheduled_at, publishedAt: row.published_at,
     createdAt: row.created_at, updatedAt: row.updated_at,
@@ -141,7 +141,7 @@ function toStorySummaryDto(
     externalImageHeight: row.external_image_height,
     featuredMediaId: row.featured_media_id,
     featuredMedia: media ? toFeaturedMediaDto(media) : null,
-    isFeatured: row.is_featured,
+    isFeatured: row.is_featured, editorialPlacementExplicit: row.editorial_placement_explicit,
     isBreaking: row.is_breaking,
     isSponsored: row.is_sponsored,
     publishedAt: row.published_at,
@@ -456,6 +456,20 @@ export async function getPublishedStoryById(locale: string, id: string): Promise
     .maybeSingle();
   assertRepositoryQuerySucceeded(error, "load the configured published story");
   return data ? (await attachFeaturedMedia([data]))[0] ?? null : null;
+}
+
+/** Explicit editorial picks are resolved independently of the latest feed window. */
+export async function getExplicitEditorsPicks(locale: string): Promise<StorySummaryDto[]> {
+  const language = await getLanguage(locale);
+  if (!language) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("public_stories").select(STORY_SUMMARY_COLUMNS)
+    .eq("language_id", language.id).eq("status", "published")
+    .eq("editorial_placement_explicit", true).eq("is_featured", true)
+    .not("published_at", "is", null).lte("published_at", new Date().toISOString())
+    .order("published_at", { ascending: false }).limit(100);
+  assertRepositoryQuerySucceeded(error, "load explicit Editor's Picks");
+  return attachFeaturedMedia(data ?? []);
 }
 
 export async function getStoriesByLanguage(

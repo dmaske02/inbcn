@@ -1469,6 +1469,7 @@ export type Database = {
           featured_media_id: string | null
           id: string
           is_breaking: boolean
+          editorial_placement_explicit: boolean
           is_featured: boolean
           is_reporter_story: boolean
           is_sponsored: boolean
@@ -1511,6 +1512,7 @@ export type Database = {
           featured_media_id?: string | null
           id?: string
           is_breaking?: boolean
+          editorial_placement_explicit?: boolean
           is_featured?: boolean
           is_sponsored?: boolean
           language_id: string
@@ -1551,6 +1553,7 @@ export type Database = {
           featured_media_id?: string | null
           id?: string
           is_breaking?: boolean
+          editorial_placement_explicit?: boolean
           is_featured?: boolean
           is_sponsored?: boolean
           language_id?: string
@@ -1719,6 +1722,7 @@ export type Database = {
           featured_media_id: string | null
           id: string
           is_breaking: boolean
+          editorial_placement_explicit: boolean
           is_featured: boolean
           is_reporter_story: boolean
           is_sponsored: boolean
@@ -1776,6 +1780,7 @@ export type Database = {
       }
     }
     Functions: {
+      set_story_editors_pick: { Args: { p_story_id: string; p_selected: boolean; p_expected_updated_at: string }; Returns: Json }
       get_public_homepage_hero: { Args: { requested_locale: string }; Returns: string | null }
       waive_demo_reporter_application_payment: { Args: { p_profile_id: string; p_application_id: string }; Returns: Json }
       apply_reporter_payment: {

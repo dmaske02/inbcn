@@ -3,7 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { getPublicBreakingAlerts } from "@/features/alerts/breaking-alerts.service";
 import { getCategories } from "../categories.repository";
-import { getStoriesByLanguage, getPublishedStoryById } from "../stories.repository";
+import { getStoriesByLanguage, getPublishedStoryById, getExplicitEditorsPicks } from "../stories.repository";
 import {
   composeHomepageData,
   type HomepageViewModel,
@@ -16,26 +16,32 @@ export const getConfiguredHomepageStory = cache(async (locale: string, id: strin
   if (!story) return null;
   const categories = await getCategories(locale);
   const homepage = composeHomepageData(locale, [story], categories, env.public.cloudinaryCloudName, []);
-  if (!homepage.featured) return null;
-  return { ...homepage.featured, image: await resolveAvailablePublicStoryImage(homepage.featured.image) };
+  const selected = homepage.all[0];
+  if (!selected) return null;
+  return { ...selected, image: await resolveAvailablePublicStoryImage(selected.image) };
 });
 
 export const getHomepageData = cache(async function getHomepageData(
   locale: string,
 ): Promise<HomepageViewModel> {
-  const [stories, categories, alerts] = await Promise.all([
+  const [stories, categories, alerts, explicitPicks] = await Promise.all([
     getStoriesByLanguage(locale),
     getCategories(locale),
     getPublicBreakingAlerts(locale),
+    getExplicitEditorsPicks(locale),
   ]);
 
-  const homepage = composeHomepageData(
+  let homepage = composeHomepageData(
     locale,
     stories,
     categories,
     env.public.cloudinaryCloudName,
     alerts,
   );
+  const picked = composeHomepageData(locale, explicitPicks, categories, env.public.cloudinaryCloudName).all;
+  const pickedIds = new Set(picked.map(story => story.id));
+  homepage = { ...homepage, all: [...homepage.all.filter(story => !pickedIds.has(story.id)), ...picked],
+    editorPicks: [...picked, ...homepage.editorPicks.filter(story => !pickedIds.has(story.id))] };
   if (!homepage.featured) return homepage;
 
   const heroImage = await resolveAvailablePublicStoryImage(homepage.featured.image);

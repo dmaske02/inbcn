@@ -5,6 +5,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { env } from "@/config/env";
 import type { AdminRole } from "@/features/admin/auth/authorization.model";
 import { buildPublicStoryUrl } from "./public-story-url";
+import { StoryPlacement } from "./story-placement";
 import { StoryForm } from "./story-form";
 import { ReporterRevisionPanel } from "./reporter-revision-panel";
 import type { getStoryEditorView } from "./story.service";
@@ -29,6 +30,7 @@ export function StoryEditor({ adminRole, view, notices = {} }: { adminRole: Admi
       </header>
       {notices.saved || notices.changed ? <p role="status" className="rounded-md border border-verified/30 bg-verified/5 p-3 text-sm text-verified">Story changes were saved successfully.</p> : null}
       {notices.error ? <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{notices.error === "conflict" ? "Story was changed by another editor. Reload before saving." : notices.error === "invalid-reason" ? "Enter a revision reason of 1 to 1000 characters without control characters." : "The requested workflow action could not be completed."}</p> : null}
+      {view.story && (adminRole === "editor" || adminRole === "admin") ? <StoryPlacement story={view.story} locale={publicStoryLocale} /> : null}
       {view.reporterReview && view.story ? <ReporterRevisionPanel commands={view.commands} references={view.references} review={view.reporterReview} story={view.story} /> : <StoryForm adminRole={adminRole} view={view} />}
     </div>
   );
