@@ -45,10 +45,9 @@ export type StoryVideoDto = Readonly<{
   storyId: string;
   secureUrl: string;
   mimeType: string;
-  width: number | null;
-  height: number | null;
   durationSeconds: number | null;
-  position: number;
+  sortOrder: number;
+  createdAt: string;
 }>;
 
 export type StorySummaryDto = Readonly<{

@@ -89,27 +89,26 @@ const expectedPublicMediaColumns = [
 ];
 
 const expectedPublicStoryVideoColumns = [
+  "created_at",
   "duration_seconds",
-  "height",
   "id",
   "mime_type",
-  "position",
   "secure_url",
+  "sort_order",
   "story_id",
-  "width",
 ];
 
 test("anonymous readers can access only canonical videos from the latest published revision", () => {
   const sql = compact(publicStoryVideosMigration);
   const view = publicStoryVideosMigration.match(
-    /create view public\.public_story_videos[\s\S]+?as\s+select\s+([\s\S]+?)\s+from public\.public_stories/u,
+    /create or replace view public\.public_story_videos[\s\S]+?as\s+select\s+([\s\S]+?)\s+from public\.public_stories/u,
   )?.[1] ?? "";
   const columns = [...view.matchAll(
-    /(?:media\.([a-z_]+)|public_stories\.id as ([a-z_]+)|associated_media\.position::integer as ([a-z_]+))/gu,
-  )].map((match) => match[1] ?? match[2] ?? match[3]).sort();
+    /(?:media\.([a-z_]+)|public_stories\.id as ([a-z_]+))/gu,
+  )].map((match) => match[1] ?? match[2]).sort();
 
   assert.deepEqual(columns, expectedPublicStoryVideoColumns);
-  assert.match(sql, /create view public\.public_story_videos with \(security_barrier = true\)/u);
+  assert.match(sql, /create or replace view public\.public_story_videos with \(security_barrier = true\)/u);
   assert.match(sql, /from public\.public_stories cross join lateral \( select story_revisions\.associated_media_ids from public\.story_revisions where story_revisions\.story_id = public_stories\.id and story_revisions\.review_outcome in \('published', 'direct_published'\) order by story_revisions\.revision_number desc limit 1 \) as latest_revision/u);
   assert.match(sql, /cross join lateral unnest\(latest_revision\.associated_media_ids\) with ordinality as associated_media\(id, position\)/u);
   assert.match(sql, /join public\.media on media\.id = associated_media\.id and media\.story_id = public_stories\.id/u);
@@ -200,7 +199,8 @@ test("every anonymous website story read uses the safe view while staff stays on
   assert.match(staffRepository, /from\("stories"\)/u);
   assert.match(databaseTypes, /public_stories: \{[\s\S]+public_reporter: Json \| null/u);
   assert.match(databaseTypes, /public_media: \{[\s\S]+cloudinary_public_id: string[\s\S]+secure_url: string/u);
-  assert.match(databaseTypes, /public_story_videos: \{[\s\S]+duration_seconds: number \| null[\s\S]+mime_type: string[\s\S]+position: number[\s\S]+story_id: string/u);
+  assert.match(databaseTypes, /public_story_videos: \{[\s\S]+created_at: string[\s\S]+duration_seconds: number \| null[\s\S]+mime_type: string[\s\S]+sort_order: number[\s\S]+story_id: string/u);
+  assert.match(publicRepository, /select\("id, story_id, secure_url, mime_type, duration_seconds, sort_order, created_at"\)[\s\S]+order\("sort_order", \{ ascending: true \}\)/u);
 });
 
 test("rollback verification exercises grants, roles, row visibility, and protected columns", () => {

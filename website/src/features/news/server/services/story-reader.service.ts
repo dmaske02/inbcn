@@ -67,8 +67,6 @@ export type StoryReaderViewModel = Readonly<{
       id: string;
       src: string;
       mimeType: string;
-      width: number | null;
-      height: number | null;
       durationSeconds: number | null;
     }>[];
   }>;
@@ -183,8 +181,6 @@ export const getStoryReaderData = cache(async (locale: string, slug: string): Pr
         id: video.id,
         src: video.secureUrl,
         mimeType: video.mimeType,
-        width: video.width,
-        height: video.height,
         durationSeconds: video.durationSeconds,
       })),
     },

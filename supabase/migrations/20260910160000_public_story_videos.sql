@@ -2,7 +2,7 @@
 -- recently reached publication. Keep this projection separate from
 -- public_media so featured_media_id remains image-only.
 
-create view public.public_story_videos
+create or replace view public.public_story_videos
 with (security_barrier = true)
 as
 select
@@ -10,10 +10,9 @@ select
   public_stories.id as story_id,
   media.secure_url,
   media.mime_type,
-  media.width,
-  media.height,
   media.duration_seconds,
-  associated_media.position::integer as position
+  media.sort_order,
+  media.created_at
 from public.public_stories
 cross join lateral (
   select story_revisions.associated_media_ids

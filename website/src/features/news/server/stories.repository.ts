@@ -329,9 +329,10 @@ export async function getPublicStoryVideosByStoryId(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("public_story_videos")
-    .select("id, story_id, secure_url, mime_type, width, height, duration_seconds, position")
+    .select("id, story_id, secure_url, mime_type, duration_seconds, sort_order, created_at")
     .eq("story_id", storyId)
-    .order("position", { ascending: true });
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
 
   assertRepositoryQuerySucceeded(error, "load public story videos");
   return data.map((video) => ({
@@ -339,10 +340,9 @@ export async function getPublicStoryVideosByStoryId(
     storyId: video.story_id,
     secureUrl: video.secure_url,
     mimeType: video.mime_type,
-    width: video.width,
-    height: video.height,
     durationSeconds: video.duration_seconds,
-    position: video.position,
+    sortOrder: video.sort_order,
+    createdAt: video.created_at,
   }));
 }
 

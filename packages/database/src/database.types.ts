@@ -1711,14 +1711,13 @@ export type Database = {
       }
       public_story_videos: {
         Row: {
+          created_at: string
           duration_seconds: number | null
-          height: number | null
           id: string
           mime_type: string
-          position: number
           secure_url: string
+          sort_order: number
           story_id: string
-          width: number | null
         }
         Relationships: []
       }
