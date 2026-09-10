@@ -16,6 +16,7 @@ function story(id, index, overrides = {}) {
     summary: `${id} summary`,
     featuredMediaId: overrides.featuredMediaId ?? null,
     featuredMedia: overrides.featuredMedia ?? null,
+    previewVideo: overrides.previewVideo ?? null,
     externalImageUrl: overrides.externalImageUrl ?? null,
     isFeatured: overrides.isFeatured ?? false, isBreaking: overrides.isBreaking ?? false,
     isSponsored: false, publishedAt: new Date(Date.UTC(2026, 6, 31, 20 - index)).toISOString(),
@@ -140,6 +141,30 @@ test("maps canonical media supplied by the public projection into hero and edito
     "https://res.cloudinary.com/inbcn/image/upload/f_auto,q_auto/inbcn/reporter/story/story-editor/image-object",
   );
   assert.equal(result.editorPicks[0]?.image.alt, "Submitted editor image");
+});
+
+test("maps a video-only Editor's Pick to a video preview without replacing real images", () => {
+  const previewVideo = {
+    id: "video-id",
+    storyId: "video-story",
+    secureUrl: "https://res.cloudinary.com/inbcn/video/upload/v123/video-story.mp4",
+    mimeType: "video/mp4",
+    durationSeconds: 4.8,
+    sortOrder: 1,
+    createdAt: "2026-08-01T00:00:00.000Z",
+  };
+  const result = composeHomepageData("en", [
+    story("hero", 0, { isFeatured: true }),
+    story("video-story", 1, { previewVideo }),
+    story("image-story", 2, {
+      externalImageUrl: "https://provider.example/image-story.jpg",
+      previewVideo: { ...previewVideo, storyId: "image-story" },
+    }),
+  ], categories, "inbcn");
+
+  assert.equal(result.editorPicks[0]?.videoPreview?.src, previewVideo.secureUrl);
+  assert.match(result.editorPicks[0]?.videoPreview?.poster ?? "", /video-story[.]jpg$/u);
+  assert.equal(result.editorPicks[1]?.videoPreview ?? null, null);
 });
 
 test("selects the newest active pinned alert from the service snapshot", () => {

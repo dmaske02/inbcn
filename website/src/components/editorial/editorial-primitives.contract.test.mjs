@@ -49,7 +49,7 @@ test("editorial primitives expose presentation-only component contracts", async 
 test("ledger rows keep image, metadata, story copy, and actions in one semantic row", async () => {
   const row = await source("ledger-story-row.tsx");
 
-  assert.match(row, /import Image from "next\/image"/u);
+  assert.match(row, /StoryPreviewMedia/u);
   assert.match(row, /className="editorial-ledger-row log-row"/u);
   assert.match(row, /<time dateTime=\{story\.publishedAt\}/u);
   assert.match(row, /story\.category/u);

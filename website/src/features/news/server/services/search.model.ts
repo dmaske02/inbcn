@@ -4,6 +4,7 @@ import {
   formatPublicAuthor,
   PUBLIC_STORY_FALLBACK_IMAGE,
   resolvePublicStoryImage,
+  resolvePublicStoryVideoPreview,
 } from "./public-story.mjs";
 
 const MAX_SEARCH_QUERY_LENGTH = 160;
@@ -125,6 +126,10 @@ export type SearchModelStory = Readonly<{
   content: string;
   externalAuthor: string | null;
   externalImageUrl: string | null;
+  previewVideo: Readonly<{
+    secureUrl: string;
+    mimeType: string;
+  }> | null;
   publishedAt: string;
   featuredMedia: Readonly<{
     publicId: string;
@@ -143,6 +148,7 @@ export type SearchResultCardModel = Readonly<{
   publishedAt: string;
   readTime: number;
   image: Readonly<{ src: string; alt: string; unoptimized: boolean }>;
+  videoPreview: Readonly<{ src: string; mimeType: string; poster: string | null }> | null;
 }>;
 
 export type SearchMetadataModel = Readonly<{
@@ -287,6 +293,11 @@ export function composeSearchPageModel(input: Readonly<{
       input.cloudName,
       story.title,
     ),
+    videoPreview: resolvePublicStoryVideoPreview(
+      story.featuredMedia,
+      story.externalImageUrl,
+      story.previewVideo,
+    ),
   }));
   const pagination = createSearchPagination({
     page: input.page,
@@ -302,7 +313,9 @@ export function composeSearchPageModel(input: Readonly<{
     category: input.category,
     date: input.date,
     page: input.page,
-    imageUrl: results[0]?.image.src ?? PUBLIC_STORY_FALLBACK_IMAGE,
+    imageUrl: results[0]?.videoPreview?.poster
+      ?? results[0]?.image.src
+      ?? PUBLIC_STORY_FALLBACK_IMAGE,
   });
 
   return {

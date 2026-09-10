@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildArticleJsonLd,
+  buildPublicStoryVideoPosterUrl,
   buildPublicStoryUrl,
   calculateReadTime,
   composeArticleSidebar,
@@ -11,6 +12,7 @@ import {
   formatPublicAuthor,
   getHeroImagePresentation,
   resolvePublicStoryImage,
+  resolvePublicStoryVideoPreview,
   selectAdjacentStories,
   selectRelatedStories,
   splitStoryBody,
@@ -67,6 +69,35 @@ test("selects Cloudinary media before an external image and the fallback", () =>
       height: null,
       aspectRatio: null,
     },
+  );
+});
+
+test("uses the first public video as card media only when the story has no image", () => {
+  const video = {
+    secureUrl: "https://res.cloudinary.com/inbcn/video/upload/v123/inbcn/reporter/story/story-id/clip.mp4",
+    mimeType: "video/mp4",
+  };
+
+  assert.deepEqual(resolvePublicStoryVideoPreview(null, null, video), {
+    src: video.secureUrl,
+    mimeType: "video/mp4",
+    poster: "https://res.cloudinary.com/inbcn/video/upload/so_0,f_jpg,q_auto/v123/inbcn/reporter/story/story-id/clip.jpg",
+  });
+  assert.equal(
+    buildPublicStoryVideoPosterUrl("https://video.example/clip.mp4"),
+    null,
+  );
+  assert.equal(
+    resolvePublicStoryVideoPreview(
+      { publicId: "story-image", secureUrl: "https://res.cloudinary.com/inbcn/image/upload/story.jpg" },
+      null,
+      video,
+    ),
+    null,
+  );
+  assert.equal(
+    resolvePublicStoryVideoPreview(null, "https://provider.example/story.jpg", video),
+    null,
   );
 });
 

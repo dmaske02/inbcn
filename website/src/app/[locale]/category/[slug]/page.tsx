@@ -69,6 +69,7 @@ export default async function CategoryPage({
     publishedAt: story.publishedAt,
     author: story.author,
     image: story.image,
+    videoPreview: story.videoPreview,
   }));
 
   return (

@@ -78,6 +78,7 @@ export default async function SearchPage({ params, searchParams }: SearchPagePro
     publishedAt: story.publishedAt,
     author: story.author,
     image: story.image,
+    videoPreview: story.videoPreview,
   }));
 
   return (

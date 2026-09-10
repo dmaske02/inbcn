@@ -70,6 +70,55 @@ export function resolvePublicStoryImage(
   };
 }
 
+export function buildPublicStoryVideoPosterUrl(videoUrl) {
+  if (!videoUrl?.trim()) return null;
+
+  let url;
+  try {
+    url = new URL(videoUrl.trim());
+  } catch {
+    return null;
+  }
+
+  if (url.protocol !== "https:" || url.hostname !== "res.cloudinary.com") {
+    return null;
+  }
+
+  const marker = "/video/upload/";
+  const markerIndex = url.pathname.indexOf(marker);
+  if (markerIndex < 0) return null;
+
+  const publicAssetPath = url.pathname.slice(markerIndex + marker.length);
+  const extensionIndex = publicAssetPath.lastIndexOf(".");
+  const assetWithoutExtension = extensionIndex > publicAssetPath.lastIndexOf("/")
+    ? publicAssetPath.slice(0, extensionIndex)
+    : publicAssetPath;
+
+  url.pathname = `${url.pathname.slice(0, markerIndex)}${marker}so_0,f_jpg,q_auto/${assetWithoutExtension}.jpg`;
+  return url.toString();
+}
+
+export function resolvePublicStoryVideoPreview(
+  featuredMedia,
+  externalImageUrl,
+  video,
+) {
+  if (
+    featuredMedia?.publicId
+    || featuredMedia?.secureUrl
+    || externalImageUrl?.trim()
+    || !video?.secureUrl?.trim()
+  ) {
+    return null;
+  }
+
+  return {
+    src: video.secureUrl.trim(),
+    mimeType: video.mimeType?.trim() || "video/mp4",
+    poster: buildPublicStoryVideoPosterUrl(video.secureUrl),
+  };
+}
+
 function fallbackPublicStoryImage(alt) {
   return {
     src: PUBLIC_STORY_FALLBACK_IMAGE,

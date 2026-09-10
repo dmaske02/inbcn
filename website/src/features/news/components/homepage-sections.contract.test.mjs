@@ -40,7 +40,8 @@ test("homepage hero is a 5:4 split with stable 16:10 image-first media", async (
 
   assert.match(sections, /getHeroImagePresentation\(story\.image\)/u);
   assert.match(sections, /priority=\{priority\}/u);
-  assert.match(sections, /fetchPriority=\{priority \? "high" : "auto"\}/u);
+  assert.match(sections, /<StoryPreviewMedia/u);
+  assert.match(sections, /videoPreview=\{story\.videoPreview\}/u);
   assert.match(sections, /className="editorial-home-hero"/u);
   assert.ok(
     sections.indexOf("editorial-home-hero-media") < sections.indexOf("editorial-home-hero-copy"),

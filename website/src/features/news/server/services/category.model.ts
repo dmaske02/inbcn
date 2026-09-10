@@ -4,6 +4,7 @@ import {
   formatPublicAuthor,
   PUBLIC_STORY_FALLBACK_IMAGE,
   resolvePublicStoryImage,
+  resolvePublicStoryVideoPreview,
 } from "./public-story.mjs";
 
 export type CategoryModelCategory = Readonly<{
@@ -23,6 +24,10 @@ export type CategoryModelStory = Readonly<{
   publishedAt: string;
   isFeatured: boolean;
   externalImageUrl: string | null;
+  previewVideo: Readonly<{
+    secureUrl: string;
+    mimeType: string;
+  }> | null;
   featuredMedia: Readonly<{
     publicId: string;
     secureUrl: string;
@@ -39,6 +44,7 @@ export type CategoryStoryCardModel = Readonly<{
   publishedAt: string;
   readTime: number;
   image: Readonly<{ src: string; alt: string; unoptimized: boolean }>;
+  videoPreview: Readonly<{ src: string; mimeType: string; poster: string | null }> | null;
 }>;
 
 export type CategoryPaginationModel = Readonly<{
@@ -113,6 +119,11 @@ function toCard(
       story.externalImageUrl,
       cloudName,
       story.title,
+    ),
+    videoPreview: resolvePublicStoryVideoPreview(
+      story.featuredMedia,
+      story.externalImageUrl,
+      story.previewVideo,
     ),
   };
 }
@@ -258,7 +269,11 @@ export function composeCategoryPageModel(input: Readonly<{
     slug: input.category.slug,
     page: input.page,
     pageLabel: input.labels.pageLabel ?? "Page",
-    imageUrl: hero?.image.src ?? stories[0]?.image.src ?? PUBLIC_STORY_FALLBACK_IMAGE,
+    imageUrl: hero?.videoPreview?.poster
+      ?? hero?.image.src
+      ?? stories[0]?.videoPreview?.poster
+      ?? stories[0]?.image.src
+      ?? PUBLIC_STORY_FALLBACK_IMAGE,
   });
   const visibleStories = hero ? [hero, ...stories] : stories;
 

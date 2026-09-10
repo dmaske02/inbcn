@@ -25,6 +25,7 @@ import {
   composeStoryMetadata,
   formatPublicAuthor,
   resolvePublicStoryImage,
+  resolvePublicStoryVideoPreview,
   selectAdjacentStories,
   selectRelatedStories,
   splitStoryBody,
@@ -39,6 +40,7 @@ type StoryReaderCard = Readonly<{
   publishedAt: string;
   categoryName: string | null;
   image: Readonly<{ src: string; alt: string; unoptimized: boolean; width: number | null; height: number | null; aspectRatio: number | null }>;
+  videoPreview: Readonly<{ src: string; mimeType: string; poster: string | null }> | null;
 }>;
 
 export type StoryReaderViewModel = Readonly<{
@@ -119,6 +121,11 @@ export const getStoryReaderData = cache(async (locale: string, slug: string): Pr
       item.title,
       item.externalImageWidth,
       item.externalImageHeight,
+    ),
+    videoPreview: resolvePublicStoryVideoPreview(
+      item.featuredMedia,
+      item.externalImageUrl,
+      item.previewVideo,
     ),
   });
   const paragraphs = splitStoryBody(story.content);

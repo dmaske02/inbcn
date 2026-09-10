@@ -36,6 +36,26 @@ export function resolvePublicStoryImage(
   aspectRatio: number | null;
 }>;
 
+export function buildPublicStoryVideoPosterUrl(
+  videoUrl: string | null | undefined,
+): string | null;
+
+export function resolvePublicStoryVideoPreview(
+  featuredMedia: Readonly<{
+    publicId: string;
+    secureUrl: string;
+  }> | null | undefined,
+  externalImageUrl: string | null | undefined,
+  video: Readonly<{
+    secureUrl: string;
+    mimeType: string;
+  }> | null | undefined,
+): Readonly<{
+  src: string;
+  mimeType: string;
+  poster: string | null;
+}> | null;
+
 export function resolveAvailablePublicStoryImage(
   image: Readonly<{
     src: string;

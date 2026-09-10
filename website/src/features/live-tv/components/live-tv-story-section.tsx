@@ -14,6 +14,7 @@ function toLiveTvLedgerStory(story: HomepageStory): LedgerStory {
     category: story.categoryName ?? "News",
     publishedAt: story.publishedAt,
     image: story.image,
+    videoPreview: story.videoPreview,
   };
 }
 

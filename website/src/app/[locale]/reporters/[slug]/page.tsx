@@ -10,6 +10,7 @@ import { env } from "@/config/env";
 import {
   buildPublicStoryUrl,
   resolvePublicStoryImage,
+  resolvePublicStoryVideoPreview,
 } from "@/features/news/server/services/story-reader.model";
 import {
   composePublicReporterMetadata,
@@ -131,6 +132,11 @@ export default async function ReporterPage({ params }: ReporterPageProps) {
                 story.externalImageWidth,
                 story.externalImageHeight,
               );
+              const videoPreview = resolvePublicStoryVideoPreview(
+                story.featuredMedia,
+                story.externalImageUrl,
+                story.previewVideo,
+              );
               return (
                 <StoryCard
                   author={reporter.legalName}
@@ -143,6 +149,7 @@ export default async function ReporterPage({ params }: ReporterPageProps) {
                     width: image.width ?? undefined,
                     height: image.height ?? undefined,
                   }}
+                  videoPreview={videoPreview}
                   key={story.id}
                   locale={locale}
                   publishedAt={story.publishedAt}

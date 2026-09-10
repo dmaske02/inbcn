@@ -7,6 +7,7 @@ import { notFound } from "next/navigation";
 import { getHeroImagePresentation } from "@/features/news/server/services/story-reader.model";
 
 import { AdvertisementPlaceholder } from "@/components/common/advertisement-placeholder";
+import { StoryPreviewMedia } from "@/components/common/story-preview-media";
 import { Badge } from "@/components/ui/badge";
 import { ReadingProgress } from "@/features/news/components/reading-progress";
 import { getStoryReaderData, type StoryReaderViewModel } from "@/features/news/server/services/story-reader.service";
@@ -17,7 +18,14 @@ type StoryPageProps = { params: Promise<{ locale: string; slug: string }> };
 type ReaderCard = StoryReaderViewModel["related"][number];
 
 function SecondaryStoryImage({ story, sizes }: Readonly<{ story: ReaderCard; sizes: string }>) {
-  return <Image src={story.image.src} alt={story.image.alt} fill loading="lazy" fetchPriority="auto" unoptimized={story.image.unoptimized} className="object-cover object-center" sizes={sizes} />;
+  return (
+    <StoryPreviewMedia
+      image={story.image}
+      videoPreview={story.videoPreview}
+      sizes={sizes}
+      className="object-center"
+    />
+  );
 }
 
 function InlineRelatedCard({ story }: Readonly<{ story: ReaderCard }>) {

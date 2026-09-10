@@ -1,11 +1,13 @@
 export const PUBLIC_STORY_FALLBACK_IMAGE = "/images/news/story-fallback.svg";
 
 export {
+  buildPublicStoryVideoPosterUrl,
   buildPublicStoryUrl,
   calculateReadTime,
   formatPublicAuthor,
   getHeroImagePresentation,
   resolvePublicStoryImage,
+  resolvePublicStoryVideoPreview,
 } from "./public-story.mjs";
 
 import { buildPublicStoryUrl } from "./public-story.mjs";

@@ -1,5 +1,9 @@
 import type { CategoryDto, StorySummaryDto } from "../dto";
-import { buildPublicStoryUrl, resolvePublicStoryImage } from "./public-story.mjs";
+import {
+  buildPublicStoryUrl,
+  resolvePublicStoryImage,
+  resolvePublicStoryVideoPreview,
+} from "./public-story.mjs";
 
 export const HOMEPAGE_FALLBACK_IMAGE = "/images/news/story-fallback.svg";
 
@@ -9,6 +13,7 @@ export type HomepageStory = Readonly<{
   categorySlug: string | null; isBreaking: boolean; isFeatured: boolean;
   editorialPlacementExplicit?: boolean;
   image: Readonly<{ src: string; alt: string; unoptimized: boolean; width: number | null; height: number | null; aspectRatio: number | null }>;
+  videoPreview?: Readonly<{ src: string; mimeType: string; poster: string | null }>;
 }>;
 
 export type HomepagePinnedAlert = Readonly<{
@@ -50,6 +55,11 @@ export function composeHomepageData(
     .sort((left, right) => Date.parse(right.publishedAt) - Date.parse(left.publishedAt))
     .map<HomepageStory>((story) => {
       const category = categoriesById.get(story.categoryId) ?? null;
+      const videoPreview = resolvePublicStoryVideoPreview(
+        story.featuredMedia,
+        story.externalImageUrl,
+        story.previewVideo,
+      );
       return {
         id: story.id, slug: story.slug, href: buildPublicStoryUrl(locale, story.slug),
         title: story.title, summary: story.summary, publishedAt: story.publishedAt,
@@ -65,6 +75,7 @@ export function composeHomepageData(
           story.externalImageWidth,
           story.externalImageHeight,
         ),
+        ...(videoPreview ? { videoPreview } : {}),
       };
     });
 

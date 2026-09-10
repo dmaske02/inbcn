@@ -1,11 +1,11 @@
 import { cva, type VariantProps } from "class-variance-authority";
-import Image from "next/image";
 import Link from "next/link";
 import type { HTMLAttributes } from "react";
 
 import { Typography } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
 import { CategoryBadge } from "./category-badge";
+import { StoryPreviewMedia, type StoryVideoPreview } from "./story-preview-media";
 import { StoryMeta } from "./story-meta";
 
 type StoryImage = {
@@ -24,6 +24,7 @@ type StoryCardContent = {
   publishedAt: string | Date;
   displayTime?: string;
   image?: StoryImage;
+  videoPreview?: StoryVideoPreview | null;
   source?: string;
   author?: string;
   readingTimeMinutes?: number;
@@ -89,6 +90,7 @@ function StoryCard({
   publishedAt,
   displayTime,
   image,
+  videoPreview,
   source,
   author,
   readingTimeMinutes,
@@ -96,6 +98,11 @@ function StoryCard({
   priority = false,
   ...props
 }: StoryCardProps) {
+  const previewImage = image ?? {
+    src: "/images/news/story-fallback.svg",
+    alt: title,
+    unoptimized: false,
+  };
   const content = (
     <div className="min-w-0 space-y-3">
       {category && <CategoryBadge>{category}</CategoryBadge>}
@@ -122,7 +129,7 @@ function StoryCard({
     </div>
   );
 
-  const media = image ? (
+  const media = image || videoPreview ? (
     <Link
       href={href}
       tabIndex={-1}
@@ -133,13 +140,11 @@ function StoryCard({
         imageOrder[variant ?? "standard"],
       )}
     >
-      <Image
-        src={image.src}
+      <StoryPreviewMedia
+        image={previewImage}
         alt=""
-        width={image.width ?? 960}
-        height={image.height ?? 540}
+        videoPreview={videoPreview}
         priority={priority}
-        unoptimized={image.unoptimized}
         sizes={
           variant === "hero"
             ? "(min-width: 1024px) 48vw, 100vw"
@@ -149,7 +154,7 @@ function StoryCard({
         }
         className="size-full object-cover transition-opacity duration-200 group-hover:opacity-90 motion-reduce:transition-none"
       />
-      <span className="sr-only">{image.alt}</span>
+      <span className="sr-only">{previewImage.alt}</span>
     </Link>
   ) : null;
 

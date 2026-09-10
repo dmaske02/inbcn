@@ -66,6 +66,7 @@ export type StorySummaryDto = Readonly<{
   externalImageHeight: number | null;
   featuredMediaId: string | null;
   featuredMedia: FeaturedMediaDto | null;
+  previewVideo: StoryVideoDto | null;
   isFeatured: boolean;
   editorialPlacementExplicit?: boolean;
   isBreaking: boolean;

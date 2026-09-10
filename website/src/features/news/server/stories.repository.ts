@@ -88,6 +88,8 @@ type StoryDetailRow = StorySummaryRow &
 
 type CategoryStoryRow = StorySummaryRow & Pick<TableRow<"stories">, "content">;
 
+type StoryVideoRow = Database["public"]["Views"]["public_story_videos"]["Row"];
+
 type CmsStoryRow = Pick<TableRow<"stories">, keyof CmsStoryDto extends never ? never :
   | "id" | "language_id" | "category_id" | "source_id" | "created_by" | "approved_by"
   | "story_type" | "status" | "slug" | "title" | "summary" | "content"
@@ -121,6 +123,7 @@ function toCmsStoryDto(row: CmsStoryRow): CmsStoryDto {
 function toStorySummaryDto(
   row: StorySummaryRow,
   media: FeaturedMediaRow | null = null,
+  previewVideo: StoryVideoRow | null = null,
 ): StorySummaryDto {
   if (!row.published_at) {
     throw new RepositoryError("map published story");
@@ -142,6 +145,7 @@ function toStorySummaryDto(
     externalImageHeight: row.external_image_height,
     featuredMediaId: row.featured_media_id,
     featuredMedia: media ? toFeaturedMediaDto(media) : null,
+    previewVideo: previewVideo ? toStoryVideoDto(previewVideo) : null,
     isFeatured: row.is_featured, editorialPlacementExplicit: row.editorial_placement_explicit,
     isBreaking: row.is_breaking,
     isSponsored: row.is_sponsored,
@@ -152,8 +156,9 @@ function toStorySummaryDto(
 function toCategoryStoryDto(
   row: CategoryStoryRow,
   media: FeaturedMediaRow | null = null,
+  previewVideo: StoryVideoRow | null = null,
 ): CategoryStoryDto {
-  return { ...toStorySummaryDto(row, media), content: row.content };
+  return { ...toStorySummaryDto(row, media, previewVideo), content: row.content };
 }
 
 type FeaturedMediaRow = Pick<
@@ -175,6 +180,18 @@ function toFeaturedMediaDto(media: FeaturedMediaRow) {
     caption: media.caption,
     width: media.width,
     height: media.height,
+  };
+}
+
+function toStoryVideoDto(video: StoryVideoRow): StoryVideoDto {
+  return {
+    id: video.id,
+    storyId: video.story_id,
+    secureUrl: video.secure_url,
+    mimeType: video.mime_type,
+    durationSeconds: video.duration_seconds,
+    sortOrder: video.sort_order,
+    createdAt: video.created_at,
   };
 }
 
@@ -217,25 +234,57 @@ async function getFeaturedMediaMap(
   return new Map(data.map((item) => [item.id, item]));
 }
 
+async function getPreviewVideoMap(
+  rows: readonly StorySummaryRow[],
+): Promise<ReadonlyMap<string, StoryVideoRow>> {
+  const storyIds = [...new Set(rows.map((row) => row.id))];
+  if (storyIds.length === 0) return new Map();
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("public_story_videos")
+    .select("id, story_id, secure_url, mime_type, duration_seconds, sort_order, created_at")
+    .in("story_id", storyIds)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  assertRepositoryQuerySucceeded(error, "load story preview videos");
+  const previewByStoryId = new Map<string, StoryVideoRow>();
+  for (const video of data) {
+    if (!previewByStoryId.has(video.story_id)) {
+      previewByStoryId.set(video.story_id, video);
+    }
+  }
+  return previewByStoryId;
+}
+
 async function attachFeaturedMedia(
   rows: readonly StorySummaryRow[],
 ): Promise<StorySummaryDto[]> {
-  const mediaById = await getFeaturedMediaMap(rows);
+  const [mediaById, previewVideoByStoryId] = await Promise.all([
+    getFeaturedMediaMap(rows),
+    getPreviewVideoMap(rows),
+  ]);
   return rows.map((row) =>
     toStorySummaryDto(
       row,
       row.featured_media_id ? mediaById.get(row.featured_media_id) ?? null : null,
+      previewVideoByStoryId.get(row.id) ?? null,
     ));
 }
 
 async function attachCategoryFeaturedMedia(
   rows: readonly CategoryStoryRow[],
 ): Promise<CategoryStoryDto[]> {
-  const mediaById = await getFeaturedMediaMap(rows);
+  const [mediaById, previewVideoByStoryId] = await Promise.all([
+    getFeaturedMediaMap(rows),
+    getPreviewVideoMap(rows),
+  ]);
   return rows.map((row) =>
     toCategoryStoryDto(
       row,
       row.featured_media_id ? mediaById.get(row.featured_media_id) ?? null : null,
+      previewVideoByStoryId.get(row.id) ?? null,
     ));
 }
 
@@ -335,15 +384,7 @@ export async function getPublicStoryVideosByStoryId(
     .order("created_at", { ascending: true });
 
   assertRepositoryQuerySucceeded(error, "load public story videos");
-  return data.map((video) => ({
-    id: video.id,
-    storyId: video.story_id,
-    secureUrl: video.secure_url,
-    mimeType: video.mime_type,
-    durationSeconds: video.duration_seconds,
-    sortOrder: video.sort_order,
-    createdAt: video.created_at,
-  }));
+  return data.map(toStoryVideoDto);
 }
 
 export async function getStoriesByCategory(

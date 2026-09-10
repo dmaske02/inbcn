@@ -1,6 +1,9 @@
-import Image from "next/image";
 import Link from "next/link";
 
+import {
+  StoryPreviewMedia,
+  type StoryVideoPreview,
+} from "../../../components/common/story-preview-media";
 import {
   EditorialSectionHeader,
   EditorialSponsorRow,
@@ -9,8 +12,12 @@ import {
   StoryActionButtons,
   type LedgerStory,
 } from "@/components/editorial";
-import type { HomepageStory } from "@/features/news/server/services/homepage.service";
+import type { HomepageStory as BaseHomepageStory } from "@/features/news/server/services/homepage.service";
 import { getHeroImagePresentation } from "@/features/news/server/services/story-reader.model";
+
+type HomepageStory = BaseHomepageStory & Readonly<{
+  videoPreview?: StoryVideoPreview | null;
+}>;
 
 export function publishedLabel(locale: string, publishedAt: string) {
   return new Intl.DateTimeFormat(locale, {
@@ -28,6 +35,7 @@ export function toLedgerStory(story: HomepageStory): LedgerStory {
     category: story.categoryName ?? "News",
     publishedAt: story.publishedAt,
     image: story.image,
+    videoPreview: story.videoPreview,
   };
 }
 
@@ -44,16 +52,12 @@ export function HomepageStoryImage({
 
   return (
     <div className={className}>
-      <Image
-        src={story.image.src}
-        alt={story.image.alt}
-        fill
+      <StoryPreviewMedia
+        image={story.image}
+        videoPreview={story.videoPreview}
         priority={priority}
-        loading={priority ? "eager" : "lazy"}
-        fetchPriority={priority ? "high" : "auto"}
-        unoptimized={story.image.unoptimized}
         sizes="(max-width: 820px) 100vw, 56vw"
-        style={presentation ? {
+        imageStyle={presentation ? {
           objectFit: presentation.objectFit,
           objectPosition: presentation.objectPosition,
           maxWidth: presentation.maxWidth,

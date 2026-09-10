@@ -21,6 +21,7 @@ const story = (id, overrides = {}) => ({
   isFeatured: false,
   featuredMedia: null,
   externalImageUrl: null,
+  previewVideo: null,
   ...overrides,
 });
 
@@ -100,6 +101,26 @@ test("uses a provider image for category stories without Cloudinary media", () =
   });
 
   assert.equal(result.hero?.image.src, externalImageUrl);
+});
+
+test("exposes a video preview for a video-only category story", () => {
+  const secureUrl = "https://res.cloudinary.com/inbcn/video/upload/v123/category-story.mp4";
+  const result = composeCategoryPageModel({
+    locale: "en",
+    category: { id: "category", name: "National", slug: "national", description: "National reporting." },
+    hero: story("1", { previewVideo: { secureUrl, mimeType: "video/mp4" } }),
+    stories: [],
+    relatedCategories: [],
+    page: 1,
+    pageSize: 12,
+    total: 0,
+    siteUrl: "https://inbcn.example",
+    labels: { newsDesk: "INBCN News Desk", emptyTitle: "No stories", emptyDescription: "Check again soon." },
+    cloudName: "inbcn",
+  });
+
+  assert.equal(result.hero?.videoPreview?.src, secureUrl);
+  assert.match(result.hero?.videoPreview?.poster ?? "", /category-story[.]jpg$/u);
 });
 
 test("composes a localized empty state when the category has no published stories", () => {

@@ -9,6 +9,13 @@ async function sources() {
   ];
 }
 
+async function previewSource() {
+  return readFile(
+    new URL("../../../components/common/story-preview-media.tsx", import.meta.url),
+    "utf8",
+  );
+}
+
 test("homepage renders only snapshot collections through reusable sections", async () => {
   const [homepage, sections] = await sources();
   assert.doesNotMatch(homepage + sections, /const stories\s*=|const rails\s*=|Monsoon session opens|Cabinet clears|climate-ready neighbourhoods/u);
@@ -20,11 +27,12 @@ test("homepage renders only snapshot collections through reusable sections", asy
   }
 });
 
-test("shared story images preserve priority and resolved hero presentation", async () => {
-  const [, source] = await sources();
+test("shared story media preserves priority and resolved hero presentation", async () => {
+  const [[, source], preview] = await Promise.all([sources(), previewSource()]);
   assert.match(source, /HomepageStoryImage/u);
-  assert.match(source, /loading=\{priority \? "eager" : "lazy"\}/u);
-  assert.match(source, /fetchPriority=\{priority \? "high" : "auto"\}/u);
+  assert.match(source, /<StoryPreviewMedia/u);
+  assert.match(preview, /loading=\{priority \? "eager" : "lazy"\}/u);
+  assert.match(preview, /fetchPriority=\{priority \? "high" : "auto"\}/u);
   assert.match(source, /getHeroImagePresentation\(story\.image\)/u);
   assert.match(source, /maxWidth: presentation\.maxWidth/u);
   assert.match(source, /<h1><Link href=\{story\.href\}>\{story\.title\}<\/Link><\/h1>/u);

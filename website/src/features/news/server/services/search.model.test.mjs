@@ -24,6 +24,8 @@ const story = (id, overrides = {}) => ({
   externalAuthor: null,
   publishedAt: `2026-08-01T0${id}:00:00.000Z`,
   featuredMedia: null,
+  externalImageUrl: null,
+  previewVideo: null,
   ...overrides,
 });
 
@@ -107,6 +109,32 @@ test("composes localized result cards from stable story DTOs", () => {
   assert.equal(result.results[0].href, "/en/story/story-1");
   assert.equal(result.results[0].readTime, 1);
   assert.equal(result.emptyState, null);
+});
+
+test("exposes a video preview for a video-only search result", () => {
+  const secureUrl = "https://res.cloudinary.com/inbcn/video/upload/v123/search-story.mp4";
+  const result = composeSearchPageModel({
+    locale: "en",
+    query: "video",
+    category: null,
+    date: "all",
+    page: 1,
+    pageSize: 12,
+    total: 1,
+    stories: [story("1", { previewVideo: { secureUrl, mimeType: "video/mp4" } })],
+    categories: [{ id: "category-national", name: "National", slug: "national" }],
+    siteUrl: "https://inbcn.example",
+    labels: {
+      newsDesk: "INBCN News Desk",
+      title: "Search results for video",
+      description: "Verified INBCN results for video.",
+      emptyTitle: "No results",
+      emptyDescription: "Try another search.",
+    },
+  });
+
+  assert.equal(result.results[0].videoPreview?.src, secureUrl);
+  assert.match(result.results[0].videoPreview?.poster ?? "", /search-story[.]jpg$/u);
 });
 
 test("provides a useful localized empty state for a completed search", () => {

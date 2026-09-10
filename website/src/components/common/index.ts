@@ -40,6 +40,11 @@ export type {
   StoryCardProps,
   StoryImage,
 } from "./story-card";
+export { StoryPreviewMedia } from "./story-preview-media";
+export type {
+  StoryPreviewImage,
+  StoryVideoPreview,
+} from "./story-preview-media";
 export { StoryMeta, storyMetaVariants } from "./story-meta";
 export { ThemeToggle, themeToggleVariants } from "./theme-toggle";
 export { Timestamp, timestampVariants } from "./timestamp";

@@ -26,13 +26,16 @@ test("article page renders the approved premium server-first structure", async (
 });
 
 test("article media uses explicit loading priorities without changing the image resolver", async () => {
-  const source = await readFile(new URL("../../../app/[locale]/story/[slug]/page.tsx", import.meta.url), "utf8");
+  const [source, preview] = await Promise.all([
+    readFile(new URL("../../../app/[locale]/story/[slug]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../../../components/common/story-preview-media.tsx", import.meta.url), "utf8"),
+  ]);
 
   assert.match(source, /loading="eager"/u);
   assert.match(source, /fetchPriority="high"/u);
   assert.match(source, /getHeroImagePresentation\(view\.story\.image\)/u);
   assert.match(source, /maxWidth: heroImagePresentation\.maxWidth/u);
-  assert.match(source, /loading="lazy"/u);
+  assert.match(preview, /loading=\{priority \? "eager" : "lazy"\}/u);
   assert.doesNotMatch(source, /resolvePublicStoryImage|externalImageUrl/u);
 });
 

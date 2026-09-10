@@ -1,6 +1,6 @@
-import Image from "next/image";
 import Link from "next/link";
 
+import { StoryPreviewMedia, type StoryVideoPreview } from "../common/story-preview-media";
 import { StoryActionButtons } from "./story-action-buttons";
 
 export type LedgerStory = Readonly<{
@@ -16,6 +16,7 @@ export type LedgerStory = Readonly<{
     alt: string;
     unoptimized?: boolean;
   }>;
+  videoPreview?: StoryVideoPreview | null;
 }>;
 
 type LedgerStoryRowProps = Readonly<{
@@ -46,14 +47,11 @@ export function LedgerStoryRow({
         {story.author ? <small>{story.author}</small> : null}
       </div>
       <Link className="editorial-ledger-image" href={story.href} tabIndex={-1} aria-hidden="true">
-        <Image
-          src={story.image.src}
+        <StoryPreviewMedia
+          image={story.image}
           alt=""
-          fill
+          videoPreview={story.videoPreview}
           priority={priority}
-          loading={priority ? "eager" : "lazy"}
-          fetchPriority={priority ? "high" : "auto"}
-          unoptimized={story.image.unoptimized}
           sizes="(max-width: 640px) 34vw, (max-width: 920px) 24vw, 220px"
         />
       </Link>
