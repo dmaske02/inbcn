@@ -36,6 +36,20 @@ test("article media uses explicit loading priorities without changing the image 
   assert.doesNotMatch(source, /resolvePublicStoryImage|externalImageUrl/u);
 });
 
+test("article page renders canonical story videos in a stable accessible player", async () => {
+  const source = await readFile(new URL("../../../app/[locale]/story/[slug]/page.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /view\.story\.videos\.map/u);
+  assert.match(source, /<video/u);
+  assert.match(source, /controls/u);
+  assert.match(source, /playsInline/u);
+  assert.match(source, /preload="metadata"/u);
+  assert.match(source, /<source src=\{video\.src\} type=\{video\.mimeType\}/u);
+  assert.match(source, /aspect-video/u);
+  assert.match(source, /object-contain/u);
+  assert.match(source, /t\("video\.unsupported"\)/u);
+});
+
 test("article page remains plain-text and does not introduce rich content parsing", async () => {
   const source = await readFile(new URL("../../../app/[locale]/story/[slug]/page.tsx", import.meta.url), "utf8");
 

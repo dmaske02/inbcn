@@ -5,7 +5,12 @@ import { getTranslations } from "next-intl/server";
 
 import { env } from "@/config/env";
 import { getCategories } from "../categories.repository";
-import { getStoriesByCategory, getStoriesByLanguage, getStoryBySlug } from "../stories.repository";
+import {
+  getPublicStoryVideosByStoryId,
+  getStoriesByCategory,
+  getStoriesByLanguage,
+  getStoryBySlug,
+} from "../stories.repository";
 import type { StorySummaryDto } from "../dto";
 import {
   composePublicReporterMetadata,
@@ -58,6 +63,14 @@ export type StoryReaderViewModel = Readonly<{
       aspectRatio: number | null;
       caption: string | null;
     }>;
+    videos: readonly Readonly<{
+      id: string;
+      src: string;
+      mimeType: string;
+      width: number | null;
+      height: number | null;
+      durationSeconds: number | null;
+    }>[];
   }>;
   related: readonly StoryReaderCard[];
   inlineRelated: readonly Readonly<{ afterParagraph: number; story: StoryReaderCard }>[];
@@ -77,9 +90,10 @@ export const getStoryReaderData = cache(async (locale: string, slug: string): Pr
   const story = await getStoryBySlug(locale, slug);
   if (!story) return null;
 
-  const [categories, t] = await Promise.all([
+  const [categories, t, storyVideos] = await Promise.all([
     getCategories(locale),
     getTranslations({ locale, namespace: "storyReader" }),
+    getPublicStoryVideosByStoryId(story.id),
   ]);
   const category = categories.find((item) => item.id === story.categoryId);
   if (!category) return null;
@@ -165,6 +179,14 @@ export const getStoryReaderData = cache(async (locale: string, slug: string): Pr
         href: `/${locale}#${category.slug}`,
       },
       image,
+      videos: storyVideos.map((video) => ({
+        id: video.id,
+        src: video.secureUrl,
+        mimeType: video.mimeType,
+        width: video.width,
+        height: video.height,
+        durationSeconds: video.durationSeconds,
+      })),
     },
     related: relatedCards.filter(({ id }) => !inlineIds.has(id)),
     inlineRelated,

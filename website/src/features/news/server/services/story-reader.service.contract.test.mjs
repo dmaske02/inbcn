@@ -13,6 +13,8 @@ test("story reader composes premium collections from its existing repository que
   }
   assert.match(source, /getStoriesByCategory\(locale, category\.slug\)/u);
   assert.match(source, /getStoriesByLanguage\(locale\)/u);
+  assert.match(source, /getPublicStoryVideosByStoryId\(story\.id\)/u);
+  assert.match(source, /videos:/u);
   assert.doesNotMatch(source, /getHomepageData|getPublicBreakingAlerts/u);
   assert.equal(source.match(/from "\.\.\/[^\"]+\.repository"/g)?.length, 2);
 });

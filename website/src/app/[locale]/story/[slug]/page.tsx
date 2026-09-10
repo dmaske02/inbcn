@@ -102,12 +102,33 @@ export default async function StoryPage({ params }: StoryPageProps) {
               </div>
             </header>
 
-            <figure className="mt-7">
-              <div className="relative aspect-[16/10] overflow-hidden border border-[#ded7cb] bg-[#e7e0d4]">
-                <Image src={view.story.image.src} alt={view.story.image.alt} fill priority loading="eager" fetchPriority="high" unoptimized={view.story.image.unoptimized} className="object-cover object-center" style={{ objectFit: heroImagePresentation.objectFit, objectPosition: heroImagePresentation.objectPosition, maxWidth: heroImagePresentation.maxWidth, maxHeight: heroImagePresentation.maxHeight, margin: "auto" }} sizes="(min-width: 1024px) 760px, 100vw" />
+            {view.story.videos.length ? (
+              <div className="mt-7 space-y-4">
+                {view.story.videos.map((video, index) => (
+                  <figure key={video.id}>
+                    <div className="relative aspect-video overflow-hidden border border-[#ded7cb] bg-black">
+                      <video
+                        aria-label={t("video.label", { title: view.story.title, number: index + 1 })}
+                        className="size-full object-contain"
+                        controls
+                        playsInline
+                        preload="metadata"
+                      >
+                        <source src={video.src} type={video.mimeType} />
+                        {t("video.unsupported")}
+                      </video>
+                    </div>
+                  </figure>
+                ))}
               </div>
-              {view.story.image.caption ? <figcaption className="mt-2 border-l-2 border-[#b3261e] pl-3 text-[11.5px] leading-relaxed text-[#6e655c]">{view.story.image.caption}</figcaption> : null}
-            </figure>
+            ) : (
+              <figure className="mt-7">
+                <div className="relative aspect-[16/10] overflow-hidden border border-[#ded7cb] bg-[#e7e0d4]">
+                  <Image src={view.story.image.src} alt={view.story.image.alt} fill priority loading="eager" fetchPriority="high" unoptimized={view.story.image.unoptimized} className="object-cover object-center" style={{ objectFit: heroImagePresentation.objectFit, objectPosition: heroImagePresentation.objectPosition, maxWidth: heroImagePresentation.maxWidth, maxHeight: heroImagePresentation.maxHeight, margin: "auto" }} sizes="(min-width: 1024px) 760px, 100vw" />
+                </div>
+                {view.story.image.caption ? <figcaption className="mt-2 border-l-2 border-[#b3261e] pl-3 text-[11.5px] leading-relaxed text-[#6e655c]">{view.story.image.caption}</figcaption> : null}
+              </figure>
+            )}
 
             <div className="article-plain-body mt-10 max-w-[66ch] font-heading text-[18px] leading-[1.78] text-[#221e1b] sm:text-[18.5px]">
               {view.story.paragraphs.map((paragraph, index) => {

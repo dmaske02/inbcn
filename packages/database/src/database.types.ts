@@ -1709,6 +1709,19 @@ export type Database = {
         }
         Relationships: []
       }
+      public_story_videos: {
+        Row: {
+          duration_seconds: number | null
+          height: number | null
+          id: string
+          mime_type: string
+          position: number
+          secure_url: string
+          story_id: string
+          width: number | null
+        }
+        Relationships: []
+      }
       public_stories: {
         Row: {
           canonical_url: string | null

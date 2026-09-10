@@ -12,6 +12,7 @@ import type {
   PublishedStorySearchPageDto,
   StoryDto,
   StorySummaryDto,
+  StoryVideoDto,
 } from "./dto";
 import { resolveStoryReporter } from "@/features/reporters/public-reporter.model";
 import {
@@ -320,6 +321,29 @@ export async function getStoryBySlug(
     media = mediaResult.data;
   }
   return toStoryDto(data, media);
+}
+
+export async function getPublicStoryVideosByStoryId(
+  storyId: string,
+): Promise<StoryVideoDto[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("public_story_videos")
+    .select("id, story_id, secure_url, mime_type, width, height, duration_seconds, position")
+    .eq("story_id", storyId)
+    .order("position", { ascending: true });
+
+  assertRepositoryQuerySucceeded(error, "load public story videos");
+  return data.map((video) => ({
+    id: video.id,
+    storyId: video.story_id,
+    secureUrl: video.secure_url,
+    mimeType: video.mime_type,
+    width: video.width,
+    height: video.height,
+    durationSeconds: video.duration_seconds,
+    position: video.position,
+  }));
 }
 
 export async function getStoriesByCategory(

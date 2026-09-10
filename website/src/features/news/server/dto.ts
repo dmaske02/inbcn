@@ -40,6 +40,17 @@ export type FeaturedMediaDto = Readonly<{
   height: number | null;
 }>;
 
+export type StoryVideoDto = Readonly<{
+  id: string;
+  storyId: string;
+  secureUrl: string;
+  mimeType: string;
+  width: number | null;
+  height: number | null;
+  durationSeconds: number | null;
+  position: number;
+}>;
+
 export type StorySummaryDto = Readonly<{
   id: string;
   translationGroupId: string;

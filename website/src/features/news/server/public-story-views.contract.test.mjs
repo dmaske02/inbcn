@@ -23,6 +23,7 @@ test("anonymous website reads use the hardened public Story and media views", ()
 
   assert.match(publicRepository, /from\("public_stories"\)/u);
   assert.match(publicRepository, /from\("public_media"\)/u);
+  assert.match(publicRepository, /from\("public_story_videos"\)/u);
   assert.doesNotMatch(publicRepository, /from\("stories"\)|from\("media"\)/u);
   assert.match(searchQuery, /from\("public_stories"\)/u);
   assert.doesNotMatch(searchQuery, /from\("stories"\)/u);

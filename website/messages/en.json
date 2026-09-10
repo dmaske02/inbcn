@@ -127,7 +127,8 @@
     "meta": { "published": "Published", "updated": "Updated", "readTime": "{minutes} min read" },
     "sections": { "tags": "Topics", "share": "Share this story", "related": "Related Stories", "author": "About the author", "previous": "Previous Story", "next": "Next Story", "trending": "Trending", "latest": "Latest", "editorPicks": "Editor's Picks", "breaking": "Breaking", "newsletter": "Newsletter" },
     "share": { "copy": "Copy Link", "copied": "Copied", "x": "X", "facebook": "Facebook", "linkedin": "LinkedIn", "telegram": "Telegram", "email": "Email" },
-    "advertisement": "Advertisement"
+    "advertisement": "Advertisement",
+    "video": { "label": "Video {number}: {title}", "unsupported": "Your browser does not support video playback." }
   },
   "categoryPage": {
     "breadcrumb": { "home": "Home" },

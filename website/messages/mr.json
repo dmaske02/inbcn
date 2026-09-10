@@ -127,7 +127,8 @@
     "meta": { "published": "प्रकाशित", "updated": "अद्ययावत", "readTime": "{minutes} मिनिटांचे वाचन" },
     "sections": { "tags": "विषय", "share": "ही बातमी शेअर करा", "related": "संबंधित बातम्या", "author": "लेखकाविषयी", "previous": "मागील बातमी", "next": "पुढील बातमी", "trending": "ट्रेंडिंग", "latest": "नवीनतम", "editorPicks": "संपादकांची निवड", "breaking": "ब्रेकिंग", "newsletter": "वृत्तपत्र" },
     "share": { "copy": "लिंक कॉपी करा", "copied": "कॉपी झाले", "x": "X", "facebook": "Facebook", "linkedin": "LinkedIn", "telegram": "Telegram", "email": "ईमेल" },
-    "advertisement": "जाहिरात"
+    "advertisement": "जाहिरात",
+    "video": { "label": "व्हिडिओ {number}: {title}", "unsupported": "तुमचा ब्राउझर व्हिडिओ प्लेबॅकला समर्थन देत नाही." }
   },
   "categoryPage": {
     "breadcrumb": { "home": "मुख्यपृष्ठ" },
