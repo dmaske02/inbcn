@@ -126,7 +126,7 @@ export const reporterStoryReviewSchema = z.object({
     live_broadcast_raw: z.boolean(),
     direct_publish_effective: z.boolean(),
     live_broadcast_effective: z.boolean(),
-  }).strict(),
+  }).strict().nullable(),
   submitted_media: z.array(z.object({
     id: z.uuid(),
     type: z.string(),
