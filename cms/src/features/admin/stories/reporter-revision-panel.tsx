@@ -188,6 +188,7 @@ export function ReporterRevisionPanel({
         </CardContent>
       </Card>
 
+      {reporter ? (
       <Card padding="none">
         <CardHeader><h2 className="text-lg font-semibold">Verified reporter</h2></CardHeader>
         <CardContent className="grid gap-5 lg:grid-cols-[10rem_minmax(0,1fr)]">
@@ -195,6 +196,15 @@ export function ReporterRevisionPanel({
           <div className="space-y-3"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{reporter.legal_name}</h3><Badge variant={reporter.is_active && !reporter.is_suspended ? "verified" : "outline"}>{reporter.public_status}</Badge></div><p className="text-sm text-muted-foreground">/{reporter.public_slug} · {reporter.home_city}, {reporter.home_district}, {reporter.home_state}</p>{reporter.bio ? <p className="text-sm">{reporter.bio}</p> : null}<p className="text-sm">Beats: {reporter.beats.join(", ") || "None supplied"}</p><p className="text-sm">Membership expires {format(reporter.membership_expires_at)}; grace ends {format(reporter.membership_grace_ends_at)}.</p><p className="text-sm">Direct publication: raw {reporter.direct_publish_raw ? "enabled" : "disabled"}, effective {reporter.direct_publish_effective ? "yes" : "no"}. Live: raw {reporter.live_broadcast_raw ? "enabled" : "disabled"}, effective {reporter.live_broadcast_effective ? "yes" : "no"}.</p></div>
         </CardContent>
       </Card>
+      ) : (
+        <Card padding="none">
+          <CardHeader><h2 className="text-lg font-semibold">Community contributor</h2></CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p>This submission is from a mobile contributor without a verified reporter profile. Review the report and evidence before publishing.</p>
+            <p className="text-muted-foreground">Contributor ID: {story.createdBy}. Published stories are attributed to INBCN.</p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card padding="none" className="border-signal/50">
         <CardHeader><h2 className="text-lg font-semibold">Private newsroom evidence</h2><p className="text-sm text-muted-foreground">Exact coordinates must never be copied into public story fields, URLs, logs, or audit metadata.</p></CardHeader>
