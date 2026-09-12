@@ -130,10 +130,7 @@ function StoryCard({
   );
 
   const media = image || videoPreview ? (
-    <Link
-      href={href}
-      tabIndex={-1}
-      aria-hidden="true"
+    <div
       className={cn(
         "relative block overflow-hidden border border-[#ded7cb] bg-[#e7e0d4]",
         variant === "standard" || variant === "featured" ? "aspect-[3/2]" : "aspect-video",
@@ -143,6 +140,8 @@ function StoryCard({
       <StoryPreviewMedia
         image={previewImage}
         alt=""
+        href={href}
+        title={title}
         videoPreview={videoPreview}
         priority={priority}
         sizes={
@@ -155,7 +154,7 @@ function StoryCard({
         className="size-full object-cover transition-opacity duration-200 group-hover:opacity-90 motion-reduce:transition-none"
       />
       <span className="sr-only">{previewImage.alt}</span>
-    </Link>
+    </div>
   ) : null;
 
   return (

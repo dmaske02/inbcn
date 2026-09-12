@@ -21,6 +21,8 @@ function SecondaryStoryImage({ story, sizes }: Readonly<{ story: ReaderCard; siz
   return (
     <StoryPreviewMedia
       image={story.image}
+      interactive={false}
+      title={story.title}
       videoPreview={story.videoPreview}
       sizes={sizes}
       className="object-center"

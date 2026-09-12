@@ -46,15 +46,17 @@ export function LedgerStoryRow({
         <time dateTime={story.publishedAt}>{formatPublishedAt(locale, story.publishedAt)}</time>
         {story.author ? <small>{story.author}</small> : null}
       </div>
-      <Link className="editorial-ledger-image" href={story.href} tabIndex={-1} aria-hidden="true">
+      <div className="editorial-ledger-image">
         <StoryPreviewMedia
           image={story.image}
           alt=""
+          href={story.href}
+          title={story.title}
           videoPreview={story.videoPreview}
           priority={priority}
           sizes="(max-width: 640px) 34vw, (max-width: 920px) 24vw, 220px"
         />
-      </Link>
+      </div>
       <div className="editorial-ledger-copy">
         <h3><Link href={story.href}>{story.title}</Link></h3>
         <p>{story.summary}</p>

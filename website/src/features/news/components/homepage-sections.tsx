@@ -54,6 +54,7 @@ export function HomepageStoryImage({
     <div className={className}>
       <StoryPreviewMedia
         image={story.image}
+        title={story.title}
         videoPreview={story.videoPreview}
         priority={priority}
         sizes="(max-width: 820px) 100vw, 56vw"

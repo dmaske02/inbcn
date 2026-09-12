@@ -912,7 +912,8 @@
   background: var(--editorial-fg-soft);
 }
 
-.editorial-ledger-image img {
+.editorial-ledger-image img,
+.editorial-ledger-image video {
   object-fit: cover;
 }
 
@@ -1628,7 +1629,9 @@
 }
 
 .editorial-home-hero-media img,
-.editorial-home-editors-media img {
+.editorial-home-hero-media video,
+.editorial-home-editors-media img,
+.editorial-home-editors-media video {
   display: block;
   width: 100%;
   height: 100%;

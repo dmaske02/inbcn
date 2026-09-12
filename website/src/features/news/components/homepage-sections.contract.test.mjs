@@ -65,8 +65,8 @@ test("homepage hero is a 5:4 split with stable 16:10 image-first media", async (
   );
   assert.match(
     css,
-    /\.editorial-home-hero-media img,\s*\.editorial-home-editors-media img\s*\{[^}]*width:\s*100%[^}]*height:\s*100%/su,
-    "lead images must fill their reserved 16:10 frame",
+    /\.editorial-home-hero-media img,\s*\.editorial-home-hero-media video,\s*\.editorial-home-editors-media img,\s*\.editorial-home-editors-media video\s*\{[^}]*width:\s*100%[^}]*height:\s*100%/su,
+    "lead images and videos must fill their reserved frame",
   );
   assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.editorial-home-hero\s*\{[^}]*grid-template-columns:\s*1fr/su);
 });

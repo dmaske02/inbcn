@@ -10,15 +10,22 @@ const [preview, card, ledger, homepage] = await Promise.all([
 ]);
 
 test("shared card media renders video previews without the image placeholder", () => {
+  assert.match(preview, /^"use client";/u);
   assert.match(preview, /export function StoryPreviewMedia/u);
-  assert.match(preview, /videoPreview\s*\?/u);
+  assert.match(preview, /useState/u);
   assert.match(preview, /<video/u);
   assert.match(preview, /preload="metadata"/u);
   assert.match(preview, /muted/u);
   assert.match(preview, /playsInline/u);
-  assert.match(preview, /poster=\{videoPreview\.poster/u);
+  assert.match(preview, /<button/u);
+  assert.match(preview, /aria-label=\{`Play video:/u);
+  assert.match(preview, /<Play/u);
+  assert.match(preview, /controls/u);
+  assert.match(preview, /autoPlay/u);
   assert.match(preview, /object-cover/u);
   assert.match(card, /<StoryPreviewMedia/u);
+  assert.match(card, /href=\{href\}/u);
   assert.match(ledger, /<StoryPreviewMedia/u);
+  assert.match(ledger, /href=\{story\.href\}/u);
   assert.match(homepage, /<StoryPreviewMedia/u);
 });
