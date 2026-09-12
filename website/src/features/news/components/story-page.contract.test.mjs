@@ -40,17 +40,37 @@ test("article media uses explicit loading priorities without changing the image 
 });
 
 test("article page renders canonical story videos in a stable accessible player", async () => {
-  const source = await readFile(new URL("../../../app/[locale]/story/[slug]/page.tsx", import.meta.url), "utf8");
+  const [source, player] = await Promise.all([
+    readFile(new URL("../../../app/[locale]/story/[slug]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("./story-video-player.tsx", import.meta.url), "utf8"),
+  ]);
 
   assert.match(source, /view\.story\.videos\.map/u);
-  assert.match(source, /<video/u);
-  assert.match(source, /controls/u);
-  assert.match(source, /playsInline/u);
-  assert.match(source, /preload="metadata"/u);
-  assert.match(source, /<source src=\{video\.src\} type=\{video\.mimeType\}/u);
+  assert.match(source, /<StoryVideoPlayer/u);
+  assert.match(player, /<video/u);
+  assert.match(player, /controls/u);
+  assert.match(player, /playsInline/u);
+  assert.match(player, /preload="metadata"/u);
+  assert.match(player, /<source src=\{src\} type=\{mimeType\}/u);
   assert.match(source, /aspect-video/u);
-  assert.match(source, /object-contain/u);
-  assert.match(source, /t\("video\.unsupported"\)/u);
+  assert.match(player, /object-contain/u);
+  assert.match(source, /unsupportedLabel=\{t\("video\.unsupported"\)\}/u);
+});
+
+test("article video autoplay requests target and start the first player", async () => {
+  const [source, player] = await Promise.all([
+    readFile(new URL("../../../app/[locale]/story/[slug]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("./story-video-player.tsx", import.meta.url), "utf8").catch(() => ""),
+  ]);
+
+  assert.match(source, /searchParams: Promise/u);
+  assert.match(source, /isStoryVideoAutoplayRequested/u);
+  assert.match(source, /id=\{index === 0 \? "story-video" : undefined\}/u);
+  assert.match(source, /<StoryVideoPlayer/u);
+  assert.match(source, /autoPlay=\{autoPlayVideo && index === 0\}/u);
+  assert.match(player, /^"use client";/u);
+  assert.match(player, /useEffect/u);
+  assert.match(player, /startMutedStoryVideoPlayback/u);
 });
 
 test("article page remains plain-text and does not introduce rich content parsing", async () => {

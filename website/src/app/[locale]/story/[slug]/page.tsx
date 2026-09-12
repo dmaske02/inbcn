@@ -8,13 +8,18 @@ import { getHeroImagePresentation } from "@/features/news/server/services/story-
 
 import { AdvertisementPlaceholder } from "@/components/common/advertisement-placeholder";
 import { StoryPreviewMedia } from "@/components/common/story-preview-media";
+import { isStoryVideoAutoplayRequested } from "@/components/common/story-preview-media.model";
 import { Badge } from "@/components/ui/badge";
 import { ReadingProgress } from "@/features/news/components/reading-progress";
+import { StoryVideoPlayer } from "@/features/news/components/story-video-player";
 import { getStoryReaderData, type StoryReaderViewModel } from "@/features/news/server/services/story-reader.service";
 import { ReporterBylineCard } from "@/features/reporters/reporter-byline-card";
 import { buildPublicReporterUrl } from "@/features/reporters/public-reporter.model";
 
-type StoryPageProps = { params: Promise<{ locale: string; slug: string }> };
+type StoryPageProps = {
+  params: Promise<{ locale: string; slug: string }>;
+  searchParams: Promise<{ autoplay?: string | string[] }>;
+};
 type ReaderCard = StoryReaderViewModel["related"][number];
 
 function SecondaryStoryImage({ story, sizes }: Readonly<{ story: ReaderCard; sizes: string }>) {
@@ -68,8 +73,8 @@ export async function generateMetadata({ params }: StoryPageProps): Promise<Meta
   };
 }
 
-export default async function StoryPage({ params }: StoryPageProps) {
-  const { locale, slug } = await params;
+export default async function StoryPage({ params, searchParams }: StoryPageProps) {
+  const [{ locale, slug }, { autoplay }] = await Promise.all([params, searchParams]);
   const view = await getStoryReaderData(locale, slug);
   if (!view) notFound();
   const [t, reporterT] = await Promise.all([
@@ -80,6 +85,7 @@ export default async function StoryPage({ params }: StoryPageProps) {
   const jsonLd = JSON.stringify(view.jsonLd).replace(/</gu, "\\u003c");
   const inlineByParagraph = new Map(view.inlineRelated.map((placement) => [placement.afterParagraph, placement.story]));
   const showUpdated = view.story.updatedAt !== view.story.publishedAt;
+  const autoPlayVideo = isStoryVideoAutoplayRequested(autoplay);
   const heroImagePresentation = getHeroImagePresentation(view.story.image);
   const reporterHref = view.story.reporter
     ? buildPublicReporterUrl(locale, view.story.reporter.slug)
@@ -116,17 +122,17 @@ export default async function StoryPage({ params }: StoryPageProps) {
               <div className="mt-7 space-y-4">
                 {view.story.videos.map((video, index) => (
                   <figure key={video.id}>
-                    <div className="relative aspect-video overflow-hidden border border-[#ded7cb] bg-black">
-                      <video
-                        aria-label={t("video.label", { title: view.story.title, number: index + 1 })}
-                        className="size-full object-contain"
-                        controls
-                        playsInline
-                        preload="metadata"
-                      >
-                        <source src={video.src} type={video.mimeType} />
-                        {t("video.unsupported")}
-                      </video>
+                    <div
+                      className="relative aspect-video scroll-mt-32 overflow-hidden border border-[#ded7cb] bg-black"
+                      id={index === 0 ? "story-video" : undefined}
+                    >
+                      <StoryVideoPlayer
+                        autoPlay={autoPlayVideo && index === 0}
+                        label={t("video.label", { title: view.story.title, number: index + 1 })}
+                        mimeType={video.mimeType}
+                        src={video.src}
+                        unsupportedLabel={t("video.unsupported")}
+                      />
                     </div>
                   </figure>
                 ))}

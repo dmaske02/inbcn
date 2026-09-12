@@ -3,11 +3,11 @@
 import { Play } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useState, type CSSProperties } from "react";
+import type { CSSProperties } from "react";
 
 import { cn } from "@/lib/utils";
 import {
-  activateStoryVideoPreview,
+  buildStoryVideoPlaybackHref,
   resolveStoryPreviewSource,
   withVideoPreviewTime,
   type StoryPreviewImage,
@@ -39,23 +39,22 @@ export function StoryPreviewMedia({
   priority = false,
   sizes,
 }: StoryPreviewMediaProps) {
-  const [isPlaying, setIsPlaying] = useState(false);
   const source = resolveStoryPreviewSource(image, videoPreview);
 
   if (source.kind === "image") {
     const responsiveImage = (
-    <Image
-      src={source.image.src}
-      alt={alt}
-      className={cn("object-cover", className)}
-      fill
-      priority={priority}
-      loading={priority ? "eager" : "lazy"}
-      fetchPriority={priority ? "high" : "auto"}
-      unoptimized={source.image.unoptimized}
-      sizes={sizes}
-      style={imageStyle}
-    />
+      <Image
+        src={source.image.src}
+        alt={alt}
+        className={cn("object-cover", className)}
+        fill
+        priority={priority}
+        loading={priority ? "eager" : "lazy"}
+        fetchPriority={priority ? "high" : "auto"}
+        unoptimized={source.image.unoptimized}
+        sizes={sizes}
+        style={imageStyle}
+      />
     );
     return href ? (
       <Link
@@ -67,22 +66,6 @@ export function StoryPreviewMedia({
         {responsiveImage}
       </Link>
     ) : responsiveImage;
-  }
-
-  if (isPlaying) {
-    return (
-      <video
-        aria-label={`Video: ${title}`}
-        autoPlay
-        className={cn("block size-full object-cover", className)}
-        controls
-        playsInline
-        poster={source.poster ?? undefined}
-      >
-        <source src={source.src} type={source.mimeType} />
-        Your browser does not support video playback.
-      </video>
-    );
   }
 
   const preview = (
@@ -98,14 +81,13 @@ export function StoryPreviewMedia({
     />
   );
 
-  if (!interactive) return preview;
+  if (!interactive || !href) return preview;
 
   return (
-    <button
-      aria-label={`Play video: ${title}`}
+    <Link
+      aria-label={`Play video in full story: ${title}`}
       className="group/media relative block size-full cursor-pointer overflow-hidden text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white"
-      onClick={(event) => activateStoryVideoPreview(event, () => setIsPlaying(true))}
-      type="button"
+      href={buildStoryVideoPlaybackHref(href)}
     >
       {preview}
       <span className="absolute inset-0 grid place-items-center bg-black/10 transition-colors group-hover/media:bg-black/20">
@@ -113,7 +95,7 @@ export function StoryPreviewMedia({
           <Play aria-hidden="true" className="ml-1 size-7 fill-current sm:size-8" />
         </span>
       </span>
-    </button>
+    </Link>
   );
 }
 

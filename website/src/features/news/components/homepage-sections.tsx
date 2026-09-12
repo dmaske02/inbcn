@@ -54,6 +54,7 @@ export function HomepageStoryImage({
     <div className={className}>
       <StoryPreviewMedia
         image={story.image}
+        href={story.href}
         title={story.title}
         videoPreview={story.videoPreview}
         priority={priority}

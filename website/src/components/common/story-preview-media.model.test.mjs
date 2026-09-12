@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  activateStoryVideoPreview,
+  buildStoryVideoPlaybackHref,
+  isStoryVideoAutoplayRequested,
   resolveStoryPreviewSource,
+  startMutedStoryVideoPlayback,
   withVideoPreviewTime,
 } from "./story-preview-media.model.ts";
 
@@ -66,12 +68,46 @@ test("adds a first-frame fragment without dropping an existing query string", ()
   );
 });
 
-test("play activation cancels card navigation and changes playback state", () => {
-  const calls = [];
-  activateStoryVideoPreview({
-    preventDefault: () => calls.push("preventDefault"),
-    stopPropagation: () => calls.push("stopPropagation"),
-  }, () => calls.push("activate"));
+test("builds a full-story video destination without dropping existing query parameters", () => {
+  assert.equal(
+    buildStoryVideoPlaybackHref("/en/story/example"),
+    "/en/story/example?autoplay=video#story-video",
+  );
+  assert.equal(
+    buildStoryVideoPlaybackHref("/en/story/example?edition=morning#comments"),
+    "/en/story/example?edition=morning&autoplay=video#story-video",
+  );
+});
 
-  assert.deepEqual(calls, ["preventDefault", "stopPropagation", "activate"]);
+test("recognizes only the article video autoplay request", () => {
+  assert.equal(isStoryVideoAutoplayRequested("video"), true);
+  assert.equal(isStoryVideoAutoplayRequested(["other", "video"]), true);
+  assert.equal(isStoryVideoAutoplayRequested("other"), false);
+  assert.equal(isStoryVideoAutoplayRequested(undefined), false);
+});
+
+test("mutes the article player before requesting playback after hydration", async () => {
+  const calls = [];
+  const player = {
+    muted: false,
+    play: async () => {
+      calls.push(player.muted ? "play-muted" : "play-audible");
+    },
+  };
+
+  assert.equal(await startMutedStoryVideoPlayback(player), true);
+  assert.equal(player.muted, true);
+  assert.deepEqual(calls, ["play-muted"]);
+});
+
+test("keeps browser autoplay rejection non-fatal", async () => {
+  const player = {
+    muted: false,
+    play: async () => {
+      throw new Error("Autoplay was blocked");
+    },
+  };
+
+  assert.equal(await startMutedStoryVideoPlayback(player), false);
+  assert.equal(player.muted, true);
 });

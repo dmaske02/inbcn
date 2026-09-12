@@ -74,14 +74,32 @@ export function withVideoPreviewTime(source: string): string {
   return `${source.split("#", 1)[0]}#t=0.001`;
 }
 
-export function activateStoryVideoPreview(
-  event: Readonly<{
-    preventDefault: () => void;
-    stopPropagation: () => void;
-  }>,
-  activate: () => void,
-) {
-  event.preventDefault();
-  event.stopPropagation();
-  activate();
+export function buildStoryVideoPlaybackHref(href: string): string {
+  const hashIndex = href.indexOf("#");
+  const hrefWithoutHash = hashIndex === -1 ? href : href.slice(0, hashIndex);
+  const queryIndex = hrefWithoutHash.indexOf("?");
+  const pathname = queryIndex === -1 ? hrefWithoutHash : hrefWithoutHash.slice(0, queryIndex);
+  const query = queryIndex === -1 ? "" : hrefWithoutHash.slice(queryIndex + 1);
+  const searchParams = new URLSearchParams(query);
+
+  searchParams.set("autoplay", "video");
+  return `${pathname}?${searchParams.toString()}#story-video`;
+}
+
+export function isStoryVideoAutoplayRequested(
+  value: string | readonly string[] | undefined,
+): boolean {
+  return Array.isArray(value) ? value.includes("video") : value === "video";
+}
+
+export async function startMutedStoryVideoPlayback(
+  player: Pick<HTMLVideoElement, "muted" | "play">,
+): Promise<boolean> {
+  player.muted = true;
+  try {
+    await player.play();
+    return true;
+  } catch {
+    return false;
+  }
 }
