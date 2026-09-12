@@ -83,7 +83,7 @@ export function buildStoryVideoPlaybackHref(href: string): string {
   const searchParams = new URLSearchParams(query);
 
   searchParams.set("autoplay", "video");
-  return `${pathname}?${searchParams.toString()}#story-video`;
+  return `${pathname}?${searchParams.toString()}`;
 }
 
 export function isStoryVideoAutoplayRequested(

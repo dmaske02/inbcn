@@ -68,14 +68,14 @@ test("adds a first-frame fragment without dropping an existing query string", ()
   );
 });
 
-test("builds a full-story video destination without dropping existing query parameters", () => {
+test("builds a full-story video destination at the article top without dropping query parameters", () => {
   assert.equal(
     buildStoryVideoPlaybackHref("/en/story/example"),
-    "/en/story/example?autoplay=video#story-video",
+    "/en/story/example?autoplay=video",
   );
   assert.equal(
     buildStoryVideoPlaybackHref("/en/story/example?edition=morning#comments"),
-    "/en/story/example?edition=morning&autoplay=video#story-video",
+    "/en/story/example?edition=morning&autoplay=video",
   );
 });
 
